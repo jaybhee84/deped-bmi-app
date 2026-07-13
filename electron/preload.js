@@ -71,6 +71,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Unified secure channel to send data for both portrait and landscape previews
   generatePrintPreview: (payload) => ipcRenderer.send("generate-pdf-preview", payload),
 
+  getAppVersion: () =>
+  ipcRenderer.invoke("app:getVersion"),
+
   // Forces the OS window to properly re-acquire keyboard focus.
   // Works around a known Windows/Electron bug where the window appears
   // active but Chromium keeps routing keyboard input to a stale window

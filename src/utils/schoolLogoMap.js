@@ -1,0 +1,69 @@
+export const SCHOOL_LOGO_MAP = {
+  "Isabela East Central Elementary School": "ieces.png",
+  "Isabela Bliss Elementary School": "ibes.png",
+  "Bishop Querexeta Elementary School": "bqes.png",
+  "Kaumpurnah Elementary School": "kes.png",
+  "Simeon & Josefa Obsequio Elementary School": "sjoes.png",
+  "Begang Central Elementary School": "bces.png",
+  "Busay Elementary School": "bes.png",
+  "Tabiawan Elementary School": "tes.png",
+  "Latuan Elementary School": "lates.png",
+  "Panunsulan Elementary School": "pes.png",
+  "Kawa-Kawa Elementary School": "kkes.png",
+  "Look-Jambangan Elementary School": "ljes.png",
+  "Kauman Ekka Elementary School": "kees.png",
+  "Palasanan Primary School": "pps.png",
+  "Spillway Elementary School": "ses.png",
+  "Kapatagan Diutay Elementary School": "kdes.png",
+  "Hadji Camlani Elementary School": "hces.png",
+  "Calvario Peak Elementary School": "cpes.png",
+  "Calvario Elementary School": "ces.png",
+  "Masola Elementary School": "maes.png",
+  "Lanote Elementary School": "les.png",
+  "Lunot Elementary School": "lunes.png",
+  "Cabunbata Elementary School": "cabes.png",
+  "Isabela Central Pilot Elementary School": "iceps.png",
+  "Isabela Central Pilot Elementary School - Night": "icepsnight.png",
+  "Westside Elementary School": "wes.png",
+  "Ustadz Wahab Akbar Elementary School": "uwaes.png",
+  "Sunset Elementary School": "sues.png",
+    "Ajibon Elementary School": "ajes.png",
+  "Old Camp Elementary School": "oces.png",
+  "Sumagdang Elementary School": "sumes.png",
+  "Kumalarang Elementary School": "kumes.png",
+    "Menzi Elementary School": "mees.png",
+  "Maligue Elementary School": "males.png",
+  "Balatanay Elementary School": "bales.png",
+  "Balawatin Elementary School": "bawes.png",
+//"Makiri Elementary School": "makes.png",
+  "NR Hugo Elementary School": "nhes.png",
+  "Campo Barn Elementary School": "cbes.png",
+  "Hadji Maulana Primary School": "hmps.png",
+  "Caro Elementary School": "cares.png",
+  "Malamawi Central Elementary School": "mces.png",
+  "Tampalan Elementary School": "tampes.png",
+  "Diki Elementary School": "dikes.png",
+  "Marang Marang Elementary School": "mmes.png",
+  "Lukbuton Elementary School": "lukes.png",
+  "Hadji Amilhamja Lahaba Memorial Elementary School": "halmes.png",
+  "MS Bernardo Elementary School": "msbes.png",
+  "Lampinigan Elementary School": "lampes.png",
+  "Ismael Integrated School": "iis.png",
+  "Panigayan Integrated School": "pis.png",
+  "Badjao Floating Integrated School": "bfis.png",
+  "Geras Integrated School": "gis.png",
+};
+
+export function getSchoolLogoUrl(schoolName) {
+  const file = SCHOOL_LOGO_MAP[schoolName];
+
+  if (!file) return null;
+
+  return `https://usbqwedfhmceasrepjnb.supabase.co/storage/v1/object/public/school-logos/${file}`;
+}
+
+console.log(
+  getSchoolLogoUrl(
+    "Isabela East Central Elementary School"
+  )
+);

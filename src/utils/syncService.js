@@ -347,6 +347,21 @@ function clearDeleteQueue() {
   saveDeleteQueue([]);
 }
 
+export async function fetchSchoolLogo(schoolId) {
+  const { data, error } = await supabase
+    .from("school_logos")
+    .select("logo_url")
+    .eq("school_id", schoolId)
+    .single();
+
+  if (error) {
+    console.error(error);
+    return null;
+  }
+
+  return data?.logo_url || null;
+}
+
 export function queueStudentForSync(studentId) {
   const queue = loadQueue();
   if (!queue.includes(studentId)) {

@@ -12,6 +12,7 @@ import {
 } from "../utils/syncService";
 import "./Settings.css";
 import { SCHOOL_OPTIONS } from "../utils/schools";
+import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 
 export default function Settings({
   schoolName,
@@ -29,6 +30,17 @@ export default function Settings({
 
   const [schoolSaved, setSchoolSaved] = useState(false);
   const [schoolLoaded, setSchoolLoaded] = useState(false);
+  const [schoolLogo, setSchoolLogo] = useState(null);
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    async function getVersion() {
+      const version = await window.electronAPI.getAppVersion();
+
+      setAppVersion(version);
+    }
+
+    getVersion();
+  }, []);
 
   useEffect(() => {
     async function loadSchoolDb() {
@@ -46,6 +58,16 @@ export default function Settings({
           });
 
           setSchoolLoaded(true);
+          const logoUrl = getSchoolLogoUrl(schoolData.school_name);
+
+          setSchoolLogo(logoUrl);
+          const localLogo = await window.sqlite.loadSchoolLogo(
+            schoolData.school_id,
+          );
+
+          if (localLogo) {
+            setSchoolLogo(localLogo);
+          }
           return;
         }
 
@@ -62,7 +84,9 @@ export default function Settings({
               district: boundSchool.district || "",
               address: boundSchool.address || "",
             });
+            const logoUrl = getSchoolLogoUrl(boundSchool.name);
 
+            setSchoolLogo(logoUrl);
             // Save it locally too so it's available offline next time
             await window.sqlite.saveSchool({
               school_name: boundSchool.name,
@@ -317,7 +341,25 @@ export default function Settings({
           {/* Preview */}
           {(school.name || school.division || school.address) && (
             <div className="school-preview">
-              <div className="school-preview-title">Sidebar Preview</div>
+              {schoolLogo && (
+                <div
+                  style={{
+                    textAlign: "center",
+                    marginBottom: "16px",
+                  }}
+                >
+                  <img
+                    src={schoolLogo}
+                    alt="School Logo"
+                    style={{
+                      width: "100px",
+                      height: "100px",
+                      objectFit: "contain",
+                    }}
+                  />
+                </div>
+              )}
+              <div className="school-preview-title">All Rights Reserved</div>
 
               {school.name && (
                 <div className="school-preview-name">{school.name}</div>
@@ -469,7 +511,7 @@ export default function Settings({
               </div>
               <div className="about-row">
                 <span>Version</span>
-                <span>1.0.1</span>
+                <span>{appVersion}</span>
               </div>
               <div className="about-row">
                 <span>Standard</span>

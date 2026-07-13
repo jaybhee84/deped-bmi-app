@@ -67,6 +67,10 @@ ipcMain.on("restart-app-for-update", () => {
   autoUpdater.quitAndInstall();
 });
 
+ipcMain.handle("app:getVersion", () => {
+  return app.getVersion();
+});
+
 // =========================
 // STUDENTS IPC
 // =========================
@@ -116,6 +120,8 @@ ipcMain.handle("school:deleteLogo", (_, schoolId) => {
   return true;
 });
 
+
+
 // =========================
 // INITIALIZE PRINT HANDLER
 // =========================
@@ -131,16 +137,22 @@ let mainWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1600,
-    height: 900,
-    minWidth: 1200,
-    minHeight: 700,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
+  width: 1600,
+  height: 900,
+  minWidth: 1200,
+  minHeight: 700,
+
+  icon: path.join(
+    __dirname,
+    "../public/icon.ico"
+  ),
+
+  webPreferences: {
+    preload: path.join(__dirname, "preload.js"),
+    contextIsolation: true,
+    nodeIntegration: false,
+  },
+});
 
   mainWindow.maximize();
 

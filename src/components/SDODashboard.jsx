@@ -10,6 +10,7 @@ import {
 import Badge from "./Badge";
 import { fetchAllSchools } from "../utils/syncService";
 import "./SDODashboard.css";
+import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 
 export default function SDODashboard({
   allSchoolsData,
@@ -590,10 +591,12 @@ export default function SDODashboard({
                   division: "Isabela City Schools Division Office",
                   logo: null,
                 }
-              : foundSchool || {
-                  name: selectedSchool,
-                  division: "Isabela City Schools Division Office",
-                  logo: null,
+              : {
+                  ...(foundSchool || {
+                    name: selectedSchool,
+                    division: "Isabela City Schools Division Office",
+                  }),
+                  logo: getSchoolLogoUrl(selectedSchool),
                 };
 
             return (
@@ -605,17 +608,16 @@ export default function SDODashboard({
                     className="sdo-banner-logo"
                   />
                 ) : (
-                  <span className="sdo-banner-icon">🏫</span>
+                  <div className="sdo-banner-logo-placeholder">🏫</div>
                 )}
-                <div>
+
+                <div className="sdo-banner-info">
                   <div className="sdo-banner-name">{info.name}</div>
                   {info.division && (
-                    <div className="sdo-banner-sub">
-                      {info.division}
-                      {info.district ? ` — ${info.district}` : ""}
-                    </div>
+                    <div className="sdo-banner-sub">{info.division}</div>
                   )}
                 </div>
+
                 <div className="sdo-banner-stats">
                   <span>
                     <strong>{students.length}</strong> total learners
