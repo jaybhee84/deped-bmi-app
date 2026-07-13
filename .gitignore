@@ -75,3 +75,7 @@ coverage/
 # SQLite WAL files
 *.db-wal
 *.db-shm
+
+# Database
+*.db
+students.db
