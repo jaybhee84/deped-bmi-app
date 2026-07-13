@@ -1,0 +1,88 @@
+.app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--gray-100);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Top bar ──────────────────────────────────────────────── */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 1.5rem;
+  background: #fff;
+  border-bottom: 1px solid var(--gray-200);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  flex-shrink: 0;
+}
+
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ── Top bar welcome ──────────────────────────────────────── */
+.top-bar-left {
+  display: flex;
+  align-items: center;
+}
+
+.welcome-msg {
+  font-size: 24px;
+  color: var(--gray-700);
+}
+
+.welcome-position {
+  color: var(--gray-400);
+  font-weight: 400;
+}
+
+/* ── Access denied ────────────────────────────────────────── */
+.access-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 60vh;
+  gap: 10px;
+  color: var(--gray-500);
+  text-align: center;
+}
+
+.access-denied-icon { font-size: 48px; }
+.access-denied h2   { font-size: 18px; color: var(--gray-700); }
+.access-denied p    { font-size: 14px; }
+
+.setup-steps {
+  margin-top: 16px;
+  text-align: left;
+  max-width: 500px;
+}
+
+.setup-steps ul {
+  margin-top: 10px;
+  margin-bottom: 14px;
+}
+
+.settings-link {
+  margin-top: 20px;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.settings-link:hover {
+  color: #1d4ed8;
+}

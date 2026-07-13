@@ -1,0 +1,188 @@
+/* ── No config warning ────────────────────────────────────── */
+.sbfp-no-config {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #FAEEDA;
+  border: 1px solid #F5D08A;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.sbfp-no-config-icon { font-size: 24px; flex-shrink: 0; }
+
+.sbfp-no-config-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #92400E;
+  margin-bottom: 4px;
+}
+
+.sbfp-no-config-sub {
+  font-size: 12px;
+  color: #92400E;
+  line-height: 1.5;
+}
+
+/* ── Config summary badge row ─────────────────────────────── */
+.sbfp-config-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 1rem;
+  padding: 8px 12px;
+  background: #EFF6FF;
+  border-radius: 8px;
+  border: 1px solid #C7D8F8;
+}
+
+.sbfp-config-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-right: 4px;
+}
+
+.sbfp-config-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.sbfp-config-tag.grade    { background: #EFF6FF; color: var(--navy); border: 1px solid #C7D8F8; }
+.sbfp-config-tag.criteria { background: #FAEEDA; color: var(--amber); border: 1px solid #F5D08A; }
+
+.sbfp-config-meta {
+  font-size: 11px;
+  color: var(--gray-400);
+  margin-left: auto;
+}
+
+/* ── Summary pills ────────────────────────────────────────── */
+.sbfp-summary-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.sbfp-summary-pill {
+  border-radius: 8px;
+  padding: 10px 14px;
+  min-width: 90px;
+  box-shadow: var(--shadow-sm);
+}
+
+.sbfp-summary-num {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.sbfp-summary-label {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ── Reason tags ──────────────────────────────────────────── */
+.reason-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.reason-tag {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #EEF2FF;
+  color: #3730A3;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Print styles ─────────────────────────────────────────── */
+.print-header { display: none; }
+
+@media print {
+  .no-print { display: none !important; }
+
+  .print-header {
+    display: block;
+    margin-bottom: 12px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 8px;
+  }
+
+  .print-header h2 {
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .print-header p {
+    font-size: 11px;
+    margin-top: 3px;
+    color: #333;
+  }
+
+  .data-table th {
+    background: #1E3A5F !important;
+    color: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-size: 9px;
+    padding: 4px 5px;
+  }
+
+  .data-table td {
+    font-size: 9px;
+    padding: 3px 5px;
+    border: 1px solid #ddd;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 1.2cm;
+  }
+}
+
+/* Grade Levels column */
+.deped-table th:first-child,
+.deped-table td:first-child {
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
+  text-align: center;
+  vertical-align: middle;
+}
+.deped-table {
+  table-layout: auto;
+  width: auto;
+}
+
+/* Grade level labels (Kinder, Grade 1, etc.) */
+.deped-table .row-label {
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 700;
+}
+
+/* Cells with rowspan (Grade Levels column) */
+.deped-table td[rowspan] {
+  text-align: center !important;
+  vertical-align: middle !important;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.1;
+  font-weight: 700;
+  padding: 2px;
+}

@@ -1,0 +1,255 @@
+.page {
+  padding: 1.5rem;
+  max-width: 1200px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 3px;
+}
+
+.page-sub {
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 12px;
+  margin-bottom: 1.25rem;
+}
+
+.stat-card {
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.stat-num {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--gray-500);
+  margin-top: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 1rem;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--navy);
+  margin-bottom: 12px;
+}
+
+.alert-title {
+  color: var(--red);
+}
+
+.bar-row {
+  margin-bottom: 10px;
+}
+
+.bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-bottom: 4px;
+}
+
+.bar-track {
+  height: 10px;
+  background: var(--gray-100);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.6s ease;
+}
+
+.data-table {
+  font-size: 13px;
+}
+
+.data-table th {
+  text-align: left;
+  padding: 8px 10px;
+  background: var(--gray-50);
+  color: var(--gray-500);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.data-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--gray-100);
+  color: var(--gray-700);
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.empty-cell {
+  text-align: center;
+  color: var(--gray-400);
+  padding: 2rem 0 !important;
+  font-size: 13px;
+}
+
+/* Shared form elements used across pages */
+.form-select {
+  padding: 7px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  background: #fff;
+  color: var(--gray-700);
+  cursor: pointer;
+}
+
+.form-input {
+  padding: 7px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  width: 100%;
+  color: var(--gray-700);
+  background: #fff;
+}
+
+.form-input:focus,
+.form-select:focus {
+  outline: 2px solid var(--navy);
+  outline-offset: 1px;
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.btn {
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.btn:hover {
+  opacity: 0.88;
+}
+
+.btn-primary {
+  background: var(--navy);
+  color: #fff;
+}
+
+.btn-secondary {
+  background: var(--gray-200);
+  color: var(--gray-700);
+}
+
+.btn-small {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--indigo-bg);
+  color: var(--indigo);
+}
+
+.btn-danger {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #EF4444;
+  font-size: 18px;
+  line-height: 1px;
+  padding: 0 4px;
+}
+
+.data-table th,
+.data-table td {
+  text-align: center;
+  vertical-align: middle;
+}
+.data-table td:first-child,
+.data-table th:first-child {
+  white-space: nowrap;
+}
+.data-table {
+  font-size: 12px;
+}
+.grade-row-kinder td {
+  background-color: #ffe4b5 !important;
+}
+
+.grade-row-grade1 td {
+  background-color: #cfe2ff !important;
+}
+
+.grade-row-grade2 td {
+  background-color: #d9f2d9 !important;
+}
+
+.grade-row-grade3 td {
+  background-color: #fff3b0 !important;
+}
+
+.grade-row-grade4 td {
+  background-color: #ffd6e7 !important;
+}
+
+.grade-row-grade5 td {
+  background-color: #e4d7ff !important;
+}
+
+.grade-row-grade6 td {
+  background-color: #cff4fc !important;
+}
+
+

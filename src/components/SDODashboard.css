@@ -1,0 +1,67 @@
+/* SDO controls row */
+.sdo-controls {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.sdo-school-select {
+  min-width: 240px;
+}
+
+/* Empty state */
+.sdo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  color: var(--gray-500);
+  gap: 8px;
+}
+
+.sdo-empty-icon { font-size: 48px; }
+.sdo-empty p    { font-size: 14px; }
+.sdo-empty-sub  { font-size: 12px; color: var(--gray-400); }
+
+/* School banner */
+.sdo-school-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #1E3A5F, #2563A8);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.sdo-banner-icon  { font-size: 28px; }
+.sdo-banner-name  { font-size: 15px; font-weight: 700; }
+.sdo-banner-sub   { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+
+.sdo-banner-stats {
+  margin-left: auto;
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.sdo-banner-stats strong {
+  font-size: 16px;
+  display: block;
+  color: #fff;
+}
+
+.sdo-banner-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}

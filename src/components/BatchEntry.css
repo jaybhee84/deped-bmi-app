@@ -1,0 +1,266 @@
+/* ── Class Setup Box ──────────────────────────────────────── */
+.batch-class-box {
+  background: #F0F5FF;
+  border: 1px solid #C7D8F8;
+  border-radius: 8px;
+  padding: 1rem 1.125rem;
+  margin-bottom: 1.25rem;
+}
+
+.batch-class-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--navy);
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  margin-bottom: 0.85rem;
+}
+
+.batch-header-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  margin-bottom: 0.85rem;
+}
+
+.batch-header-grid .form-group {
+  min-width: 130px;
+  flex: 1;
+}
+
+/* Teacher input slightly wider */
+.teacher-group {
+  min-width: 190px !important;
+  flex: 2 !important;
+}
+
+/* ── Section Preview ──────────────────────────────────────── */
+.section-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--navy);
+  color: #fff;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.section-preview-label {
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+.section-preview-value {
+  font-weight: 700;
+}
+
+.section-preview-empty {
+  opacity: 0.5;
+  font-style: italic;
+  font-weight: 400;
+}
+
+.section-preview-meta {
+  opacity: 0.5;
+  font-size: 11px;
+  border-left: 1px solid rgba(255,255,255,0.3);
+  padding-left: 8px;
+}
+
+/* ── Table ────────────────────────────────────────────────── */
+.batch-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+}
+
+.batch-table th,
+.batch-table td {
+  white-space: nowrap;
+}
+
+.batch-table th {
+  background: var(--gray-50);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.th-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.65;
+  font-size: 10px;
+}
+
+/* ── Cell inputs ──────────────────────────────────────────── */
+.lrn-input   { width: 115px; }
+.name-input  { width: 180px; }
+.date-input  { width: 140px; }
+.num-input   { width: 72px; }
+
+.sex-select {
+  width: 60px;
+  padding: 7px 4px;
+}
+
+/* ── Age display (read-only) ──────────────────────────────── */
+.age-display {
+  min-width: 38px;
+  text-align: center;
+  padding: 7px 8px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.age-value {
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.age-placeholder {
+  color: var(--gray-400);
+}
+
+/* ── Row number ───────────────────────────────────────────── */
+.row-num {
+  color: var(--gray-400);
+  font-size: 12px;
+  text-align: center;
+  width: 28px;
+}
+
+/* ── BMI cell ─────────────────────────────────────────────── */
+.bmi-cell {
+  font-weight: 600;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ── Actions ──────────────────────────────────────────────── */
+.batch-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.save-confirm {
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.teacher-warning {
+  font-size: 12px;
+  color: var(--amber);
+  margin-top: 4px;
+}
+
+.muted {
+  color: var(--gray-400);
+}
+
+.full-width {
+  width: 100%;
+}
+
+/* ── Teacher input & chips ────────────────────────────────── */
+.teacher-input-wrap {
+  position: relative;
+}
+
+.label-hint {
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--gray-400);
+}
+
+.teacher-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.teacher-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 10px;
+  border-radius: 12px;
+  background: var(--gray-200);
+  color: var(--gray-700);
+  font-size: 12px;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all 0.12s;
+}
+
+.teacher-chip:hover {
+  background: #dce4f7;
+  color: var(--navy);
+}
+
+.teacher-chip.active {
+  background: var(--navy);
+  color: #fff;
+  border-color: var(--navy);
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+  color: inherit;
+  opacity: 0.6;
+}
+
+.chip-remove:hover { opacity: 1; }
+
+.batch-table th:last-child,
+.batch-table td:last-child {
+  position: sticky;
+  right: 0;
+  background: white;
+  z-index: 5;
+}
+/* ── Registry info box ────────────────────────────────────── */
+.registry-info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #92400E;
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.registry-info-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.registry-info-box code {
+  background: #FEF3C7;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11px;
+}

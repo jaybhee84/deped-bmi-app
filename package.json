@@ -1,0 +1,68 @@
+{
+  "name": "deped-bmi-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "electron/main.js",
+
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "dist": "npm run build && electron-builder"
+  },
+
+  "build": {
+    "appId": "com.deped.bmiapp",
+    "productName": "DepEd BMI App",
+
+    "directories": {
+      "output": "release"
+    },
+
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+
+    "win": {
+      "target": "nsis"
+    },
+
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.1",
+    "better-sqlite3": "^12.11.1",
+    "papaparse": "^5.5.4",
+    "pdf-lib": "^1.17.1",
+    "pdf-to-printer": "^5.8.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-easy-crop": "^6.0.2"
+  },
+
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^10.0.3",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3",
+    "oxlint": "^1.69.0",
+    "prettier": "^3.9.1",
+    "vite": "^8.1.0",
+    "wait-on": "^9.0.10"
+  }
+}

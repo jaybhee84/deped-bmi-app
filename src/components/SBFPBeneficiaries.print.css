@@ -1,0 +1,102 @@
+/* ── DepEd Nutritional Status Report: print-only styles ── */
+
+/* Hidden on screen by default */
+.print-only {
+  display: none;
+}
+
+@media print {
+  /* Show ONLY the official report when printing */
+  .print-only {
+    display: block;
+  }
+  .screen-only,
+  .no-print,
+  .sbfp-no-config,
+  .sbfp-config-summary,
+  .sbfp-summary-row {
+    display: none !important;
+  }
+
+  @page {
+    size: legal landscape;
+    margin: 10mm;
+  }
+}
+
+.deped-report {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #000;
+}
+
+.deped-report-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.deped-logo {
+  width: 60px;
+  height: 60px;
+}
+
+.deped-report-title p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.deped-report-title h2 {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.deped-report-period {
+  font-style: italic;
+  font-weight: bold;
+  margin-top: 2px !important;
+}
+
+.deped-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9px;
+  table-layout: fixed;
+}
+
+.deped-table th,
+.deped-table td {
+  border: 1px solid #333;
+  padding: 2px 4px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.deped-table thead th {
+  background: #EFF6FF;
+  font-weight: bold;
+}
+
+.deped-table td.row-label {
+  text-align: left;
+  font-weight: 600;
+}
+
+.deped-table tr.row-total {
+  background: #F3F4F6;
+  font-weight: bold;
+}
+
+.deped-table td.pct {
+  color: #444;
+}
+
+.deped-report-footer {
+  margin-top: 10px;
+  font-size: 10px;
+  text-align: right;
+}

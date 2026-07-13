@@ -1,0 +1,39 @@
+.export-import-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-import-label {
+  font-size: 12px;
+  color: var(--gray-500);
+  font-weight: 600;
+}
+
+.btn-export {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1.5px solid #3B6D11;
+  background: #EAF3DE;
+  color: #3B6D11;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-export:hover { opacity: 0.8; }
+
+.btn-import {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1.5px solid var(--navy);
+  background: #EFF6FF;
+  color: var(--navy);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-import:hover { opacity: 0.8; }

@@ -1,0 +1,428 @@
+.report-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.summary-pill {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+}
+
+.summary-count {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--navy);
+}
+
+.summary-label {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.name-cell {
+  font-weight: 500;
+}
+.report-page {
+  height: 12.5in;
+  /* fit legal paper */
+  page-break-after: always;
+  break-after: page;
+  overflow: hidden;
+}
+
+.report-page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+.page-break {
+  page-break-before: always;
+  break-before: page;
+}
+
+
+tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.no-data-tag {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
+.filter-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+/* Print-only elements */
+.print-header {
+  display: none;
+}
+
+@media print {
+  .print-header {
+    display: block;
+    margin-bottom: 1rem;
+  }
+
+  .print-header h2 {
+    font-size: 18px;
+    color: #000;
+  }
+
+  .print-header p {
+    font-size: 13px;
+    color: #555;
+    margin-top: 4px;
+  }
+
+  .data-table th,
+  .data-table td {
+    border: 1px solid #ccc !important;
+    font-size: 11px;
+  }
+
+  .card {
+    box-shadow: none;
+  }
+}
+
+@media print {
+
+  /* Hide screen-only elements */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Show print-only elements */
+  .print-header {
+    display: block;
+    margin-bottom: 1rem;
+  }
+
+  .print-header h2 {
+    font-size: 18px;
+    color: #000;
+  }
+
+  .print-header p {
+    font-size: 13px;
+    color: #555;
+    margin-top: 4px;
+  }
+
+  .data-table th,
+  .data-table td {
+    border: 1px solid #ccc !important;
+    font-size: 11px;
+  }
+
+  .card {
+    box-shadow: none;
+  }
+}
+
+.sbfp-builder {
+  display: flex;
+  gap: 140px;
+  align-items: flex-start;
+  margin-top: 15px;
+}
+
+.sbfp-column {
+  min-width: 260px;
+}
+
+.sbfp-column h4 {
+  margin-bottom: 16px;
+  color: #16325c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.sbfp-option {
+  display: block;
+  margin-bottom: 1px;
+}
+
+.sbfp-option input[type="checkbox"] {
+  margin-right: 5px;
+}
+
+.sbfp-option span {
+  display: inline-block;
+  line-height: 1.4;
+}
+
+.sbfp-card-title {
+  margin-bottom: 20px;
+  color: #16325c;
+}
+
+.report-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: #f0f2f5;
+  z-index: 9999;
+}
+
+.report-preview-modal {
+  width: 100vw;
+  height: 100vh;
+  background: #f0f2f5;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+/* ==================================
+   REPORT PREVIEW
+================================== */
+
+.report-preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: #f0f2f5;
+  z-index: 9999;
+}
+
+.report-preview-modal {
+  width: 100vw;
+  height: 100vh;
+  background: #f0f2f5;
+  overflow: hidden;
+}
+
+.report-preview-header {
+  height: 70px;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 0 24px;
+}
+
+.report-preview-content {
+  height: calc(100vh - 70px);
+
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+
+  overflow: auto;
+  padding: 20px;
+}
+
+/* ==================================
+   REPORT PAGE
+================================== */
+
+.report-page {
+  width: 210mm;
+  min-height: 297mm;
+
+  background: #fff;
+  margin: 0 auto;
+  padding: 20mm;
+
+  box-sizing: border-box;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.15);
+
+  transform-origin: top center;
+}
+
+.report-heading {
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+.report-heading h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.report-heading h2 {
+  margin: 5px 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.report-heading h3 {
+  margin: 8px 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.report-heading p {
+  margin: 2px 0;
+  font-size: 14px;
+}
+
+/* ==================================
+   TABLE
+================================== */
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.print-table th {
+  border: 1px solid #000;
+  background: #f3f3f3;
+  padding: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.print-table td {
+  border: 1px solid #000;
+  padding: 6px;
+  font-size: 11px;
+  text-align: center;
+  vertical-align: middle;
+  word-wrap: break-word;
+}
+
+/* ==================================
+   PRINT
+================================== */
+
+@media print {
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  html,
+  body {
+    width: 210mm;
+    height: 297mm;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  .report-preview-header,
+  .no-print,
+  button,
+  .btn {
+    display: none !important;
+  }
+
+  .report-preview-overlay,
+  .report-preview-modal,
+  .report-preview-content {
+    position: static !important;
+    display: block !important;
+
+    width: auto !important;
+    height: auto !important;
+
+    overflow: visible !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .report-page {
+    width: 190mm !important;
+    min-height: auto !important;
+
+    margin: 0 auto !important;
+    padding: 0 !important;
+
+    transform: none !important;
+    zoom: 100% !important;
+
+    box-shadow: none !important;
+
+    page-break-after: always;
+  }
+
+  .report-page:last-child {
+    page-break-after: auto;
+  }
+
+  .print-table {
+    width: 100% !important;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #000 !important;
+    color: #000 !important;
+  }
+}
+
+.data-table thead th {
+  background: #5d8f2a;
+  color: white;
+  text-align: center;
+  vertical-align: middle;
+  font-weight: 700;
+  border: 1px solid #4f7a24;
+}
+
+.data-table td {
+  vertical-align: middle;
+}
+
+.data-table th {
+  white-space: nowrap;
+  text-align: center;
+  vertical-align: middle;
+  padding: 8px 4px;
+  font-size: 12px;
+}
+
+/* GRADE LEVELS */
+.data-table th:nth-child(1),
+.data-table td:nth-child(1) {
+  width: 130px;
+  min-width: 130px;
+}
+
+/* SEX */
+.data-table th:nth-child(2),
+.data-table td:nth-child(2) {
+  width: 35px;
+  min-width: 35px;
+  max-width: 35px;
+  padding-left: 2px;
+  padding-right: 2px;
+  text-align: center;
+}
+
+/* ENROLMENT */
+.data-table th:nth-child(3),
+.data-table td:nth-child(3) {
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+}
