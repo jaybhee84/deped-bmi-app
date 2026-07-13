@@ -1,7 +1,7 @@
 {
   "name": "deped-bmi-app",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.10",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
