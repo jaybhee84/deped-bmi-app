@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "electron": "electron .",
     "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "release": "npm run build && electron-builder --publish always"
   },
 
   "build": {
@@ -29,6 +30,12 @@
       "package.json"
     ],
 
+    "publish": {
+      "provider": "github",
+      "owner": "jaybhee84",
+      "repo": "deped-bmi"
+    },
+
     "win": {
       "target": "nsis"
     },
@@ -44,6 +51,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.110.1",
     "better-sqlite3": "^12.11.1",
+    "electron-updater": "^6.3.9",
     "papaparse": "^5.5.4",
     "pdf-lib": "^1.17.1",
     "pdf-to-printer": "^5.8.0",
