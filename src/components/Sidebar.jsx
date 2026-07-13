@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ROLES } from "../utils/auth";
 import "./Sidebar.css";
 
@@ -26,6 +26,17 @@ export default function Sidebar({
   session,
   onLogout,
 }) {
+  const [version, setVersion] = useState("");
+
+  useEffect(() => {
+    window.electronAPI.getAppVersion().then(setVersion);
+  }, []);
+
+  useEffect(() => {
+    window.electronAPI.onUpdateMessage((message) => {
+      alert(message);
+    });
+  }, []);
   const isSDO = session?.role === ROLES.DIVISION;
   const navItems = isSDO ? SDO_NAV : SCHOOL_NAV;
 
@@ -70,6 +81,35 @@ export default function Sidebar({
           <div className={`user-role-tag ${session?.role}`}>
             {isSDO ? "🏥 Division" : "🏫 School"}
           </div>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "#cbd5e1",
+              marginBottom: "10px",
+              textAlign: "center",
+            }}
+          >
+            Version {version}
+          </div>
+          <button
+            className="update-btn"
+            onClick={async () => {
+              try {
+                const result = await window.electronAPI.checkForUpdates();
+
+                if (!result?.success) {
+                  alert(
+                    `Update check failed:\n${result?.error || "Unknown error"}`,
+                  );
+                }
+              } catch (err) {
+                alert(`Error checking updates:\n${err.message}`);
+              }
+            }}
+          >
+            🔄 Check for Updates
+          </button>
+
           <button
             className="logout-btn"
             onClick={() => {

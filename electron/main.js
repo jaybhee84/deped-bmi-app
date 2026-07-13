@@ -121,7 +121,21 @@ ipcMain.handle("school:deleteLogo", (_, schoolId) => {
 });
 
 
-
+ipcMain.handle("app:checkForUpdates", async () => {
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return {
+      success: true,
+      updateInfo: result?.updateInfo || null,
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
 // =========================
 // INITIALIZE PRINT HANDLER
 // =========================
@@ -208,4 +222,35 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+autoUpdater.on("checking-for-update", () => {
+  console.log("[Updater] Checking for updates...");
+});
+
+autoUpdater.on("update-available", (info) => {
+  console.log("[Updater] Update available:", info.version);
+
+  mainWindow?.webContents.send(
+    "update-message",
+    `Update available: ${info.version}`
+  );
+});
+
+autoUpdater.on("update-not-available", (info) => {
+  console.log("[Updater] No update available");
+
+  mainWindow?.webContents.send(
+    "update-message",
+    "You already have the latest version."
+  );
+});
+
+autoUpdater.on("error", (err) => {
+  console.error("[Updater] Error:", err);
+
+  mainWindow?.webContents.send(
+    "update-message",
+    `Update failed: ${err.message}`
+  );
 });

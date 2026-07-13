@@ -72,7 +72,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   generatePrintPreview: (payload) => ipcRenderer.send("generate-pdf-preview", payload),
 
   getAppVersion: () =>
-  ipcRenderer.invoke("app:getVersion"),
+    ipcRenderer.invoke("app:getVersion"),
+  
+  checkForUpdates: () =>
+  ipcRenderer.invoke("app:checkForUpdates"),
 
   // Forces the OS window to properly re-acquire keyboard focus.
   // Works around a known Windows/Electron bug where the window appears
@@ -82,6 +85,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // right after any screen transition where that's been observed (e.g.
   // logout back to the Login screen).
   forceRefocusWindow: () => ipcRenderer.send("force-refocus-window"),
+  onUpdateMessage: (callback) =>
+  ipcRenderer.on("update-message", (_, message) => callback(message)),
 
   // NEW: auto-update
   onUpdateReady: (callback) => ipcRenderer.on("update-ready", callback),
