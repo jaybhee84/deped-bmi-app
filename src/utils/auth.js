@@ -84,17 +84,17 @@ export function login(username, password) {
   if (!user) return null;
   const session = { ...user, loginTime: new Date().toISOString() };
   delete session.password;
-  try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch {}
+  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch {}
   return session;
 }
  
 export function logout() {
-  try { localStorage.removeItem(SESSION_KEY); } catch {}
+  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
 }
  
 export function getSession() {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = sessionStorage.getItem(SESSION_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
 }
@@ -110,7 +110,7 @@ export function canViewOnly(session) {
 }
 export function saveSession(session) {
   try {
-    localStorage.setItem(
+    sessionStorage.setItem(
       SESSION_KEY,
       JSON.stringify(session)
     );

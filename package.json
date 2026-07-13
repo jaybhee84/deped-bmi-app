@@ -30,12 +30,12 @@
       "package.json"
     ],
 
-    "publish": {
-      "provider": "github",
-      "owner": "jaybhee84",
-      "repo": "deped-bmi"
-    },
-
+"publish": {
+  "provider": "github",
+  "owner": "jaybhee84",
+  "repo": "deped-bmi",
+  "releaseType": "release"
+},
     "win": {
       "target": "nsis"
     },
@@ -73,4 +73,5 @@
     "vite": "^8.1.0",
     "wait-on": "^9.0.10"
   }
+  
 }
