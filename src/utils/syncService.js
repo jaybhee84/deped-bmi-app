@@ -59,6 +59,7 @@ export function loadSupabaseConfig() {
     key: SUPABASE_KEY,
   };
 }
+
 export async function saveSchoolInfo(school) {
   const cfg = loadSupabaseConfig();
 
@@ -92,6 +93,108 @@ export async function saveSchoolInfo(school) {
   }
 
   return true;
+}
+
+// ── School ↔ User Binding ──────────────────────────────────────────────────
+// Requires a "school_id" (text, references public.schools.school_id) column
+// on public.profiles:
+//
+//   alter table public.profiles
+//     add column school_id text references public.schools(school_id);
+//
+// Many users can be bound to the same school — this just stamps the current
+// user's profile row with whichever school_id they saved in Settings.
+
+export async function bindSchoolToUser(schoolId, userId) {
+  if (!schoolId || !userId) {
+    throw new Error("bindSchoolToUser requires both schoolId and userId");
+  }
+
+  const cfg = loadSupabaseConfig();
+
+  const res = await fetch(
+    `${cfg.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ school_id: schoolId }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("Failed binding school to user:", err);
+    throw new Error(err);
+  }
+
+  return true;
+}
+
+// Looks up which school (if any) the given user is bound to, and returns
+// the full school row so Settings can pre-fill the form on a fresh device
+// where local SQLite has nothing saved yet.
+
+export async function fetchSchoolForUser(userId) {
+  if (!userId) return null;
+
+  const cfg = loadSupabaseConfig();
+
+  // 1. Get the user's profile to find their school_id
+  const profileRes = await fetch(
+    `${cfg.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=school_id`,
+    {
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+      },
+    }
+  );
+
+  if (!profileRes.ok) {
+    const err = await profileRes.text();
+    console.error("Failed fetching profile:", err);
+    return null;
+  }
+
+  const profileRows = await profileRes.json();
+  const schoolId = profileRows?.[0]?.school_id;
+
+  if (!schoolId) return null;
+
+  // 2. Get the actual school row
+  const schoolRes = await fetch(
+    `${cfg.url}/rest/v1/schools?school_id=eq.${encodeURIComponent(schoolId)}&select=*`,
+    {
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+      },
+    }
+  );
+
+  if (!schoolRes.ok) {
+    const err = await schoolRes.text();
+    console.error("Failed fetching bound school:", err);
+    return null;
+  }
+
+  const schoolRows = await schoolRes.json();
+  const row = schoolRows?.[0];
+
+  if (!row) return null;
+
+  return {
+    id: row.school_id,
+    name: row.school_name,
+    division: row.division,
+    district: row.district,
+    address: row.address,
+  };
 }
 
 // ── School Logo Sync (separate from school info — own storage bucket) ────

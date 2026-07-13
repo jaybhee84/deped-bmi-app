@@ -117,15 +117,21 @@ export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
 
   return false;
 }
+
 /**
- * Load manual enrolment numbers for a given school year from Supabase.
- * Returns {} if nothing is set yet or on error.
+ * Load manual enrolment numbers for a given school + school year from
+ * Supabase. School-scoped so every user bound to the same school (see
+ * profiles.school_id) sees and edits the same shared enrolment numbers.
+ * Returns {} if nothing is set yet, if schoolId is missing, or on error.
  */
-export async function loadSbfpEnrolment(sy) {
+export async function loadSbfpEnrolment(schoolId, sy) {
+  if (!schoolId || !sy) return {};
+
   try {
     const { data, error } = await supabase
       .from("sbfp_enrolment")
       .select("*")
+      .eq("school_id", schoolId)
       .eq("sy", sy)
       .maybeSingle();
 
@@ -142,15 +148,27 @@ export async function loadSbfpEnrolment(sy) {
 }
 
 /**
- * Save manual enrolment numbers for a given school year to Supabase.
+ * Save manual enrolment numbers for a given school + school year to
+ * Supabase. Upserts on the (school_id, sy) composite key, so any other
+ * user bound to the same school will see these numbers next time they
+ * load this page.
  */
-export async function saveSbfpEnrolment(sy, enrolmentData) {
+export async function saveSbfpEnrolment(schoolId, sy, enrolmentData) {
+  if (!schoolId) {
+    console.error("saveSbfpEnrolment error: missing schoolId");
+    return false;
+  }
+
   try {
-    const { error } = await supabase.from("sbfp_enrolment").upsert({
-      sy,
-      data: enrolmentData,
-      updated_at: new Date().toISOString(),
-    });
+    const { error } = await supabase.from("sbfp_enrolment").upsert(
+      {
+        school_id: schoolId,
+        sy,
+        data: enrolmentData,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "school_id,sy" },
+    );
 
     if (error) {
       console.error("saveSbfpEnrolment error:", error);

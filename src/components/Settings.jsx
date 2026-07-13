@@ -7,23 +7,11 @@ import {
   testSupabaseConnection,
   queueAllStudentsForSync,
   saveSchoolInfo,
-  saveSchoolLogoToSupabase,
+  bindSchoolToUser,
+  fetchSchoolForUser,
 } from "../utils/syncService";
 import "./Settings.css";
 import { SCHOOL_OPTIONS } from "../utils/schools";
-
-// Generate short filename from school name, e.g.
-// "Isabela East Central Elementary School" -> "ieces.png"
-function generateLogoFilename(schoolName) {
-  if (!schoolName) return "";
-  const acronym = schoolName
-    .trim()
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .toLowerCase();
-  return `${acronym}.png`;
-}
 
 export default function Settings({
   schoolName,
@@ -42,18 +30,10 @@ export default function Settings({
   const [schoolSaved, setSchoolSaved] = useState(false);
   const [schoolLoaded, setSchoolLoaded] = useState(false);
 
-  // ── Logo state (fully separate from `school`) ──────────────────────────
-  const [logoFile, setLogoFile] = useState(null); // raw File object selected by user
-  const [logoPreview, setLogoPreview] = useState(null); // data URL for <img> preview
-  const [logoSaved, setLogoSaved] = useState(false);
-  const [logoSaving, setLogoSaving] = useState(false);
-  const [logoError, setLogoError] = useState(null);
-
-  const logoFilename = generateLogoFilename(school.name);
-
   useEffect(() => {
     async function loadSchoolDb() {
       try {
+        // 1. Try local SQLite first (fast, works offline)
         const schoolData = await window.sqlite.loadSchool();
 
         if (schoolData) {
@@ -66,6 +46,35 @@ export default function Settings({
           });
 
           setSchoolLoaded(true);
+          return;
+        }
+
+        // 2. Nothing local yet (e.g. fresh device) — check if this user
+        // is already bound to a school in Supabase and pre-fill from there.
+        if (currentUser?.id && navigator.onLine) {
+          const boundSchool = await fetchSchoolForUser(currentUser.id);
+
+          if (boundSchool) {
+            setSchool({
+              name: boundSchool.name || "",
+              id: boundSchool.id || "",
+              division: boundSchool.division || "",
+              district: boundSchool.district || "",
+              address: boundSchool.address || "",
+            });
+
+            // Save it locally too so it's available offline next time
+            await window.sqlite.saveSchool({
+              school_name: boundSchool.name,
+              school_id: boundSchool.id,
+              division: boundSchool.division,
+              district: boundSchool.district,
+              address: boundSchool.address,
+            });
+
+            setSchoolName(boundSchool.name);
+            setSchoolLoaded(true);
+          }
         }
       } catch (e) {
         console.error("[SQLite] Failed to load school:", e);
@@ -73,25 +82,7 @@ export default function Settings({
     }
 
     loadSchoolDb();
-  }, []);
-
-  // ── Load existing logo once we know the school ID ──────────────────────
-  useEffect(() => {
-    async function loadLogo() {
-      if (!school.id) return;
-      try {
-        const existing = await window.sqlite.loadSchoolLogo(school.id);
-        // Expecting existing to be a data URL string, or null if none saved
-        if (existing) {
-          setLogoPreview(existing);
-        }
-      } catch (e) {
-        console.error("[SQLite] Failed to load school logo:", e);
-      }
-    }
-
-    loadLogo();
-  }, [school.id]);
+  }, [currentUser]);
 
   // Supabase config state
   const [supabase, setSupabase] = useState(
@@ -120,6 +111,19 @@ export default function Settings({
       // Sync to Supabase if online
       if (navigator.onLine) {
         await saveSchoolInfo(school);
+
+        // Bind this school to the logged-in user's profile so multiple
+        // users can share the same school without creating duplicates.
+        if (currentUser?.id) {
+          try {
+            await bindSchoolToUser(school.id, currentUser.id);
+          } catch (bindErr) {
+            console.error("Failed binding school to user:", bindErr);
+            alert(
+              "School saved, but could not bind it to your account. You may need to set it up again next time.",
+            );
+          }
+        }
       }
 
       setSchoolName(school.name);
@@ -133,83 +137,6 @@ export default function Settings({
       console.error(e);
 
       alert("School saved locally but failed to sync to Supabase.");
-    }
-  }
-
-  // ── Logo handlers ────────────────────────────────────────────────────
-  function handleLogoSelect(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      setLogoError("Please select an image file.");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setLogoError("Logo must be under 2MB.");
-      return;
-    }
-
-    setLogoError(null);
-    setLogoFile(file);
-
-    const reader = new FileReader();
-    reader.onload = () => setLogoPreview(reader.result);
-    reader.readAsDataURL(file);
-  }
-
-  async function handleSaveLogo() {
-    if (!school.id.trim()) {
-      alert("Please set and save the School ID first before uploading a logo.");
-      return;
-    }
-    if (!logoPreview) {
-      alert("Please choose a logo image first.");
-      return;
-    }
-
-    setLogoSaving(true);
-    setLogoError(null);
-
-    try {
-      // Save locally, keyed by school id + generated filename,
-      // completely separate from the `school` info save.
-      await window.sqlite.saveSchoolLogo({
-        schoolId: school.id,
-        filename: logoFilename,
-        dataUrl: logoPreview,
-      });
-
-      // Sync to Supabase storage if online
-      if (navigator.onLine) {
-        await saveSchoolLogoToSupabase({
-          schoolId: school.id,
-          filename: logoFilename,
-          dataUrl: logoPreview,
-        });
-      }
-
-      setLogoSaved(true);
-      setTimeout(() => setLogoSaved(false), 2500);
-    } catch (e) {
-      console.error(e);
-      setLogoError("Logo saved locally but failed to sync to Supabase.");
-    } finally {
-      setLogoSaving(false);
-    }
-  }
-
-  async function handleRemoveLogo() {
-    if (!school.id.trim()) return;
-    const confirmed = window.confirm("Remove this school's logo?");
-    if (!confirmed) return;
-
-    try {
-      await window.sqlite.deleteSchoolLogo(school.id);
-      setLogoFile(null);
-      setLogoPreview(null);
-    } catch (e) {
-      console.error("[SQLite] Failed to remove logo:", e);
     }
   }
 
@@ -287,13 +214,27 @@ export default function Settings({
 
           {/* School Name Dropdown */}
           <div className="settings-field">
-            <label className="form-label">School Name</label>
+            <label className="form-label">
+              School Name
+              {schoolLoaded && (
+                <span
+                  style={{
+                    fontWeight: "normal",
+                    color: "#888",
+                    marginLeft: "8px",
+                  }}
+                >
+                  (bound to your account — clear settings to change)
+                </span>
+              )}
+            </label>
 
             <select
               className={`form-input ${
                 schoolLoaded ? "school-configured" : ""
               }`}
               value={school.name}
+              disabled={schoolLoaded}
               onChange={(e) =>
                 setSchool((s) => ({
                   ...s,
@@ -377,144 +318,27 @@ export default function Settings({
           {(school.name || school.division || school.address) && (
             <div className="school-preview">
               <div className="school-preview-title">Sidebar Preview</div>
-              {logoPreview && (
-                <img
-                  src={logoPreview}
-                  alt="School logo"
-                  style={{
-                    width: 40,
-                    height: 40,
-                    objectFit: "cover",
-                    borderRadius: 8,
-                    marginBottom: 8,
-                  }}
-                />
-              )}
+
               {school.name && (
                 <div className="school-preview-name">{school.name}</div>
               )}
+
               {school.id && (
                 <div className="school-preview-row">School ID: {school.id}</div>
               )}
+
               {school.division && (
                 <div className="school-preview-row">{school.division}</div>
               )}
+
               {school.district && (
                 <div className="school-preview-row">{school.district}</div>
               )}
+
               {school.address && (
                 <div className="school-preview-row">{school.address}</div>
               )}
             </div>
-          )}
-        </div>
-
-        {/* ── School Logo (separate card, separate save flow) ── */}
-        <div className="card">
-          <h3 className="card-title">School Logo</h3>
-          <p className="settings-ref-sub">
-            Upload a logo for this school. It's saved independently from the
-            school information above, so it won't affect or overwrite your
-            existing school data.
-          </p>
-
-          {!school.name ? (
-            <div
-              style={{
-                padding: "12px",
-                background: "#fff8e1",
-                borderRadius: "8px",
-              }}
-            >
-              Select a School Name above first — the logo filename is
-              generated from it.
-            </div>
-          ) : (
-            <>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 16,
-                  marginBottom: 16,
-                }}
-              >
-                <div
-                  style={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 12,
-                    background: "#f3f4f6",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "hidden",
-                    flexShrink: 0,
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
-                  {logoPreview ? (
-                    <img
-                      src={logoPreview}
-                      alt="Logo preview"
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  ) : (
-                    <span style={{ fontSize: 28 }}>🏫</span>
-                  )}
-                </div>
-
-                <div>
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                    {school.name}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    Will be saved as: <code>{logoFilename}</code>
-                  </div>
-                </div>
-              </div>
-
-              <div className="settings-field">
-                <label className="form-label">Choose Logo Image</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleLogoSelect}
-                  className="form-input"
-                />
-                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
-                  PNG or JPG, under 2MB.
-                </div>
-              </div>
-
-              {logoError && (
-                <div style={{ color: "#dc2626", marginBottom: 12 }}>
-                  {logoError}
-                </div>
-              )}
-
-              <div className="settings-save-row">
-                <button
-                  className="btn btn-primary"
-                  onClick={handleSaveLogo}
-                  disabled={logoSaving || !logoPreview}
-                >
-                  {logoSaving ? "Saving..." : "Save Logo"}
-                </button>
-                {logoPreview && (
-                  <button className="btn btn-danger" onClick={handleRemoveLogo}>
-                    Remove Logo
-                  </button>
-                )}
-                {logoSaved && (
-                  <span className="save-confirm">✓ Logo saved!</span>
-                )}
-              </div>
-            </>
           )}
         </div>
 
@@ -645,7 +469,7 @@ export default function Settings({
               </div>
               <div className="about-row">
                 <span>Version</span>
-                <span>1.0.0</span>
+                <span>1.0.1</span>
               </div>
               <div className="about-row">
                 <span>Standard</span>

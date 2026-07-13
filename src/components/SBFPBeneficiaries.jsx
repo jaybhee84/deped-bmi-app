@@ -172,62 +172,12 @@ export default function SBFPBeneficiaries({
   const csvFileInputRef = React.useRef(null);
   const saveTimeoutRef = React.useRef(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    loadSbfpEnrolment(filterSY).then((data) => {
-      if (!cancelled) {
-        setManualEnrolment(data);
-        setIsDirty(false);
-        setSaveMessage("");
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [filterSY]);
-
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  function handleEnrolmentChange(key, value) {
-    setManualEnrolment((prev) => ({
-      ...prev,
-      [key]: value, // <-- Computed Property Name (Fixes the bug)
-    }));
-
-    setIsDirty(true);
-    setSaveMessage("");
-  }
-
-  async function handleSaveEnrolment() {
-    const ok = await saveSbfpEnrolment(filterSY, manualEnrolment);
-
-    if (ok) {
-      setIsDirty(false);
-      setSaveMessage("✅ Enrolment saved successfully.");
-
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-
-      saveTimeoutRef.current = setTimeout(() => {
-        setSaveMessage("");
-      }, 3000);
-    } else {
-      alert("Failed to save enrolment.");
-    }
-  }
-
   // ── School name/ID resolution ──
   // Priority: explicit props -> local SQLite (offline-safe) -> Supabase
   // (only attempted if online and local had nothing).
+  // NOTE: moved above the enrolment-loading effect below, since that
+  // effect now needs resolvedSchool.id to know which school's enrolment
+  // to fetch.
   const [resolvedSchool, setResolvedSchool] = useState({
     name: schoolName,
     id: schoolId,
@@ -298,6 +248,79 @@ export default function SBFPBeneficiaries({
       cancelled = true;
     };
   }, [schoolName, schoolId]);
+
+  // ── Enrolment (school-scoped: shared by every user bound to this school) ──
+  useEffect(() => {
+    // Wait until we actually know which school we're loading enrolment for.
+    // Without this guard we'd either fetch nothing (schoolId missing) or,
+    // worse, silently load/save under the wrong school.
+    if (!resolvedSchool.id) {
+      setManualEnrolment({});
+      return;
+    }
+
+    let cancelled = false;
+
+    loadSbfpEnrolment(resolvedSchool.id, filterSY).then((data) => {
+      if (!cancelled) {
+        setManualEnrolment(data);
+        setIsDirty(false);
+        setSaveMessage("");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedSchool.id, filterSY]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function handleEnrolmentChange(key, value) {
+    setManualEnrolment((prev) => ({
+      ...prev,
+      [key]: value, // <-- Computed Property Name (Fixes the bug)
+    }));
+
+    setIsDirty(true);
+    setSaveMessage("");
+  }
+
+  async function handleSaveEnrolment() {
+    if (!resolvedSchool.id) {
+      alert(
+        "No school is set up yet. Go to Settings and save your school info first.",
+      );
+      return;
+    }
+
+    const ok = await saveSbfpEnrolment(
+      resolvedSchool.id,
+      filterSY,
+      manualEnrolment,
+    );
+
+    if (ok) {
+      setIsDirty(false);
+      setSaveMessage("✅ Enrolment saved successfully.");
+
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      saveTimeoutRef.current = setTimeout(() => {
+        setSaveMessage("");
+      }, 3000);
+    } else {
+      alert("Failed to save enrolment.");
+    }
+  }
 
   const [config, setConfig] = useState(DEFAULT_SBFP_CONFIG);
 

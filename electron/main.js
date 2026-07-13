@@ -4,7 +4,9 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { PDFDocument } from "pdf-lib";
-import { autoUpdater } from "electron-updater";
+import pkg from "electron-updater";
+
+const { autoUpdater } = pkg;
 
 import {
   saveStudents,
@@ -151,15 +153,12 @@ function createWindow() {
     mainWindow.webContents.focus();
   });
 
-if (app.isPackaged) {
-  mainWindow.loadFile(
-    path.join(__dirname, "../dist/index.html")
-  );
-} else {
-  mainWindow.loadURL("http://localhost:5173");
-
-  // mainWindow.webContents.openDevTools();
-}
+  if (app.isPackaged) {
+    mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
+  } else {
+    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.webContents.openDevTools();
+  }
 }
 
 // =========================
@@ -182,19 +181,9 @@ ipcMain.on("force-refocus-window", () => {
 app.whenReady().then(() => {
   createWindow();
 
-  app.whenReady().then(() => {
-  createWindow();
-
   if (app.isPackaged) {
     autoUpdater.checkForUpdatesAndNotify();
   }
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
-});
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
