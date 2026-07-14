@@ -361,6 +361,27 @@ export async function fetchSchoolLogo(schoolId) {
 
   return data?.logo_url || null;
 }
+export async function getSchoolByName(name) {
+  const cfg = loadSupabaseConfig();
+
+  const res = await fetch(
+    `${cfg.url}/rest/v1/schools?school_name=eq.${encodeURIComponent(
+      name
+    )}&select=*`,
+    {
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+      },
+    }
+  );
+
+  if (!res.ok) return null;
+
+  const rows = await res.json();
+
+  return rows?.[0] || null;
+}
 
 export function queueStudentForSync(studentId) {
   const queue = loadQueue();
