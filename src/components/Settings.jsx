@@ -147,6 +147,14 @@ export default function Settings({
         if (currentUser?.id) {
           try {
             await bindSchoolToUser(school.id, currentUser.id);
+            window.dispatchEvent(
+              new CustomEvent("school-bound", {
+                detail: {
+                  schoolId: school.id,
+                  schoolName: school.name,
+                },
+              }),
+            );
           } catch (bindErr) {
             console.error("Failed binding school to user:", bindErr);
 

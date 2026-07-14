@@ -40,17 +40,23 @@ export default function App() {
 
   useEffect(() => {
     async function loadSchoolName() {
-      try {
-        const school = await window.sqlite.loadSchool();
+      if (!session?.id) {
+        setSchoolName("");
+        return;
+      }
 
-        setSchoolName(school?.school_name || "");
+      try {
+        const boundSchool = await fetchSchoolForUser(session.id);
+
+        setSchoolName(boundSchool?.name || "");
       } catch (e) {
-        console.error("[SQLite] Failed to load school:", e);
+        console.error(e);
+        setSchoolName("");
       }
     }
 
     loadSchoolName();
-  }, []);
+  }, [session]);
   const [updateReady, setUpdateReady] = useState(false);
 
   useEffect(() => {
@@ -147,6 +153,20 @@ export default function App() {
       return next;
     });
   }
+  async function loadSchoolStudents(schoolId) {
+    if (!schoolId) {
+      setStudents([]);
+      await localSaveStudents([]);
+      return;
+    }
+
+    const result = await syncFromServer(schoolId);
+
+    if (result.success && Array.isArray(result.students)) {
+      await localSaveStudents(result.students);
+      setStudents(result.students);
+    }
+  }
 
   async function handleLogin(sess) {
     setSession(sess);
@@ -161,12 +181,7 @@ export default function App() {
         return;
       }
 
-      const result = await syncFromServer(boundSchool.id);
-
-      if (result.success && Array.isArray(result.students)) {
-        await localSaveStudents(result.students);
-        setStudents(result.students);
-      }
+      await loadSchoolStudents(boundSchool.id);
     } catch (err) {
       console.error(err);
       setStudents([]);
@@ -174,17 +189,28 @@ export default function App() {
     }
   }
 
+  useEffect(() => {
+    async function handleSchoolBound(event) {
+      const { schoolId, schoolName } = event.detail;
+
+      setSchoolName(schoolName);
+
+      await loadSchoolStudents(schoolId);
+    }
+
+    window.addEventListener("school-bound", handleSchoolBound);
+
+    return () => window.removeEventListener("school-bound", handleSchoolBound);
+  }, [session]);
+
   function handleLogout() {
     logout();
+
     setSession(null);
+    setStudents([]);
+    setSchoolName("");
     setPage("dashboard");
 
-    // Windows/Electron sometimes leaves keyboard input routed to a stale
-    // internal window state after this transition — symptom: the Login
-    // screen's fields don't accept typing until the user switches away
-    // from the app and back. Forcing a native focus-toggle right after
-    // logout fixes that at the source instead of relying on the user to
-    // work around it.
     setTimeout(() => {
       window.electronAPI?.forceRefocusWindow?.();
     }, 50);
