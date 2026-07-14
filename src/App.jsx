@@ -193,7 +193,13 @@ export default function App() {
     async function handleSchoolBound(event) {
       const { schoolId, schoolName } = event.detail;
 
-      setSchoolName(schoolName);
+      setSchoolName(schoolName || "");
+
+      if (!schoolId) {
+        setStudents([]);
+        await localSaveStudents([]);
+        return;
+      }
 
       await loadSchoolStudents(schoolId);
     }

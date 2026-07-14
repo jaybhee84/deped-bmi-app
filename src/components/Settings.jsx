@@ -8,8 +8,9 @@ import {
   queueAllStudentsForSync,
   saveSchoolInfo,
   bindSchoolToUser,
+  unbindSchoolFromUser,
   fetchSchoolForUser,
-  getSchoolByName, // ADD THIS
+  getSchoolByName,
 } from "../utils/syncService";
 import "./Settings.css";
 import { SCHOOL_OPTIONS } from "../utils/schools";
@@ -373,18 +374,39 @@ export default function Settings({
             <button
               className="btn btn-danger"
               onClick={async () => {
-                await window.sqlite.clearSchool();
+                try {
+                  if (currentUser?.id && navigator.onLine) {
+                    await unbindSchoolFromUser(currentUser.id);
+                  }
 
-                setSchool({
-                  name: "",
-                  id: "",
-                  division: "",
-                  district: "",
-                  address: "",
-                });
+                  await window.sqlite.clearSchool();
+                  await window.sqlite.saveStudents([]);
 
-                setSchoolName("");
-                setSchoolLoaded(false);
+                  setSchool({
+                    name: "",
+                    id: "",
+                    division: "",
+                    district: "",
+                    address: "",
+                  });
+
+                  setSchoolName("");
+                  setSchoolLoaded(false);
+                  setSchoolExists(false);
+                  setSchoolLogo(null);
+
+                  window.dispatchEvent(
+                    new CustomEvent("school-bound", {
+                      detail: {
+                        schoolId: null,
+                        schoolName: "",
+                      },
+                    }),
+                  );
+                } catch (err) {
+                  console.error(err);
+                  alert("Failed to clear school settings.");
+                }
               }}
             >
               Clear School Settings
