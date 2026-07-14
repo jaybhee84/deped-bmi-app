@@ -24,6 +24,7 @@ import {
   syncFromServer,
   isOnline,
   isSupabaseConfigured,
+  fetchSchoolForUser,
 } from "./utils/syncService";
 import "./App.css";
 
@@ -36,14 +37,6 @@ export default function App() {
   const [selectedPeriod, setSelectedPeriod] = useState("Baseline");
   const [selectedSY, setSelectedSY] = useState("2026–2027");
   const [schoolName, setSchoolName] = useState("");
-  useEffect(() => {
-    async function loadLocalStudents() {
-      const data = await localLoadStudents();
-      setStudents(Array.isArray(data) ? data : []);
-    }
-
-    loadLocalStudents();
-  }, []);
 
   useEffect(() => {
     async function loadSchoolName() {
@@ -113,17 +106,31 @@ export default function App() {
 
   useEffect(() => {
     async function startupSync() {
-      if (isOnline() && isSupabaseConfigured()) {
-        const schoolId = await getLocalSchoolId();
-        const serverData = await syncFromServer(schoolId);
+      if (!session?.id) return;
+
+      try {
+        const boundSchool = await fetchSchoolForUser(session.id);
+
+        if (!boundSchool) {
+          setStudents([]);
+          await localSaveStudents([]);
+          return;
+        }
+
+        const serverData = await syncFromServer(boundSchool.id);
+
         if (serverData.success && Array.isArray(serverData.students)) {
           await localSaveStudents(serverData.students);
           setStudents(serverData.students);
         }
+      } catch (err) {
+        console.error(err);
+        setStudents([]);
       }
     }
+
     startupSync();
-  }, []);
+  }, [session]);
 
   function updateStudents(updaterOrValue) {
     setStudents((prev) => {
@@ -144,13 +151,26 @@ export default function App() {
   async function handleLogin(sess) {
     setSession(sess);
     setPage("dashboard");
-    if (isOnline() && isSupabaseConfigured()) {
-      const schoolId = await getLocalSchoolId();
-      const result = await syncFromServer(schoolId);
+
+    try {
+      const boundSchool = await fetchSchoolForUser(sess.id);
+
+      if (!boundSchool) {
+        setStudents([]);
+        await localSaveStudents([]);
+        return;
+      }
+
+      const result = await syncFromServer(boundSchool.id);
+
       if (result.success && Array.isArray(result.students)) {
         await localSaveStudents(result.students);
         setStudents(result.students);
       }
+    } catch (err) {
+      console.error(err);
+      setStudents([]);
+      await localSaveStudents([]);
     }
   }
 
