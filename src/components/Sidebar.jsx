@@ -33,9 +33,11 @@ export default function Sidebar({
   }, []);
 
   useEffect(() => {
-    window.electronAPI.onUpdateMessage((message) => {
+    const unsubscribe = window.electronAPI.onUpdateMessage((message) => {
       alert(message);
+      window.electronAPI.forceRefocusWindow();
     });
+    return unsubscribe;
   }, []);
   const isSDO = session?.role === ROLES.DIVISION;
   const navItems = isSDO ? SDO_NAV : SCHOOL_NAV;
@@ -104,6 +106,8 @@ export default function Sidebar({
                 }
               } catch (err) {
                 alert(`Error checking updates:\n${err.message}`);
+              } finally {
+                window.electronAPI.forceRefocusWindow();
               }
             }}
           >
@@ -114,6 +118,7 @@ export default function Sidebar({
             className="logout-btn"
             onClick={() => {
               const ok = window.confirm("Are you sure you want to sign out?");
+              window.electronAPI.forceRefocusWindow();
               if (ok) onLogout();
             }}
           >

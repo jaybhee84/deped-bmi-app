@@ -270,6 +270,8 @@ export default function BatchEntry({ setStudents }) {
     setSaved(true);
     setRows([emptyRow()]);
     setTimeout(() => setSaved(false), 3500);
+
+    window.electronAPI.forceRefocusWindow();
   }
 
   return (

@@ -240,6 +240,7 @@ export function setupPrintHandler() {
           contextIsolation: true,
         },
       });
+      workerWindow.on("page-title-updated", (event) => event.preventDefault()); // ← ADD THIS LINE
 
       let htmlContent = "";
       let printOptions = {
@@ -268,12 +269,14 @@ export function setupPrintHandler() {
           const previewPath = path.join(os.tmpdir(), "sbfp_report_preview.pdf");
           fs.writeFileSync(previewPath, pdfBuffer);
 
-          const previewWindow = new BrowserWindow({
+         const previewWindow = new BrowserWindow({
             ...previewConfig,
             parent: BrowserWindow.fromWebContents(event.sender),
             modal: true,
             webPreferences: { plugins: true },
           });
+          previewWindow.on("page-title-updated", (event) => event.preventDefault()); // ← ADD THIS LINE
+          previewWindow.setTitle(previewConfig.title);                                // ← AND THIS LINE
 
           previewWindow.loadURL(`file://${previewPath}`);
           workerWindow.destroy();

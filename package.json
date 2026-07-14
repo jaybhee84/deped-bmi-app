@@ -1,7 +1,7 @@
 {
   "name": "deped-bmi-app",
   "private": true,
-  "version": "1.0.10",
+  "version": "2.0.0",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -17,6 +17,7 @@
   "build": {
     "appId": "com.deped.bmiapp",
     "productName": "DepEd BMI App",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "directories": {
       "output": "release"
     },
@@ -32,9 +33,9 @@
       "releaseType": "release"
     },
     "win": {
-  "target": "nsis",
-  "icon": "public/icon.ico"
-},
+      "target": "nsis",
+      "icon": "public/icon.ico"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
