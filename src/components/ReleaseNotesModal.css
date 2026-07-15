@@ -1,0 +1,31 @@
+.release-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+}
+
+.release-modal {
+    width: 700px;
+    max-width: 95%;
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+}
+
+.release-modal h2 {
+    margin-bottom: 16px;
+}
+
+.release-modal ul {
+    padding-left: 20px;
+}
+
+.release-modal li {
+    margin-bottom: 10px;
+    line-height: 1.5;
+}

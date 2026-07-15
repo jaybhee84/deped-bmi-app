@@ -35,6 +35,21 @@ contextBridge.exposeInMainWorld("sqlite", {
       "school:load"
     ),
 
+    // =========================
+  // SBFP CONFIG
+  // =========================
+
+  loadSbfpConfig: () =>
+    ipcRenderer.invoke(
+      "sbfpConfig:load"
+    ),
+
+  saveSbfpConfig: (config) =>
+    ipcRenderer.invoke(
+      "sbfpConfig:save",
+      config
+    ),
+  
   clearSchool: () =>
     ipcRenderer.invoke(
       "school:clear"

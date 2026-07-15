@@ -15,6 +15,8 @@ import ExportImport from "./components/ExportImport";
 import SyncStatus from "./components/SyncStatus";
 import Login from "./components/Login";
 import SBFPBeneficiaries from "./components/SBFPBeneficiaries";
+import ReleaseNotesModal from "./components/ReleaseNotesModal";
+import { RELEASE_NOTES } from "./data/releaseNotes";
 import { getSession, logout, canEdit, ROLES } from "./utils/auth";
 import {
   localLoadStudents,
@@ -33,11 +35,17 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [profileId, setProfileId] = useState(null);
   const [students, setStudents] = useState([]);
+  // School-user pages
+  const [selectedSchool, setSelectedSchool] = useState("ALL SCHOOLS");
+
+  // SDO pages
   const [dashboardSchool, setDashboardSchool] = useState("ALL SCHOOLS");
   const [reportsSchool, setReportsSchool] = useState("CONSOLIDATED");
   const [selectedPeriod, setSelectedPeriod] = useState("Baseline");
   const [selectedSY, setSelectedSY] = useState("2026–2027");
   const [schoolName, setSchoolName] = useState("");
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
+  const [releaseData, setReleaseData] = useState(null);
 
   useEffect(() => {
     async function loadSchoolName() {
@@ -62,6 +70,24 @@ export default function App() {
 
   useEffect(() => {
     window.electronAPI?.onUpdateReady?.(() => setUpdateReady(true));
+  }, []);
+
+  useEffect(() => {
+    async function checkReleaseNotes() {
+      const version = await window.electronAPI.getAppVersion();
+
+      const lastSeen = localStorage.getItem("last_seen_version");
+
+      if (version !== lastSeen && RELEASE_NOTES[version]) {
+        setReleaseData(RELEASE_NOTES[version]);
+
+        setShowReleaseNotes(true);
+
+        localStorage.setItem("last_seen_version", version);
+      }
+    }
+
+    checkReleaseNotes();
   }, []);
 
   const isSDO = session?.role === ROLES.DIVISION;
@@ -468,6 +494,12 @@ export default function App() {
           </div>
         )}
       </main>
+      <ReleaseNotesModal
+        open={showReleaseNotes}
+        version={releaseData?.title}
+        notes={releaseData?.notes || []}
+        onClose={() => setShowReleaseNotes(false)}
+      />
     </div>
   );
 }
