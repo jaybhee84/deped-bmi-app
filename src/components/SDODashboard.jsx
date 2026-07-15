@@ -733,64 +733,6 @@ export default function SDODashboard({
             })}
           </div>
 
-          {/* ── Incomplete data ── */}
-          <div className="card" ref={incompleteRef}>
-            <h3 className="card-title">
-              Learners with Incomplete Data ({incompleteLearners.length})
-            </h3>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>LRN</th>
-                  <th>Name</th>
-                  <th>Age</th>
-                  <th>Sex</th>
-                  <th>Section</th>
-                  <th>Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {incompleteLearners.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="empty-cell">
-                      All learners have complete data.
-                    </td>
-                  </tr>
-                ) : (
-                  incompleteLearners.map((s) => {
-                    const recs = s.records.filter(
-                      (r) => r.sy === filterSY && r.q === filterPeriod,
-                    );
-                    const missing = [];
-                    if (!s.birthdate) missing.push("Birthdate");
-                    if (!s.sex) missing.push("Sex");
-                    if (!s.age || s.age === 0) missing.push("Age");
-                    if (!recs.length) missing.push(`No ${filterPeriod} Record`);
-                    else {
-                      const last = recs[recs.length - 1];
-                      if (!last.weight) missing.push("Weight");
-                      if (!last.height) missing.push("Height");
-                    }
-                    return (
-                      <tr key={s.id}>
-                        <td>{s.lrn}</td>
-                        <td>{s.name}</td>
-                        <td>{s.age}</td>
-                        <td>{s.sex}</td>
-                        <td>{s.section}</td>
-                        <td>
-                          <span style={{ color: "#dc2626", fontWeight: 600 }}>
-                            {missing.join(", ")}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
           {/* ── Grade level breakdown table ── */}
           <div className="card">
             <h3 className="card-title">Nutritional Status by Grade Level</h3>

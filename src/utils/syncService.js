@@ -38,6 +38,24 @@ export async function localLoadStudents() {
   }
 }
 
+export async function unbindSchoolFromUser(
+  userId,
+) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      school_id: null,
+    })
+    .eq("id", userId)
+    .select();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 // ── Supabase Config ───────────────────────────────────────────────────────
 
 export function saveSupabaseConfig(url, key) {
@@ -105,34 +123,26 @@ export async function saveSchoolInfo(school) {
 // Many users can be bound to the same school — this just stamps the current
 // user's profile row with whichever school_id they saved in Settings.
 
-export async function bindSchoolToUser(schoolId, userId) {
-  if (!schoolId || !userId) {
-    throw new Error("bindSchoolToUser requires both schoolId and userId");
+export async function bindSchoolToUser(
+  schoolId,
+  userId,
+) {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      school_id: schoolId,
+    })
+    .eq("id", userId)
+    .select();
+
+  console.log("[BIND] data =", data);
+  console.log("[BIND] error =", error);
+
+  if (error) {
+    throw error;
   }
 
-  const cfg = loadSupabaseConfig();
-
-  const res = await fetch(
-    `${cfg.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`,
-    {
-      method: "PATCH",
-      headers: {
-        apikey: cfg.key,
-        Authorization: `Bearer ${cfg.key}`,
-        "Content-Type": "application/json",
-        Prefer: "return=minimal",
-      },
-      body: JSON.stringify({ school_id: schoolId }),
-    }
-  );
-
-  if (!res.ok) {
-    const err = await res.text();
-    console.error("Failed binding school to user:", err);
-    throw new Error(err);
-  }
-
-  return true;
+  return data;
 }
 
 // Looks up which school (if any) the given user is bound to, and returns
@@ -360,6 +370,27 @@ export async function fetchSchoolLogo(schoolId) {
   }
 
   return data?.logo_url || null;
+}
+export async function getSchoolByName(name) {
+  const cfg = loadSupabaseConfig();
+
+  const res = await fetch(
+    `${cfg.url}/rest/v1/schools?school_name=eq.${encodeURIComponent(
+      name
+    )}&select=*`,
+    {
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+      },
+    }
+  );
+
+  if (!res.ok) return null;
+
+  const rows = await res.json();
+
+  return rows?.[0] || null;
 }
 
 export function queueStudentForSync(studentId) {

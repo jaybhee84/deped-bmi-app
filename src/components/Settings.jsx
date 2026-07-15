@@ -8,7 +8,9 @@ import {
   queueAllStudentsForSync,
   saveSchoolInfo,
   bindSchoolToUser,
+  unbindSchoolFromUser,
   fetchSchoolForUser,
+  getSchoolByName,
 } from "../utils/syncService";
 import "./Settings.css";
 import { SCHOOL_OPTIONS } from "../utils/schools";
@@ -30,6 +32,7 @@ export default function Settings({
 
   const [schoolSaved, setSchoolSaved] = useState(false);
   const [schoolLoaded, setSchoolLoaded] = useState(false);
+  const [schoolExists, setSchoolExists] = useState(false);
   const [schoolLogo, setSchoolLogo] = useState(null);
   const [appVersion, setAppVersion] = useState("");
   useEffect(() => {
@@ -84,10 +87,12 @@ export default function Settings({
               district: boundSchool.district || "",
               address: boundSchool.address || "",
             });
-            const logoUrl = getSchoolLogoUrl(boundSchool.name);
 
+            setSchoolExists(true);
+
+            const logoUrl = getSchoolLogoUrl(boundSchool.name);
             setSchoolLogo(logoUrl);
-            // Save it locally too so it's available offline next time
+
             await window.sqlite.saveSchool({
               school_name: boundSchool.name,
               school_id: boundSchool.id,
@@ -134,15 +139,34 @@ export default function Settings({
 
       // Sync to Supabase if online
       if (navigator.onLine) {
-        await saveSchoolInfo(school);
+        // Only create/update the school if it doesn't already exist
+        if (!schoolExists) {
+          await saveSchoolInfo(school);
+        }
 
-        // Bind this school to the logged-in user's profile so multiple
-        // users can share the same school without creating duplicates.
+        // Always bind the user to the school
         if (currentUser?.id) {
           try {
-            await bindSchoolToUser(school.id, currentUser.id);
+            console.log("CURRENT USER =", currentUser);
+            console.log("USER ID =", currentUser?.id);
+            console.log("USERNAME =", currentUser?.username);
+            console.log("SCHOOL ID =", school.id);
+
+            const success = await bindSchoolToUser(school.id, currentUser.id);
+
+            console.log("BIND RESULT =", success);
+
+            window.dispatchEvent(
+              new CustomEvent("school-bound", {
+                detail: {
+                  schoolId: school.id,
+                  schoolName: school.name,
+                },
+              }),
+            );
           } catch (bindErr) {
             console.error("Failed binding school to user:", bindErr);
+
             alert(
               "School saved, but could not bind it to your account. You may need to set it up again next time.",
             );
@@ -164,6 +188,48 @@ export default function Settings({
     }
   }
 
+  async function handleSchoolChange(schoolName) {
+    if (!schoolName) {
+      setSchool({
+        name: "",
+        id: "",
+        division: "",
+        district: "",
+        address: "",
+      });
+
+      setSchoolExists(false);
+      return;
+    }
+
+    try {
+      const existingSchool = await getSchoolByName(schoolName);
+
+      if (existingSchool) {
+        setSchool({
+          name: existingSchool.school_name,
+          id: existingSchool.school_id,
+          division: existingSchool.division || "",
+          district: existingSchool.district || "",
+          address: existingSchool.address || "",
+        });
+
+        setSchoolExists(true);
+      } else {
+        setSchool({
+          name: schoolName,
+          id: "",
+          division: "",
+          district: "",
+          address: "",
+        });
+
+        setSchoolExists(false);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
   async function handleTestAndSaveSupabase() {
     if (!supabase.url || !supabase.key) return;
     setTesting(true);
@@ -247,9 +313,7 @@ export default function Settings({
                     color: "#888",
                     marginLeft: "8px",
                   }}
-                >
-                  (bound to your account — clear settings to change)
-                </span>
+                ></span>
               )}
             </label>
 
@@ -259,12 +323,7 @@ export default function Settings({
               }`}
               value={school.name}
               disabled={schoolLoaded}
-              onChange={(e) =>
-                setSchool((s) => ({
-                  ...s,
-                  name: e.target.value,
-                }))
-              }
+              onChange={(e) => handleSchoolChange(e.target.value)}
             >
               <option value="">Select School</option>
 
@@ -304,6 +363,10 @@ export default function Settings({
                 }`}
                 placeholder={placeholder}
                 value={school[key]}
+                disabled={
+                  schoolExists &&
+                  ["id", "division", "district", "address"].includes(key)
+                }
                 onChange={(e) =>
                   setSchool((s) => ({ ...s, [key]: e.target.value }))
                 }
@@ -317,18 +380,39 @@ export default function Settings({
             <button
               className="btn btn-danger"
               onClick={async () => {
-                await window.sqlite.clearSchool();
+                try {
+                  if (currentUser?.id && navigator.onLine) {
+                    await unbindSchoolFromUser(currentUser.id);
+                  }
 
-                setSchool({
-                  name: "",
-                  id: "",
-                  division: "",
-                  district: "",
-                  address: "",
-                });
+                  await window.sqlite.clearSchool();
+                  await window.sqlite.saveStudents([]);
 
-                setSchoolName("");
-                setSchoolLoaded(false);
+                  setSchool({
+                    name: "",
+                    id: "",
+                    division: "",
+                    district: "",
+                    address: "",
+                  });
+
+                  setSchoolName("");
+                  setSchoolLoaded(false);
+                  setSchoolExists(false);
+                  setSchoolLogo(null);
+
+                  window.dispatchEvent(
+                    new CustomEvent("school-bound", {
+                      detail: {
+                        schoolId: null,
+                        schoolName: "",
+                      },
+                    }),
+                  );
+                } catch (err) {
+                  console.error(err);
+                  alert("Failed to clear school settings.");
+                }
               }}
             >
               Clear School Settings

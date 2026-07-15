@@ -85,8 +85,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // right after any screen transition where that's been observed (e.g.
   // logout back to the Login screen).
   forceRefocusWindow: () => ipcRenderer.send("force-refocus-window"),
-  onUpdateMessage: (callback) =>
-  ipcRenderer.on("update-message", (_, message) => callback(message)),
+onUpdateMessage: (callback) => {
+  const listener = (_, message) => callback(message);
+  ipcRenderer.on("update-message", listener);
+  return () => ipcRenderer.removeListener("update-message", listener);
+},
 
   // NEW: auto-update
   onUpdateReady: (callback) => ipcRenderer.on("update-ready", callback),

@@ -1,7 +1,9 @@
 {
   "name": "deped-bmi-app",
   "private": true,
-  "version": "2.0.0",
+  "version": "20.0.6",
+  "description": "A desktop application for managing and monitoring Body Mass Index (BMI) records for DepEd personnel.",
+  "author": "BuzzJay",
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
@@ -12,7 +14,7 @@
     "electron": "electron .",
     "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "dist": "npm run build && electron-builder",
-    "release": "npm run build && electron-builder --publish always"
+    "release": "npm run build && node scripts/release.js"
   },
   "build": {
     "appId": "com.deped.bmiapp",
@@ -29,7 +31,7 @@
     "publish": {
       "provider": "github",
       "owner": "jaybhee84",
-      "repo": "deped-bmi",
+      "repo": "deped-bmi-app",
       "releaseType": "release"
     },
     "win": {

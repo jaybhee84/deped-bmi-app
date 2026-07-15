@@ -282,7 +282,7 @@ export default function SDOReports({
   const [nutritionFilter, setNutritionFilter] = useState("All");
 
   const students = useMemo(() => {
-    if (selectedSchool === "CONSOLIDATED" || selectedSchool === "ALL_SCHOOLS") {
+    if (selectedSchool === "CONSOLIDATED" || selectedSchool === "ALL SCHOOLS") {
       return Object.values(allSchoolsData).flat();
     }
 
@@ -478,7 +478,7 @@ export default function SDOReports({
           >
             <option value="CONSOLIDATED">Consolidated Report</option>
 
-            <option value="ALL_SCHOOLS">All Schools</option>
+            <option value="ALL SCHOOLS">All Schools</option>
 
             {SCHOOL_OPTIONS.filter((school) => {
               const s = school.toLowerCase();

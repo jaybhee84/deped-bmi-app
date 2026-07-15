@@ -24,6 +24,7 @@ import {
   syncFromServer,
   isOnline,
   isSupabaseConfigured,
+  fetchSchoolForUser,
 } from "./utils/syncService";
 import "./App.css";
 
@@ -32,32 +33,31 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [profileId, setProfileId] = useState(null);
   const [students, setStudents] = useState([]);
-  const [selectedSchool, setSelectedSchool] = useState("ALL SCHOOLS");
+  const [dashboardSchool, setDashboardSchool] = useState("ALL SCHOOLS");
+  const [reportsSchool, setReportsSchool] = useState("CONSOLIDATED");
   const [selectedPeriod, setSelectedPeriod] = useState("Baseline");
   const [selectedSY, setSelectedSY] = useState("2026–2027");
   const [schoolName, setSchoolName] = useState("");
-  useEffect(() => {
-    async function loadLocalStudents() {
-      const data = await localLoadStudents();
-      setStudents(Array.isArray(data) ? data : []);
-    }
-
-    loadLocalStudents();
-  }, []);
 
   useEffect(() => {
     async function loadSchoolName() {
-      try {
-        const school = await window.sqlite.loadSchool();
+      if (!session?.id) {
+        setSchoolName("");
+        return;
+      }
 
-        setSchoolName(school?.school_name || "");
+      try {
+        const boundSchool = await fetchSchoolForUser(session.id);
+
+        setSchoolName(boundSchool?.name || "");
       } catch (e) {
-        console.error("[SQLite] Failed to load school:", e);
+        console.error(e);
+        setSchoolName("");
       }
     }
 
     loadSchoolName();
-  }, []);
+  }, [session]);
   const [updateReady, setUpdateReady] = useState(false);
 
   useEffect(() => {
@@ -113,17 +113,44 @@ export default function App() {
 
   useEffect(() => {
     async function startupSync() {
-      if (isOnline() && isSupabaseConfigured()) {
-        const schoolId = await getLocalSchoolId();
-        const serverData = await syncFromServer(schoolId);
+      if (!session?.id) return;
+
+      try {
+        // SDO users should see ALL schools
+        if (session.role === ROLES.DIVISION) {
+          const serverData = await syncFromServer(null);
+
+          if (serverData.success && Array.isArray(serverData.students)) {
+            await localSaveStudents(serverData.students);
+            setStudents(serverData.students);
+          }
+
+          return;
+        }
+
+        // School users must be bound to a school
+        const boundSchool = await fetchSchoolForUser(session.id);
+
+        if (!boundSchool) {
+          setStudents([]);
+          await localSaveStudents([]);
+          return;
+        }
+
+        const serverData = await syncFromServer(boundSchool.id);
+
         if (serverData.success && Array.isArray(serverData.students)) {
           await localSaveStudents(serverData.students);
           setStudents(serverData.students);
         }
+      } catch (err) {
+        console.error(err);
+        setStudents([]);
       }
     }
+
     startupSync();
-  }, []);
+  }, [session]);
 
   function updateStudents(updaterOrValue) {
     setStudents((prev) => {
@@ -140,31 +167,83 @@ export default function App() {
       return next;
     });
   }
+  async function loadSchoolStudents(schoolId) {
+    if (!schoolId) {
+      setStudents([]);
+      await localSaveStudents([]);
+      return;
+    }
+
+    const result = await syncFromServer(schoolId);
+
+    if (result.success && Array.isArray(result.students)) {
+      await localSaveStudents(result.students);
+      setStudents(result.students);
+    }
+  }
 
   async function handleLogin(sess) {
     setSession(sess);
     setPage("dashboard");
-    if (isOnline() && isSupabaseConfigured()) {
-      const schoolId = await getLocalSchoolId();
-      const result = await syncFromServer(schoolId);
-      if (result.success && Array.isArray(result.students)) {
-        await localSaveStudents(result.students);
-        setStudents(result.students);
+
+    try {
+      // SDO user
+      if (sess.role === ROLES.DIVISION) {
+        const result = await syncFromServer(null);
+
+        if (result.success && Array.isArray(result.students)) {
+          await localSaveStudents(result.students);
+          setStudents(result.students);
+        }
+
+        return;
       }
+
+      // School user
+      const boundSchool = await fetchSchoolForUser(sess.id);
+
+      if (!boundSchool) {
+        setStudents([]);
+        await localSaveStudents([]);
+        return;
+      }
+
+      await loadSchoolStudents(boundSchool.id);
+    } catch (err) {
+      console.error(err);
+      setStudents([]);
+      await localSaveStudents([]);
     }
   }
 
+  useEffect(() => {
+    async function handleSchoolBound(event) {
+      const { schoolId, schoolName } = event.detail;
+
+      setSchoolName(schoolName || "");
+
+      if (!schoolId) {
+        setStudents([]);
+        await localSaveStudents([]);
+        return;
+      }
+
+      await loadSchoolStudents(schoolId);
+    }
+
+    window.addEventListener("school-bound", handleSchoolBound);
+
+    return () => window.removeEventListener("school-bound", handleSchoolBound);
+  }, [session]);
+
   function handleLogout() {
     logout();
+
     setSession(null);
+    setStudents([]);
+    setSchoolName("");
     setPage("dashboard");
 
-    // Windows/Electron sometimes leaves keyboard input routed to a stale
-    // internal window state after this transition — symptom: the Login
-    // screen's fields don't accept typing until the user switches away
-    // from the app and back. Forcing a native focus-toggle right after
-    // logout fixes that at the source instead of relying on the user to
-    // work around it.
     setTimeout(() => {
       window.electronAPI?.forceRefocusWindow?.();
     }, 50);
@@ -183,7 +262,22 @@ export default function App() {
   if (!session) return <Login onLogin={handleLogin} />;
 
   // allSchoolsData for SDO dashboard
-  const allSchoolsData = { [schoolName || "Current School"]: students };
+  const allSchoolsData =
+    session?.role === ROLES.DIVISION
+      ? students.reduce((acc, student) => {
+          const school = student.schoolName || "Unknown School";
+
+          if (!acc[school]) {
+            acc[school] = [];
+          }
+
+          acc[school].push(student);
+
+          return acc;
+        }, {})
+      : {
+          [schoolName || "Current School"]: students,
+        };
 
   return (
     <div className="app-shell">
@@ -238,8 +332,8 @@ export default function App() {
           (isSDO ? (
             <SDODashboard
               allSchoolsData={allSchoolsData}
-              selectedSchool={selectedSchool}
-              setSelectedSchool={setSelectedSchool}
+              selectedSchool={dashboardSchool}
+              setSelectedSchool={setDashboardSchool}
               selectedPeriod={selectedPeriod}
               setSelectedPeriod={setSelectedPeriod}
               selectedSY={selectedSY}
@@ -342,8 +436,8 @@ export default function App() {
           (isSDO ? (
             <SDOReports
               allSchoolsData={allSchoolsData}
-              selectedSchool={selectedSchool}
-              setSelectedSchool={setSelectedSchool}
+              selectedSchool={reportsSchool}
+              setSelectedSchool={setReportsSchool}
             />
           ) : (
             <Reports students={students} selectedSchool={selectedSchool} />
