@@ -38,6 +38,7 @@ export async function localLoadStudents() {
   }
 }
 
+<<<<<<< HEAD
 export async function unbindSchoolFromUser(
   userId,
 ) {
@@ -54,6 +55,37 @@ export async function unbindSchoolFromUser(
   }
 
   return data;
+=======
+export async function unbindSchoolFromUser(userId) {
+  if (!userId) {
+    throw new Error("userId is required");
+  }
+
+  const cfg = loadSupabaseConfig();
+
+  const res = await fetch(
+    `${cfg.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        school_id: null,
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+
+  return true;
+>>>>>>> origin/main
 }
 
 // ── Supabase Config ───────────────────────────────────────────────────────

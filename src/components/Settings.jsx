@@ -147,23 +147,7 @@ export default function Settings({
         // Always bind the user to the school
         if (currentUser?.id) {
           try {
-            console.log("CURRENT USER =", currentUser);
-            console.log("USER ID =", currentUser?.id);
-            console.log("USERNAME =", currentUser?.username);
-            console.log("SCHOOL ID =", school.id);
-
-            const success = await bindSchoolToUser(school.id, currentUser.id);
-
-            console.log("BIND RESULT =", success);
-
-            window.dispatchEvent(
-              new CustomEvent("school-bound", {
-                detail: {
-                  schoolId: school.id,
-                  schoolName: school.name,
-                },
-              }),
-            );
+            await bindSchoolToUser(school.id, currentUser.id);
           } catch (bindErr) {
             console.error("Failed binding school to user:", bindErr);
 
