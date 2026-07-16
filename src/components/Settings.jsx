@@ -406,11 +406,30 @@ export default function Settings({
             <button
               className="btn btn-danger"
               onClick={async () => {
+                const confirmed = window.confirm(
+                  "This will unlink this account from its school. " +
+                  "Local data on this device will be cleared either way.\n\n" +
+                  "Continue?"
+                );
+
+                if (!confirmed) return;
+
+                let serverUnbindFailed = false;
+
                 try {
-                  if (currentUser?.id && navigator.onLine) {
+                  // Always attempt this — not just when navigator.onLine
+                  // looked true — since that flag can be stale/wrong, and
+                  // skipping it silently left the account bound in
+                  // Supabase while the device looked cleared.
+                  if (currentUser?.id) {
                     await unbindSchoolFromUser(currentUser.id);
                   }
+                } catch (err) {
+                  console.error("Failed to unbind school on server:", err);
+                  serverUnbindFailed = true;
+                }
 
+                try {
                   await window.sqlite.clearSchool();
                   await window.sqlite.saveStudents([]);
 
@@ -435,6 +454,15 @@ export default function Settings({
                       },
                     }),
                   );
+
+                  if (serverUnbindFailed) {
+                    alert(
+                      "This device has been cleared, but the account is " +
+                      "still bound to the school on the server (likely " +
+                      "no internet connection). Try again while online " +
+                      "to fully unlink this account."
+                    );
+                  }
                 } catch (err) {
                   console.error(err);
                   alert("Failed to clear school settings.");
