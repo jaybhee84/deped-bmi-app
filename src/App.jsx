@@ -99,7 +99,7 @@ export default function App() {
   // across all schools instead of scoping to one.
   async function getLocalSchoolId() {
     try {
-      const school = await window.sqlite.loadSchool();
+      const school = await window.sqlite.loadSchool(session?.id);
       return school?.school_id || null;
     } catch (e) {
       console.error("[Sync] Failed to read local school_id:", e);
@@ -454,6 +454,7 @@ export default function App() {
           <SBFPBeneficiaries
             students={students}
             setStudents={readOnly ? undefined : updateStudents}
+            currentUser={session}
           />
         )}
 

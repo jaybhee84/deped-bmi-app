@@ -34,9 +34,17 @@ CREATE TABLE IF NOT EXISTS schools (
   school_id TEXT,
   division TEXT,
   district TEXT,
-  address TEXT
+  address TEXT,
+  bound_user_id TEXT
 );
 `);
+
+// Migration: older installs may already have a `schools` table without
+// `bound_user_id`. Add it if missing so upgrades don't crash.
+const schoolColumns = db.prepare("PRAGMA table_info(schools)").all();
+if (!schoolColumns.some((c) => c.name === "bound_user_id")) {
+  db.exec("ALTER TABLE schools ADD COLUMN bound_user_id TEXT");
+}
 
 // =========================
 // SCHOOL LOGOS TABLE (separate from schools, keyed by school_id)
@@ -89,7 +97,12 @@ export function loadStudents() {
 // SCHOOL FUNCTIONS
 // =========================
 
-export function saveSchool(school) {
+// `userId` is required so this device's cached school is tied to whichever
+// account set it up. Without this, a second account created on the same
+// device would silently inherit the first account's school (and, through
+// that, its SBFP enrolment data) — see the "current" singleton bug this
+// replaces.
+export function saveSchool(school, userId) {
   db.prepare(`
     INSERT OR REPLACE INTO schools (
       id,
@@ -97,27 +110,36 @@ export function saveSchool(school) {
       school_id,
       division,
       district,
-      address
+      address,
+      bound_user_id
     )
-    VALUES (?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     "current",
     school.name,
     school.id,
     school.division,
     school.district,
-    school.address
+    school.address,
+    userId ? String(userId) : null
   );
 }
 
-export function loadSchool() {
-  return (
-    db
-      .prepare(
-        "SELECT * FROM schools WHERE id = 'current'"
-      )
-      .get() || null
-  );
+// Only returns the cached school if it was bound by the SAME user who is
+// currently asking for it. If a different (or no) user previously bound a
+// school on this device, this returns null — the caller falls back to
+// Supabase / a fresh "set up your school" flow instead of leaking stale
+// data across accounts.
+export function loadSchool(userId) {
+  const row = db
+    .prepare("SELECT * FROM schools WHERE id = 'current'")
+    .get();
+
+  if (!row) return null;
+  if (!userId) return null;
+  if (row.bound_user_id !== String(userId)) return null;
+
+  return row;
 }
 
 export function clearSchool() {

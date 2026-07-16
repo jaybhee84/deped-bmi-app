@@ -24,15 +24,18 @@ contextBridge.exposeInMainWorld("sqlite", {
   // SCHOOLS
   // =========================
 
-  saveSchool: (school) =>
+  // `userId` scopes this device's cached school to whichever account set
+  // it up, so a second account on the same device doesn't inherit it.
+  saveSchool: (school, userId) =>
     ipcRenderer.invoke(
       "school:save",
-      school
+      { school, userId }
     ),
 
-  loadSchool: () =>
+  loadSchool: (userId) =>
     ipcRenderer.invoke(
-      "school:load"
+      "school:load",
+      userId
     ),
 
     // =========================

@@ -6,7 +6,12 @@ import {
   SCHOOL_POSITIONS,
   DIVISION_POSITIONS,
 } from '../utils/auth';
-import { saveSession } from '../utils/auth';
+import {
+  saveSession,
+  cacheOfflineCredentials,
+  attemptOfflineLogin,
+  hasOfflineCredentials,
+} from '../utils/auth';
 import { supabase } from '../utils/supabase';
 import './Login.css';
 import logo from '../images/ok-sa-deped.png';
@@ -395,6 +400,32 @@ export default function Login({ onLogin }) {
   setLoading(true);
   setError('');
 
+  // ── Offline path ──────────────────────────────────────────────────
+  // No internet: skip Supabase entirely and check this device's local
+  // cache, which is only populated after a previous successful online
+  // login for this exact username.
+  if (!navigator.onLine) {
+    const cachedProfile = attemptOfflineLogin(username.trim(), password);
+    setLoading(false);
+
+    if (cachedProfile) {
+      const session = { ...cachedProfile, loginTime: new Date().toISOString() };
+      saveSession(session);
+      onLogin(session);
+      return;
+    }
+
+    if (hasOfflineCredentials(username.trim())) {
+      setError('Incorrect password.');
+    } else {
+      setError(
+        "You're offline, and this account hasn't signed in on this device before. Connect to the internet to sign in for the first time."
+      );
+    }
+    return;
+  }
+
+  // ── Online path ───────────────────────────────────────────────────
   try {
     const { data: profile, error: profileError } =
       await supabase
@@ -423,16 +454,17 @@ export default function Login({ onLogin }) {
     }
 
     const session = {
-  ...data.user,
-  ...profile,
-};
+      ...data.user,
+      ...profile,
+    };
 
-localStorage.setItem(
-  'deped_bmi_session',
-  JSON.stringify(session)
-);
+    saveSession(session);
 
-onLogin(session);
+    // Cache these credentials so this same account can sign back in on
+    // this device even without internet next time.
+    cacheOfflineCredentials(session, password);
+
+    onLogin(session);
 
   } catch (err) {
     setLoading(false);
@@ -528,6 +560,27 @@ onLogin(session);
 )}
 
       </div>
+
+      {view === 'login' && (
+        <div
+          style={{
+            maxWidth: 380,
+            margin: '12px auto 0',
+            padding: '10px 14px',
+            background: 'rgba(255,255,255,0.6)',
+            border: '1px solid rgba(0,0,0,0.08)',
+            borderRadius: 8,
+            color: '#6B7280',
+            fontSize: 12.5,
+            textAlign: 'center',
+            lineHeight: 1.5,
+          }}
+        >
+          💡 You can sign in without internet once you've signed in
+          successfully online on this device before.
+        </div>
+      )}
+
       <div className="login-bg-text">Jaybhee Bazan</div>
     </div>
   );

@@ -84,17 +84,17 @@ export function login(username, password) {
   if (!user) return null;
   const session = { ...user, loginTime: new Date().toISOString() };
   delete session.password;
-  try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch {}
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch {}
   return session;
 }
  
 export function logout() {
-  try { sessionStorage.removeItem(SESSION_KEY); } catch {}
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
 }
  
 export function getSession() {
   try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
+    const raw = localStorage.getItem(SESSION_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
 }
@@ -110,9 +110,60 @@ export function canViewOnly(session) {
 }
 export function saveSession(session) {
   try {
-    sessionStorage.setItem(
+    localStorage.setItem(
       SESSION_KEY,
       JSON.stringify(session)
     );
   } catch {}
+}
+
+// ── Offline credential cache ────────────────────────────────────────────
+// Supabase is the source of truth for login, but this device-local cache
+// lets a user who has ALREADY signed in successfully online on THIS
+// device sign back in without internet (e.g. after an explicit logout,
+// or if this machine can't reach the internet right now).
+//
+// A username that has never signed in on this device before still
+// requires an online first login — there's nothing local to check it
+// against yet.
+const OFFLINE_CACHE_KEY = 'deped_bmi_offline_cache';
+
+// Call this right after a SUCCESSFUL online (Supabase) login, passing the
+// same profile/session object you're about to hand to onLogin, plus the
+// password the user just typed.
+export function cacheOfflineCredentials(profile, password) {
+  try {
+    const cache = loadOfflineCache();
+    const key = (profile.username || '').toLowerCase();
+    if (!key) return;
+
+    cache[key] = { profile, password };
+    localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(cache));
+  } catch {}
+}
+
+function loadOfflineCache() {
+  try {
+    const raw = localStorage.getItem(OFFLINE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+// Returns the cached profile if username+password match a previous
+// successful online login on this device, otherwise null.
+export function attemptOfflineLogin(username, password) {
+  const cache = loadOfflineCache();
+  const entry = cache[(username || '').toLowerCase()];
+
+  if (!entry || entry.password !== password) return null;
+
+  return entry.profile;
+}
+
+// Whether this username has ever successfully signed in online on this
+// device — used to give a clearer error message when offline login fails
+// (wrong password vs. "never signed in here before").
+export function hasOfflineCredentials(username) {
+  const cache = loadOfflineCache();
+  return Boolean(cache[(username || '').toLowerCase()]);
 }

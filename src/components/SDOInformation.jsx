@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
 import "./Settings.css";
+import { RELEASE_NOTES } from "../data/releaseNotes";
 
 export default function SDOInformation() {
   const [version, setVersion] = useState("");
+  const latestRelease = RELEASE_NOTES[version];
 
   useEffect(() => {
     window.electronAPI.getAppVersion().then(setVersion);
@@ -112,6 +114,48 @@ export default function SDOInformation() {
               <span>SDO / Division</span>
             </div>
           </div>
+          {latestRelease && (
+            <>
+              <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
+                📋 Release Notes
+              </h3>
+
+              <div
+                style={{
+                  background: "#F8FAFC",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 10,
+                  padding: 16,
+                  maxHeight: 260,
+                  overflowY: "auto",
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: 700,
+                    color: "#1E3A5F",
+                    marginBottom: 10,
+                    fontSize: "15px",
+                  }}
+                >
+                  {latestRelease.title}
+                </div>
+                NPM
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: 20,
+                    color: "#374151",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {latestRelease.notes.map((note, index) => (
+                    <li key={index}>{note}</li>
+                  ))}
+                </ul>
+              </div>
+            </>
+          )}
 
           <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
             Nutritional Status Indicators
