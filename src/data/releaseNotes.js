@@ -1,5 +1,3 @@
-
-
 export const RELEASE_NOTES = {
   "20.0.8": {
     title: "🎉 Welcome to Version 20.0.8",
@@ -21,6 +19,24 @@ export const RELEASE_NOTES = {
       "Fixed stale school information after logout.",
       "Fixed school data not clearing when settings are removed.",
       "Improved login and startup data loading."
+    ]
+  },
+  "20.0.9": {
+    title: "🎉 Welcome to Version 20.0.9",
+    notes: [
+      "You can now sign in without internet, once you've signed in successfully online on this device before.",
+      "Fixed sessions not staying signed in after closing and reopening the app.",
+      "Fixed new accounts sometimes seeing another account's school or SBFP data on a shared device.",
+      "Save Settings and Sign Out are now safe to use immediately, without waiting on background data to finish loading."
+    ]
+  },
+  "20.0.10": {
+    title: "🎉 Welcome to Version 20.0.11",
+    notes: [
+      "Clear School Settings now asks for confirmation before unlinking your account from a school.",
+      "Fixed Clear School Settings not fully unlinking the account when offline — it now clearly tells you if the server-side unlink still needs to happen once you're back online.",
+      "Fixed the offline sign-in reminder on the login screen displaying beside the login card instead of underneath it, which was also causing an unwanted scrollbar.",
+      "Fixed Release Notes not appearing in Settings and Information for accounts running the latest version."
     ]
   }
 };
