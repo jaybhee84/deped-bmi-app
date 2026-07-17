@@ -18,9 +18,8 @@ import {
 } from "../utils/sbfpConfig";
 import Badge from "./Badge";
 import "./SBFPBeneficiaries.css";
-import "./SBFPBeneficiaries.print.css"; // NEW: styles for the official DepEd report
+import "./SBFPBeneficiaries.print.css";
 
-// ── Order the report follows (Kinder → Grade 6 → SPED) ──
 const REPORT_GRADE_ORDER = [
   "Kinder",
   "Grade 1",
@@ -77,15 +76,6 @@ function pct(n, d) {
   return ((n / d) * 100).toFixed(2) + "%";
 }
 
-/**
- * Builds the Grade Level x Sex nutritional status summary
- * (mirrors the DepEd "Nutritional Status Report" template).
- *
- * ASSUMPTION: "grade" for grouping is derived the same way as the rest of
- * the file (s.section?.split(" - ")[0]), with anything not matching a
- * regular grade level bucketed as "SPED". Adjust deriveGrade() below if
- * your data marks SPED learners differently (e.g. s.isSPED or s.track).
- */
 function deriveGrade(s) {
   const g = s.section?.split(" - ")[0] || s.grade || "";
   return REPORT_GRADE_ORDER.includes(g) ? g : "SPED";
@@ -102,7 +92,7 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
   students.forEach((s) => {
     const grade = deriveGrade(s);
     const row = rowByGrade[grade];
-    if (!row) return; // unmatched grade label, skip
+    if (!row) return;
     const sex = String(s.sex || "")
       .trim()
       .toUpperCase();
@@ -136,7 +126,6 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
     }
   });
 
-  // Total row per grade (M + F)
   const withTotals = rows.map((r) => {
     const Total = emptyStats();
     addInto(Total, r.M);
@@ -144,7 +133,6 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
     return { ...r, Total };
   });
 
-  // Grand total across all grades
   const grand = { M: emptyStats(), F: emptyStats(), Total: emptyStats() };
   withTotals.forEach((r) => {
     addInto(grand.M, r.M);
@@ -162,7 +150,7 @@ export default function SBFPBeneficiaries({
   schoolId = "",
   currentUser,
 }) {
-  const [filterSY, setFilterSY] = useState("2026–2027");
+  const [filterSY, setFilterSY] = useState("2026-2027");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
   const [searchQ, setSearchQ] = useState("");
@@ -173,19 +161,12 @@ export default function SBFPBeneficiaries({
   const csvFileInputRef = React.useRef(null);
   const saveTimeoutRef = React.useRef(null);
 
-  // ── School name/ID resolution ──
-  // Priority: explicit props -> local SQLite (offline-safe) -> Supabase
-  // (only attempted if online and local had nothing).
-  // NOTE: moved above the enrolment-loading effect below, since that
-  // effect now needs resolvedSchool.id to know which school's enrolment
-  // to fetch.
   const [resolvedSchool, setResolvedSchool] = useState({
     name: schoolName,
     id: schoolId,
   });
 
   useEffect(() => {
-    // Props always win if the parent explicitly passed them in.
     if (schoolName && schoolId) {
       setResolvedSchool({ name: schoolName, id: schoolId });
       return;
@@ -194,10 +175,6 @@ export default function SBFPBeneficiaries({
     let cancelled = false;
 
     async function resolveSchool() {
-      // 1) Local SQLite (fast, works offline, matches Settings.jsx).
-      // Scoped to currentUser so a different account on this device can't
-      // inherit a previous user's school (and, through it, stale SBFP
-      // enrolment numbers keyed by that school's id).
       try {
         const local = await window.sqlite?.loadSchool?.(currentUser?.id);
         if (local && (local.school_name || local.school_id)) {
@@ -213,18 +190,14 @@ export default function SBFPBeneficiaries({
         console.error("[SBFP] Failed to load school from SQLite:", e);
       }
 
-      // 2) Supabase fallback (only if online and something is still missing)
       if (!navigator.onLine) return;
 
       try {
         const config = loadSupabaseConfig();
         if (!config?.url || !config?.key) return;
 
-        const supabase = createClient(config.url, config.key);
-        // ASSUMPTION: table "schools", columns "school_name"/"school_id",
-        // single-school-per-install (no filter needed). Adjust if your
-        // actual schema differs.
-        const { data, error } = await supabase
+        const supabaseInstance = createClient(config.url, config.key);
+        const { data, error } = await supabaseInstance
           .from("schools")
           .select("school_name, school_id")
           .limit(1)
@@ -253,11 +226,8 @@ export default function SBFPBeneficiaries({
     };
   }, [schoolName, schoolId, currentUser?.id]);
 
-  // ── Enrolment (school-scoped: shared by every user bound to this school) ──
+  // FIXED: Converts school_id into explicit string/text value to guarantee clean matching with Supabase text column
   useEffect(() => {
-    // Wait until we actually know which school we're loading enrolment for.
-    // Without this guard we'd either fetch nothing (schoolId missing) or,
-    // worse, silently load/save under the wrong school.
     if (!resolvedSchool.id) {
       setManualEnrolment({});
       return;
@@ -265,13 +235,55 @@ export default function SBFPBeneficiaries({
 
     let cancelled = false;
 
-    loadSbfpEnrolment(resolvedSchool.id, filterSY).then((data) => {
-      if (!cancelled) {
-        setManualEnrolment(data);
-        setIsDirty(false);
-        setSaveMessage("");
+    async function fetchEnrolmentLifecycle() {
+      try {
+        // 1. Check local SQLite storage first
+        const localData = await loadSbfpEnrolment(resolvedSchool.id, filterSY);
+
+        if (localData && Object.keys(localData).length > 0) {
+          if (!cancelled) {
+            setManualEnrolment(localData);
+            setIsDirty(false);
+            setSaveMessage("");
+          }
+          return;
+        }
+
+        // 2. Fallback to network request if SQLite contains no entries
+        if (!navigator.onLine) return;
+
+        const config = loadSupabaseConfig();
+        if (!config?.url || !config?.key) return;
+
+        // Strip any whitespace and force parsing into text string
+        const textSchoolId = String(resolvedSchool.id).trim();
+
+        const supabaseInstance = createClient(config.url, config.key);
+        const { data, error } = await supabaseInstance
+          .from("sbfp_enrolment")
+          .select("data")
+          .eq("school_id", textSchoolId)
+          .eq("sy", filterSY)
+          .maybeSingle();
+
+        if (error) {
+          console.error("[SBFP] Supabase online matching query failed:", error);
+          return;
+        }
+
+        if (data && data.data && !cancelled) {
+          setManualEnrolment(data.data);
+          setIsDirty(false);
+          setSaveMessage("");
+        } else {
+          if (!cancelled) setManualEnrolment({});
+        }
+      } catch (err) {
+        console.error("[SBFP] Enrolment sync resolution crash context:", err);
       }
-    });
+    }
+
+    fetchEnrolmentLifecycle();
 
     return () => {
       cancelled = true;
@@ -289,7 +301,7 @@ export default function SBFPBeneficiaries({
   function handleEnrolmentChange(key, value) {
     setManualEnrolment((prev) => ({
       ...prev,
-      [key]: value, // <-- Computed Property Name (Fixes the bug)
+      [key]: value,
     }));
 
     setIsDirty(true);
@@ -417,10 +429,6 @@ export default function SBFPBeneficiaries({
     return a.name.localeCompare(b.name);
   });
 
-  // NEW: official DepEd-format report, built from the FULL roster
-  // (not just SBFP beneficiaries) so enrolment counts are accurate.
-  // Manual enrolment entries (per grade) override the computed Total row,
-  // since official DepEd enrolment counts may not match the app's roster.
   const nutritionReport = useMemo(() => {
     const report = buildNutritionReport(students, filterSY, filterPeriod);
 
@@ -428,40 +436,19 @@ export default function SBFPBeneficiaries({
       const male = Number(manualEnrolment[`${r.grade}_M`] || 0);
       const female = Number(manualEnrolment[`${r.grade}_F`] || 0);
 
-      r.M = {
-        ...r.M,
-        enrolment: male,
-      };
-
-      r.F = {
-        ...r.F,
-        enrolment: female,
-      };
-
-      r.Total = {
-        ...r.Total,
-        enrolment: male + female,
-      };
+      r.M = { ...r.M, enrolment: male };
+      r.F = { ...r.F, enrolment: female };
+      r.Total = { ...r.Total, enrolment: male + female };
     });
 
     const grandMale = report.rows.reduce((sum, r) => sum + r.M.enrolment, 0);
-
     const grandFemale = report.rows.reduce((sum, r) => sum + r.F.enrolment, 0);
 
     report.grand = {
       ...report.grand,
-      M: {
-        ...report.grand.M,
-        enrolment: grandMale,
-      },
-      F: {
-        ...report.grand.F,
-        enrolment: grandFemale,
-      },
-      Total: {
-        ...report.grand.Total,
-        enrolment: grandMale + grandFemale,
-      },
+      M: { ...report.grand.M, enrolment: grandMale },
+      F: { ...report.grand.F, enrolment: grandFemale },
+      Total: { ...report.grand.Total, enrolment: grandMale + grandFemale },
     };
 
     return report;
@@ -472,7 +459,7 @@ export default function SBFPBeneficiaries({
 
     if (window.electronAPI?.generatePrintPreview) {
       window.electronAPI.generatePrintPreview({
-        reportType: "landscape", // <--- ADD THIS LINE
+        reportType: "landscape",
         meta: {
           schoolName: resolvedSchool.name,
           schoolId: resolvedSchool.id,
@@ -493,14 +480,6 @@ export default function SBFPBeneficiaries({
     window.print();
   }
 
-  // Exports a blank data-collection template for the currently filtered
-  // beneficiary list. Registry No. / LRN / Name / Birthdate / Sex are
-  // prefilled (known, fixed identity fields — Registry No. is the fallback
-  // identifier BatchEntry.jsx auto-assigns to any student without an LRN).
-  // Age, Grade, Section, Weight, and Height are left blank for the user to
-  // fill in and re-upload via Import CSV. Computed columns (BMI, BMI
-  // Status, HFA Status) are intentionally omitted since they depend on
-  // Weight/Height the user hasn't entered yet.
   function handleExportCsv() {
     if (!filtered.length) {
       alert("No beneficiaries to export.");
@@ -531,11 +510,11 @@ export default function SBFPBeneficiaries({
       s.name || "",
       s.birthdate || "",
       s.sex || "",
-      "", // Age — left blank
-      "", // Grade — left blank
-      "", // Section — left blank
-      "", // Weight — left blank
-      "", // Height — left blank
+      "",
+      "",
+      "",
+      "",
+      "",
     ]);
 
     const csvContent = [headers, ...rows]
@@ -555,11 +534,6 @@ export default function SBFPBeneficiaries({
     URL.revokeObjectURL(url);
   }
 
-  // Parses an uploaded CSV of weight/height measurements and writes them
-  // into each matched student's records for the currently selected
-  // filterSY / filterPeriod. Mirrors the matching logic in CSVUpload.jsx,
-  // but matches by LRN only (registry_no isn't shown on this page) and is
-  // scoped to the current beneficiary list + selected school year/period.
   function handleImportCsv(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -627,9 +601,6 @@ export default function SBFPBeneficiaries({
           return;
         }
 
-        // Match priority mirrors CSVUpload.jsx: Registry No. first (the
-        // fallback identifier BatchEntry.jsx assigns to students without
-        // an LRN), then LRN, then an exact case-insensitive Name match.
         let match = null;
         if (registryNo) {
           match = students.find((s) => s.registryNo === registryNo);
@@ -691,15 +662,9 @@ export default function SBFPBeneficiaries({
       alert(summary);
     };
     reader.readAsText(file);
-
-    // reset so selecting the same file twice still fires onChange
     e.target.value = "";
   }
 
-  // FIXED: now builds the learners payload the same way Reports.jsx does
-  // (weight/height/bmi/wfa/hfa fields), so the generated PDF's per-learner
-  // table actually renders values instead of blank columns. Previously
-  // this sent bmiStatus/hfaStatus, which the print template never reads.
   function handlePrintBeneficiaries() {
     if (!sortedRows.length) {
       alert("No beneficiaries found.");
@@ -707,7 +672,7 @@ export default function SBFPBeneficiaries({
     }
 
     const payload = {
-      reportType: "portrait", // <--- ADD THIS LINE
+      reportType: "portrait",
       title: "School-Based Feeding Program (SBFP) Nutritional Report",
       meta: {
         schoolName: resolvedSchool.name,
@@ -770,7 +735,6 @@ export default function SBFPBeneficiaries({
 
   return (
     <div className="page">
-      {/* ── Header (screen only) ── */}
       <div className="page-header no-print">
         <div>
           <h1 className="page-title">SBFP Beneficiaries</h1>
@@ -778,13 +742,7 @@ export default function SBFPBeneficiaries({
             Official learners included in the School-Based Feeding Program
           </p>
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-          }}
-        >
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <button className="btn btn-primary no-print" onClick={handlePrint}>
             🖨 Print Summary
           </button>
@@ -835,7 +793,6 @@ export default function SBFPBeneficiaries({
         </div>
       )}
 
-      {/* ── Enrolment override (screen only) ── */}
       <div
         className="sbfp-enrolment-row no-print"
         style={{
@@ -981,18 +938,13 @@ export default function SBFPBeneficiaries({
 
         {saveMessage && (
           <span
-            style={{
-              color: "#15803d",
-              fontWeight: 600,
-              marginLeft: "10px",
-            }}
+            style={{ color: "#15803d", fontWeight: 600, marginLeft: "10px" }}
           >
             {saveMessage}
           </span>
         )}
       </div>
 
-      {/* ── Filters (screen only) ── */}
       <div
         className="filter-row no-print"
         style={{
@@ -1003,7 +955,6 @@ export default function SBFPBeneficiaries({
           gap: "10px",
         }}
       >
-        {/* Grouped, tighter filter + CSV toolbar */}
         <div
           style={{
             display: "flex",
@@ -1111,14 +1062,11 @@ export default function SBFPBeneficiaries({
           </div>
         </div>
 
-        {/* Print Beneficiaries — far right, vertically aligned with
-            Print Summary in the page header above */}
         <button className="btn btn-primary" onClick={handlePrintBeneficiaries}>
           🖨 Print Beneficiaries
         </button>
       </div>
 
-      {/* ── Summary pills (screen only) ── */}
       {isConfigured && (
         <div className="sbfp-summary-row no-print">
           {[
@@ -1185,7 +1133,6 @@ export default function SBFPBeneficiaries({
         </div>
       )}
 
-      {/* ── On-screen beneficiary table ── */}
       <div className="card screen-only">
         {!isConfigured ? (
           <div
@@ -1281,14 +1228,8 @@ export default function SBFPBeneficiaries({
         )}
       </div>
 
-      {/* ══════════════════════════════════════════════════════════
-          PRINT-ONLY: Official DepEd Nutritional Status Report
-          Hidden on screen, shown only via @media print (see .css)
-         ══════════════════════════════════════════════════════════ */}
       <div className="deped-report print-only">
         <div className="deped-report-header">
-          {/* Swap in your DepEd logo asset if you have one */}
-          {/* <img src="/assets/deped-logo.png" alt="DepEd" className="deped-logo" /> */}
           <div className="deped-report-title">
             <p>Department of Education</p>
             <p>Bureau of Learner Support Services</p>

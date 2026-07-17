@@ -2,7 +2,7 @@
 // Saves data locally first (always works offline).
 // When Supabase is configured and internet is available, auto-syncs to server.
 
-import { supabase } from './supabaseClient'; // TODO: confirm this matches your actual filename/path for createClient(...)
+import { supabase } from './supabaseClient';
 
 const KEYS = {
   STUDENTS:     'deped_bmi_students',
@@ -18,10 +18,7 @@ export async function localSaveStudents(students) {
   try {
     await window.sqlite.saveStudents(students);
   } catch (e) {
-    console.error(
-      "[SQLite] Failed to save students:",
-      e
-    );
+    console.error("[SQLite] Failed to save students:", e);
   }
 }
 
@@ -29,29 +26,19 @@ export async function localLoadStudents() {
   try {
     return await window.sqlite.loadStudents();
   } catch (e) {
-    console.error(
-      "[SQLite] Failed to load students:",
-      e
-    );
-
+    console.error("[SQLite] Failed to load students:", e);
     return [];
   }
 }
-export async function unbindSchoolFromUser(
-  userId,
-) {
+
+export async function unbindSchoolFromUser(userId) {
   const { data, error } = await supabase
     .from("profiles")
-    .update({
-      school_id: null,
-    })
+    .update({ school_id: null })
     .eq("id", userId)
     .select();
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data;
 }
 
@@ -63,12 +50,8 @@ export function saveSupabaseConfig(url, key) {
   } catch {}
 }
 
-// Project-wide Supabase configuration
-const SUPABASE_URL =
-  'https://usbqwedfhmceasrepjnb.supabase.co';
-
-const SUPABASE_KEY =
-  'sb_publishable_SsMtcj2eu7PZnSRg3geAXQ_X425usO5';
+const SUPABASE_URL = 'https://usbqwedfhmceasrepjnb.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_SsMtcj2eu7PZnSRg3geAXQ_X425usO5';
 
 export function loadSupabaseConfig() {
   return {
@@ -89,19 +72,16 @@ export async function saveSchoolInfo(school) {
     updated_at: new Date().toISOString(),
   };
 
-  const res = await fetch(
-    `${cfg.url}/rest/v1/schools`,
-    {
-      method: "POST",
-      headers: {
-        apikey: cfg.key,
-        Authorization: `Bearer ${cfg.key}`,
-        "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates",
-      },
-      body: JSON.stringify(payload),
-    }
-  );
+  const res = await fetch(`${cfg.url}/rest/v1/schools`, {
+    method: "POST",
+    headers: {
+      apikey: cfg.key,
+      Authorization: `Bearer ${cfg.key}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates",
+    },
+    body: JSON.stringify(payload),
+  });
 
   if (!res.ok) {
     const err = await res.text();
@@ -113,47 +93,26 @@ export async function saveSchoolInfo(school) {
 }
 
 // ── School ↔ User Binding ──────────────────────────────────────────────────
-// Requires a "school_id" (text, references public.schools.school_id) column
-// on public.profiles:
-//
-//   alter table public.profiles
-//     add column school_id text references public.schools(school_id);
-//
-// Many users can be bound to the same school — this just stamps the current
-// user's profile row with whichever school_id they saved in Settings.
 
-export async function bindSchoolToUser(
-  schoolId,
-  userId,
-) {
+export async function bindSchoolToUser(schoolId, userId) {
   const { data, error } = await supabase
     .from("profiles")
-    .update({
-      school_id: schoolId,
-    })
+    .update({ school_id: schoolId })
     .eq("id", userId)
     .select();
 
   console.log("[BIND] data =", data);
   console.log("[BIND] error =", error);
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data;
 }
-
-// Looks up which school (if any) the given user is bound to, and returns
-// the full school row so Settings can pre-fill the form on a fresh device
-// where local SQLite has nothing saved yet.
 
 export async function fetchSchoolForUser(userId) {
   if (!userId) return null;
 
   const cfg = loadSupabaseConfig();
 
-  // 1. Get the user's profile to find their school_id
   const profileRes = await fetch(
     `${cfg.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=school_id`,
     {
@@ -175,7 +134,6 @@ export async function fetchSchoolForUser(userId) {
 
   if (!schoolId) return null;
 
-  // 2. Get the actual school row
   const schoolRes = await fetch(
     `${cfg.url}/rest/v1/schools?school_id=eq.${encodeURIComponent(schoolId)}&select=*`,
     {
@@ -206,13 +164,9 @@ export async function fetchSchoolForUser(userId) {
   };
 }
 
-// ── School Logo Sync (separate from school info — own storage bucket) ────
-// Requires:
-//   - A public Supabase Storage bucket named "school-logos"
-//   - A "logo_url" (text) column added to the public.schools table
+// ── School Logo Sync ──────────────────────────────────────────────────────
 
 export async function saveSchoolLogoToSupabase({ schoolId, filename, dataUrl }) {
-  // Convert data URL -> Blob for upload
   const res = await fetch(dataUrl);
   const blob = await res.blob();
 
@@ -236,7 +190,6 @@ export async function saveSchoolLogoToSupabase({ schoolId, filename, dataUrl }) 
 
   const logoUrl = publicUrlData?.publicUrl;
 
-  // Update the schools row with the new logo_url
   const cfg = loadSupabaseConfig();
   const patchRes = await fetch(
     `${cfg.url}/rest/v1/schools?school_id=eq.${schoolId}`,
@@ -265,23 +218,15 @@ export function isSupabaseConfigured() {
   return true;
 }
 
-// ── Fetch all schools (for SDO Dashboard) ──────────────────────────────────
-// Returns every school row from Supabase, including logo_url, so the
-// division office can see every school's info + logo without relying on
-// whatever happens to be in this device's localStorage/SQLite.
-
 export async function fetchAllSchools() {
   const cfg = loadSupabaseConfig();
 
-  const res = await fetch(
-    `${cfg.url}/rest/v1/schools?select=*&order=school_name.asc`,
-    {
-      headers: {
-        apikey: cfg.key,
-        Authorization: `Bearer ${cfg.key}`,
-      },
-    }
-  );
+  const res = await fetch(`${cfg.url}/rest/v1/schools?select=*&order=school_name.asc`, {
+    headers: {
+      apikey: cfg.key,
+      Authorization: `Bearer ${cfg.key}`,
+    },
+  });
 
   if (!res.ok) {
     const err = await res.text();
@@ -289,8 +234,6 @@ export async function fetchAllSchools() {
   }
 
   const rows = await res.json();
-
-  // Normalize to the shape the app already uses (school.name, .id, etc.)
   return rows.map((r) => ({
     id: r.school_id,
     name: r.school_name,
@@ -302,8 +245,6 @@ export async function fetchAllSchools() {
 }
 
 // ── Sync Queue ────────────────────────────────────────────────────────────
-// The queue stores student IDs that have been added/modified offline.
-// On sync, we upsert all queued students to Supabase.
 
 function loadQueue() {
   try {
@@ -322,33 +263,25 @@ function loadDeleteQueue() {
   try {
     const raw = localStorage.getItem(KEYS.DELETE_QUEUE);
     return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 function saveDeleteQueue(queue) {
   try {
-    localStorage.setItem(
-      KEYS.DELETE_QUEUE,
-      JSON.stringify(queue)
-    );
+    localStorage.setItem(KEYS.DELETE_QUEUE, JSON.stringify(queue));
   } catch {}
 }
 
 export function queueStudentForDelete(studentId) {
   const deleteQueue = loadDeleteQueue();
+  const idStr = String(studentId);
 
-  if (!deleteQueue.includes(studentId)) {
-    deleteQueue.push(studentId);
+  if (!deleteQueue.includes(idStr)) {
+    deleteQueue.push(idStr);
     saveDeleteQueue(deleteQueue);
   }
 
-  // Remove from update queue if present
-  const syncQueue = loadQueue().filter(
-    id => id !== studentId
-  );
-
+  const syncQueue = loadQueue().filter(id => String(id) !== idStr);
   saveQueue(syncQueue);
 }
 
@@ -367,16 +300,14 @@ export async function fetchSchoolLogo(schoolId) {
     console.error(error);
     return null;
   }
-
   return data?.logo_url || null;
 }
+
 export async function getSchoolByName(name) {
   const cfg = loadSupabaseConfig();
 
   const res = await fetch(
-    `${cfg.url}/rest/v1/schools?school_name=eq.${encodeURIComponent(
-      name
-    )}&select=*`,
+    `${cfg.url}/rest/v1/schools?school_name=eq.${encodeURIComponent(name)}&select=*`,
     {
       headers: {
         apikey: cfg.key,
@@ -386,22 +317,21 @@ export async function getSchoolByName(name) {
   );
 
   if (!res.ok) return null;
-
   const rows = await res.json();
-
   return rows?.[0] || null;
 }
 
 export function queueStudentForSync(studentId) {
   const queue = loadQueue();
-  if (!queue.includes(studentId)) {
-    queue.push(studentId);
+  const idStr = String(studentId);
+  if (!queue.includes(idStr)) {
+    queue.push(idStr);
     saveQueue(queue);
   }
 }
 
 export function queueAllStudentsForSync(students) {
-  const ids = students.map(s => s.id);
+  const ids = students.map(s => String(s.id));
   saveQueue(ids);
 }
 
@@ -416,6 +346,7 @@ export function clearQueue() {
 export function saveLastSync(date) {
   try {
     localStorage.setItem(KEYS.LAST_SYNC, date.toISOString());
+    window.dispatchEvent(new Event("local-storage-sync-update"));
   } catch {}
 }
 
@@ -433,31 +364,24 @@ export function isOnline() {
 }
 
 // ── Supabase API Calls ────────────────────────────────────────────────────
-// These only run when Supabase is configured + online.
-// Table name: students
-// Schema: id, lrn, name, birthdate, age, sex, section, records (jsonb), updated_at
 
 async function supabaseUpsert(cfg, students) {
   const payload = students.map(s => ({
-  id: String(s.id),
-  school_id: s.schoolId || "",
-  school_name: s.schoolName || "",
-
-  lrn: s.lrn,
-  registry_no: s.registryNo || null,
-
-  name: s.name,
-  birthdate: s.birthdate || null,
-  age: s.age || 0,
-  sex: s.sex,
-  section: s.section,
-
-  parent_consent: s.parentConsent || 'N',
-  member_4ps: s.member4ps || 'N',
-
-  records: s.records,
-  updated_at: new Date().toISOString(),
-}));
+    id: String(s.id),
+    school_id: s.school_id || s.schoolId || "",
+    school_name: s.school_name || s.schoolName || "",
+    lrn: s.lrn,
+    registry_no: s.registryNo || null,
+    name: s.name,
+    birthdate: s.birthdate || null,
+    age: s.age || 0,
+    sex: s.sex,
+    section: s.section,
+    parent_consent: s.parentConsent || 'N',
+    member_4ps: s.member4ps || 'N',
+    records: s.records,
+    updated_at: new Date().toISOString(),
+  }));
 
   const res = await fetch(`${cfg.url}/rest/v1/students`, {
     method: 'POST',
@@ -480,153 +404,146 @@ async function supabaseUpsert(cfg, students) {
 async function supabaseDelete(cfg, ids) {
   if (!ids.length) return true;
 
-  const idList = ids
-  .map(id => String(id))
-  .join(',');
+  const idList = ids.map(id => String(id)).join(',');
 
-  const res = await fetch(
-    `${cfg.url}/rest/v1/students?id=in.(${idList})`,
-    {
-      method: 'DELETE',
-      headers: {
-        apikey: cfg.key,
-        Authorization: `Bearer ${cfg.key}`,
-      },
-    }
-  );
+  const res = await fetch(`${cfg.url}/rest/v1/students?id=in.(${idList})`, {
+    method: 'DELETE',
+    headers: {
+      apikey: cfg.key,
+      Authorization: `Bearer ${cfg.key}`,
+    },
+  });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(
-      `Delete failed: ${res.status} ${err}`
-    );
+    throw new Error(`Delete failed: ${res.status} ${err}`);
   }
 
   return true;
 }
 
-async function supabaseFetchAll(cfg, schoolId) {
+async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
   let url = `${cfg.url}/rest/v1/students?select=*&order=name.asc`;
 
-  // When a schoolId is provided (school-level devices, which always have
-  // one configured via Settings), scope the fetch to that school only.
-  // Without it (division-office devices, which never configure a school),
-  // fall back to fetching every school's students — needed for SDO views.
   if (schoolId) {
     url += `&school_id=eq.${encodeURIComponent(schoolId)}`;
   }
 
-  const res = await fetch(url, {
-    headers: {
-      'apikey':        cfg.key,
-      'Authorization': `Bearer ${cfg.key}`,
-    },
-  });
+  const headers = {
+    'apikey':        cfg.key,
+    'Authorization': `Bearer ${cfg.key}`,
+  };
 
+  let res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`Supabase fetch error: ${res.status}`);
-  const rows = await res.json();
+  let rows = await res.json();
 
-  // Convert back to app format
+  // FIXED: Fallback lookup strategy if querying by school ID fails but matching name rows exist
+  if (rows.length === 0 && schoolName) {
+    const fallbackUrl = `${cfg.url}/rest/v1/students?select=*&school_name=eq.${encodeURIComponent(schoolName)}&order=name.asc`;
+    const fallbackRes = await fetch(fallbackUrl, { headers });
+    if (fallbackRes.ok) {
+      const fallbackRows = await fallbackRes.json();
+      if (fallbackRows.length > 0) {
+        rows = fallbackRows;
+      }
+    }
+  }
+
+  // Convert back to app format with strict string ID casting to avoid loop anomalies
   return rows.map(r => ({
-  id: r.id,
-  schoolId: r.school_id || "",
-  schoolName: r.school_name || "",
-
-  lrn: r.lrn,
-  registryNo: r.registry_no || null,
-
-  name: r.name,
-  birthdate: r.birthdate || '',
-  age: r.age || 0,
-  sex: r.sex,
-  section: r.section,
-
-  parentConsent: r.parent_consent || 'N',
-  member4ps: r.member_4ps || 'N',
-
-  records: Array.isArray(r.records)
-    ? r.records
-    : [],
-}));
+    id: String(r.id),
+    schoolId: r.school_id || schoolId || "",
+    schoolName: r.school_name || schoolName || "",
+    lrn: r.lrn,
+    registryNo: r.registry_no || null,
+    name: r.name,
+    birthdate: r.birthdate || '',
+    age: r.age || 0,
+    sex: r.sex,
+    section: r.section,
+    parentConsent: r.parent_consent || 'N',
+    member4ps: r.member_4ps || 'N',
+    records: Array.isArray(r.records) ? r.records : [],
+  }));
 }
 
-// ── Main Sync Function ────────────────────────────────────────────────────
+// ── Main Sync Functions ────────────────────────────────────────────────────
 
 export async function syncToServer(students, schoolId) {
   if (!isOnline())             return { success: false, reason: 'offline' };
   if (!isSupabaseConfigured()) return { success: false, reason: 'not_configured' };
 
   const cfg = loadSupabaseConfig();
-const queue = loadQueue();
-const deleteQueue = loadDeleteQueue();
+  const queue = loadQueue();
+  const deleteQueue = loadDeleteQueue();
 
-const toSync = students.filter(s => queue.includes(s.id));
+  const toSync = students.filter(s => queue.includes(String(s.id)));
 
-if (
-  queue.length === 0 &&
-  deleteQueue.length === 0
-) {
-  return {
-    success: true,
-    reason: 'nothing_to_sync',
-  };
-}
+  if (queue.length === 0 && deleteQueue.length === 0) {
+    return { success: true, reason: 'nothing_to_sync' };
+  }
 
   try {
+    if (deleteQueue.length > 0) {
+      await supabaseDelete(cfg, deleteQueue);
+      clearDeleteQueue();
+    }
 
-  if (deleteQueue.length > 0) {
-    await supabaseDelete(
-      cfg,
-      deleteQueue
-    );
+    if (toSync.length > 0) {
+      await supabaseUpsert(cfg, toSync);
+      clearQueue();
+    }
 
-    clearDeleteQueue();
-  }
+    // Resolve text name fallback token for local active profile instance mapping
+    let activeSchoolName = "";
+    if (toSync.length > 0 && toSync[0].schoolName) {
+      activeSchoolName = toSync[0].schoolName;
+    }
 
-  if (toSync.length > 0) {
-    await supabaseUpsert(
-      cfg,
-      toSync
-    );
+    saveLastSync(new Date());
+    const freshData = await supabaseFetchAll(cfg, schoolId, activeSchoolName);
+    await localSaveStudents(freshData);
 
-    clearQueue();
-  }
-
-  saveLastSync(new Date());
-
-  const freshData = await supabaseFetchAll(cfg, schoolId);
-
-localSaveStudents(freshData);
-
-return {
-  success: true,
-  synced: toSync.length,
-  deleted: deleteQueue.length,
-  students: freshData,
-};
-
-
-}
- catch (e) {
+    return {
+      success: true,
+      synced: toSync.length,
+      deleted: deleteQueue.length,
+      students: freshData,
+    };
+  } catch (e) {
     console.error('[Sync] Upload failed:', e);
     return { success: false, reason: 'error', message: e.message };
   }
 }
 
 export async function syncFromServer(schoolId) {
-  if (!isOnline())
-    return { success: false, reason: "offline" };
-
-  if (!isSupabaseConfigured())
-    return { success: false, reason: "not_configured" };
+  if (!isOnline())             return { success: false, reason: "offline" };
+  if (!isSupabaseConfigured()) return { success: false, reason: "not_configured" };
 
   const cfg = loadSupabaseConfig();
 
   try {
-    const serverStudents =
-      await supabaseFetchAll(cfg, schoolId);
+    // Resolve current text name from local database cache prior to triggering remote fetch
+    let activeSchoolName = "";
+    try {
+      const currentLocal = await localLoadStudents();
+      const match = currentLocal.find(s => s.schoolName);
+      if (match) activeSchoolName = match.schoolName;
+    } catch {}
 
-    localSaveStudents(serverStudents);
+    const serverStudents = await supabaseFetchAll(cfg, schoolId, activeSchoolName);
+
+    // Auto-patch unlinked items with active mapping attributes
+    if (serverStudents.length > 0 && schoolId) {
+      serverStudents.forEach(s => {
+        if (!s.schoolId) s.schoolId = schoolId;
+        if (activeSchoolName && !s.schoolName) s.schoolName = activeSchoolName;
+      });
+    }
+
+    await localSaveStudents(serverStudents);
+    saveLastSync(new Date()); // FIXED: Updates layout timestamp badge text directly following smooth manual/auto runs
 
     return {
       success: true,
@@ -634,7 +551,6 @@ export async function syncFromServer(schoolId) {
     };
   } catch (e) {
     console.error("[Sync] Download failed:", e);
-
     return {
       success: false,
       reason: "error",

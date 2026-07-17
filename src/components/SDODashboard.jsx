@@ -253,6 +253,84 @@ export default function SDODashboard({
     return t;
   }, [gradeSummary]);
 
+  // ── Calculation for Overall Grand Totals ──
+  const grandTotals = useMemo(() => {
+    const totals = {
+      Male: {
+        Normal: 0,
+        Wasted: 0,
+        SevWasted: 0,
+        Overweight: 0,
+        Obese: 0,
+        NormalHt: 0,
+        Stunted: 0,
+        SevStunted: 0,
+        Tall: 0,
+        Total: 0,
+      },
+      Female: {
+        Normal: 0,
+        Wasted: 0,
+        SevWasted: 0,
+        Overweight: 0,
+        Obese: 0,
+        NormalHt: 0,
+        Stunted: 0,
+        SevStunted: 0,
+        Tall: 0,
+        Total: 0,
+      },
+      Combined: {
+        Normal: 0,
+        Wasted: 0,
+        SevWasted: 0,
+        Overweight: 0,
+        Obese: 0,
+        NormalHt: 0,
+        Stunted: 0,
+        SevStunted: 0,
+        Tall: 0,
+        Total: 0,
+      },
+    };
+
+    GRADE_LEVELS.forEach((g) => {
+      const m = gradeSummary[g].Male;
+      const f = gradeSummary[g].Female;
+
+      // Accumulate Male
+      totals.Male.Normal += m.Normal;
+      totals.Male.Wasted += m.Wasted;
+      totals.Male.SevWasted += m["Severely Wasted"];
+      totals.Male.Overweight += m.Overweight;
+      totals.Male.Obese += m.Obese;
+      totals.Male.NormalHt += m["Normal Height"];
+      totals.Male.Stunted += m.Stunted;
+      totals.Male.SevStunted += m["Severely Stunted"];
+      totals.Male.Tall += m.Tall;
+      totals.Male.Total += m.Total;
+
+      // Accumulate Female
+      totals.Female.Normal += f.Normal;
+      totals.Female.Wasted += f.Wasted;
+      totals.Female.SevWasted += f["Severely Wasted"];
+      totals.Female.Overweight += f.Overweight;
+      totals.Female.Obese += f.Obese;
+      totals.Female.NormalHt += f["Normal Height"];
+      totals.Female.Stunted += f.Stunted;
+      totals.Female.SevStunted += f["Severely Stunted"];
+      totals.Female.Tall += f.Tall;
+      totals.Female.Total += f.Total;
+    });
+
+    // Compute Combined
+    Object.keys(totals.Combined).forEach((key) => {
+      totals.Combined[key] = totals.Male[key] + totals.Female[key];
+    });
+
+    return totals;
+  }, [gradeSummary]);
+
   const totalForPeriod = students.filter((s) =>
     s.records.some((r) => r.sy === filterSY && r.q === filterPeriod),
   ).length;
@@ -284,6 +362,98 @@ export default function SDODashboard({
 
   return (
     <div className="page">
+      {/* ── Scoped CSS to isolate & correct layout behavior ── */}
+      <style>{`
+        /* Forces standard table rendering, over-riding global resets */
+        .sdo-isolated-table {
+          display: table !important;
+          width: 100% !important;
+          border-collapse: collapse !important;
+          table-layout: fixed !important; 
+        }
+        .sdo-isolated-table thead {
+          display: table-header-group !important;
+        }
+        .sdo-isolated-table tbody {
+          display: table-row-group !important;
+        }
+        .sdo-isolated-table tfoot {
+          display: table-footer-group !important;
+          font-weight: bold !important;
+        }
+        .sdo-isolated-table tr {
+          display: table-row !important;
+        }
+        .sdo-isolated-table th, 
+        .sdo-isolated-table td {
+          display: table-cell !important;
+          vertical-align: middle !important;
+          text-align: center !important;
+          padding: 8px 6px !important;
+          border: 1px solid #E5E7EB !important;
+          box-sizing: border-box !important;
+        }
+        .sdo-isolated-table th {
+          background-color: #558B2F !important;
+          color: white !important;
+          font-weight: 700 !important;
+          font-size: 11px !important;
+          text-transform: uppercase !important;
+        }
+        /* Footer row backgrounds to distinguish them visually */
+        .sdo-isolated-table tfoot tr {
+          background-color: #F9FAFB !important;
+        }
+        .sdo-isolated-table tfoot tr.overall-grand-total {
+          background-color: #E2E8F0 !important;
+        }
+        /* Strict sizing ratios for column alignment consistency */
+        .sdo-isolated-table th:nth-child(1), .sdo-isolated-table td:nth-child(1) { width: 10% !important; text-align: left !important; }
+        .sdo-isolated-table th:nth-child(2), .sdo-isolated-table td:nth-child(2) { width: 8% !important; }
+        .sdo-isolated-table th:nth-child(3), .sdo-isolated-table td:nth-child(3) { width: 9% !important; }
+        .sdo-isolated-table th:nth-child(4), .sdo-isolated-table td:nth-child(4) { width: 8% !important; }
+        .sdo-isolated-table th:nth-child(5), .sdo-isolated-table td:nth-child(5) { width: 9% !important; }
+        .sdo-isolated-table th:nth-child(6), .sdo-isolated-table td:nth-child(6) { width: 10% !important; }
+        .sdo-isolated-table th:nth-child(7), .sdo-isolated-table td:nth-child(7) { width: 8% !important; }
+        .sdo-isolated-table th:nth-child(8), .sdo-isolated-table td:nth-child(8) { width: 10% !important; }
+        .sdo-isolated-table th:nth-child(9), .sdo-isolated-table td:nth-child(9) { width: 8% !important; }
+        .sdo-isolated-table th:nth-child(10), .sdo-isolated-table td:nth-child(10) { width: 10% !important; }
+        .sdo-isolated-table th:nth-child(11), .sdo-isolated-table td:nth-child(11) { width: 6% !important; }
+        .sdo-isolated-table th:nth-child(12), .sdo-isolated-table td:nth-child(12) { width: 8% !important; }
+
+        /* Custom Override styling for enlarging logo banner items */
+        .sdo-school-banner {
+          display: flex;
+          align-items: center;
+          gap: 28px;
+          padding: 24px;
+          border-radius: 12px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+          margin-bottom: 24px;
+          /* Removed 'background: #ffffff' override to let original stylesheet (SDODashboard.css) dictate color */
+        }
+        .sdo-banner-logo {
+          width: 120px !important;
+          height: 120px !important;
+          object-fit: contain;
+        }
+        .sdo-banner-logo-placeholder {
+          font-size: 72px !important;
+          width: 120px;
+          text-align: center;
+        }
+        .sdo-banner-name {
+          font-size: 32px !important;
+          font-weight: 800 !important;
+          margin-bottom: 6px;
+          line-height: 1.2;
+        }
+        .sdo-banner-sub {
+          font-size: 18px !important;
+          font-weight: 500;
+        }
+      `}</style>
+
       {/* ── Header ── */}
       <div className="page-header">
         <div>
@@ -392,7 +562,7 @@ export default function SDODashboard({
 
             const info = isAll
               ? {
-                  name: "ALL SCHOOLS",
+                  name: "Division of Isabela City",
                   division: "Isabela City Schools Division Office",
                   logo: sdoLogoUrl, // Exactly points to your Supabase 'school-logos/sdo.png'
                 }
@@ -556,7 +726,7 @@ export default function SDODashboard({
           <div className="card">
             <h3 className="card-title">Nutritional Status by Grade Level</h3>
             <div style={{ overflowX: "auto" }}>
-              <table className="data-table">
+              <table className="sdo-isolated-table">
                 <thead>
                   <tr>
                     <th>Grade</th>
@@ -577,11 +747,12 @@ export default function SDODashboard({
                   {GRADE_LEVELS.map((grade) => (
                     <React.Fragment key={grade}>
                       <tr>
+                        {/* Grade cell on Male Row */}
                         <td
-                          rowSpan={2}
                           style={{
                             background: gradeBg[grade],
                             fontWeight: 700,
+                            borderBottom: "none !important",
                           }}
                         >
                           {grade}
@@ -601,6 +772,15 @@ export default function SDODashboard({
                         </td>
                       </tr>
                       <tr>
+                        {/* Duplicate Grade cell placeholder on Female Row to avoid cell-shifting layout bugs */}
+                        <td
+                          style={{
+                            background: gradeBg[grade],
+                            borderTop: "none !important",
+                          }}
+                        >
+                          {/* Blank cell to simulate unified rowspan look natively */}
+                        </td>
                         <td>Female</td>
                         <td>{gradeSummary[grade].Female.Normal}</td>
                         <td>{gradeSummary[grade].Female.Wasted}</td>
@@ -620,6 +800,94 @@ export default function SDODashboard({
                     </React.Fragment>
                   ))}
                 </tbody>
+
+                {/* ── Table Footer for Summary & Grand Totals ── */}
+                <tfoot>
+                  <tr>
+                    <td
+                      style={{
+                        fontWeight: "bold",
+                        borderBottom: "none !important",
+                      }}
+                    >
+                      TOTALS
+                    </td>
+                    <td>Male</td>
+                    <td>{grandTotals.Male.Normal}</td>
+                    <td>{grandTotals.Male.Wasted}</td>
+                    <td>{grandTotals.Male.SevWasted}</td>
+                    <td>{grandTotals.Male.Overweight}</td>
+                    <td>{grandTotals.Male.Obese}</td>
+                    <td>{grandTotals.Male.NormalHt}</td>
+                    <td>{grandTotals.Male.Stunted}</td>
+                    <td>{grandTotals.Male.SevStunted}</td>
+                    <td>{grandTotals.Male.Tall}</td>
+                    <td>{grandTotals.Male.Total}</td>
+                  </tr>
+                  <tr>
+                    <td
+                      style={{
+                        borderTop: "none !important",
+                        borderBottom: "none !important",
+                      }}
+                    ></td>
+                    <td>Female</td>
+                    <td>{grandTotals.Female.Normal}</td>
+                    <td>{grandTotals.Female.Wasted}</td>
+                    <td>{grandTotals.Female.SevWasted}</td>
+                    <td>{grandTotals.Female.Overweight}</td>
+                    <td>{grandTotals.Female.Obese}</td>
+                    <td>{grandTotals.Female.NormalHt}</td>
+                    <td>{grandTotals.Female.Stunted}</td>
+                    <td>{grandTotals.Female.SevStunted}</td>
+                    <td>{grandTotals.Female.Tall}</td>
+                    <td>{grandTotals.Female.Total}</td>
+                  </tr>
+                  <tr
+                    className="overall-grand-total"
+                    style={{ fontSize: "13px" }}
+                  >
+                    <td
+                      style={{
+                        borderTop: "none !important",
+                        fontWeight: "900",
+                      }}
+                    ></td>
+                    <td style={{ fontWeight: "900" }}>Combined</td>
+                    <td>
+                      <strong>{grandTotals.Combined.Normal}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Wasted}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.SevWasted}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Overweight}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Obese}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.NormalHt}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Stunted}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.SevStunted}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Tall}</strong>
+                    </td>
+                    <td>
+                      <strong style={{ color: "#1E3A8A" }}>
+                        {grandTotals.Combined.Total}
+                      </strong>
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
             <div

@@ -19,6 +19,8 @@ export default function Profile({
 }) {
   const student = students.find((s) => s.id === studentId);
   const [addOpen, setAddOpen] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showPhotoDeleteConfirm, setShowPhotoDeleteConfirm] = useState(false);
   const fileInputRef = useRef(null);
   const [rec, setRec] = useState({
     sy: "2025–2026",
@@ -46,25 +48,15 @@ export default function Profile({
       ),
     );
     setAddOpen(false);
+    setShowConfirmModal(false);
     setRec({ sy: "2025–2026", q: "Q1", date: "", weight: "", height: "" });
   }
-  function deleteRecord(recordIndex) {
-    if (
-      !window.confirm("Are you sure you want to delete this health record?")
-    ) {
-      return;
-    }
 
+  function deletePhoto() {
     setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id !== student.id) return s;
-
-        return {
-          ...s,
-          records: s.records.filter((_, index) => index !== recordIndex),
-        };
-      }),
+      prev.map((s) => (s.id === student.id ? { ...s, photo: null } : s)),
     );
+    setShowPhotoDeleteConfirm(false);
   }
 
   const previewBMI =
@@ -81,18 +73,59 @@ export default function Profile({
         </button>
       </div>
 
-      <div className="profile-grid">
-        {/* Info card */}
-        <div className="card profile-info-card">
+      <div
+        className="profile-grid"
+        style={{ display: "flex", alignItems: "stretch", gap: "24px" }}
+      >
+        {/* Info card (Left) */}
+        <div
+          className="card profile-info-card"
+          style={{
+            flex: "0 0 320px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "24px 16px",
+            margin: "0",
+          }}
+        >
+          {/* Enlarged photo container with right-click handler */}
           <div
             className="avatar avatar-clickable"
+            style={{
+              width: "200px",
+              height: "200px",
+              borderRadius: "12px",
+              overflow: "hidden",
+              marginBottom: "16px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "#f1f5f9",
+              border: "2px dashed #cbd5e1",
+              fontSize: "42px",
+              fontWeight: "bold",
+              cursor: "pointer",
+              position: "relative",
+            }}
             onClick={() => fileInputRef.current?.click()}
+            onContextMenu={(e) => {
+              e.preventDefault(); // Prevents standard system context menu
+              if (student.photo) {
+                setShowPhotoDeleteConfirm(true);
+              }
+            }}
+            title={
+              student.photo
+                ? "Left-click to change photo. Right-click to delete photo."
+                : "Left-click to upload photo."
+            }
           >
             {student.photo ? (
               <img
                 src={student.photo}
                 alt={student.name}
-                className="profile-photo"
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
             ) : (
               initials
@@ -105,11 +138,9 @@ export default function Profile({
             style={{ display: "none" }}
             onChange={(e) => {
               const file = e.target.files?.[0];
-
               if (!file) return;
 
               const reader = new FileReader();
-
               reader.onload = () => {
                 setStudents((prev) =>
                   prev.map((s) =>
@@ -117,12 +148,20 @@ export default function Profile({
                   ),
                 );
               };
-
               reader.readAsDataURL(file);
             }}
           />
-          <div className="profile-name">{student.name}</div>
-          <div className="profile-meta-list">
+          <div
+            className="profile-name"
+            style={{
+              fontSize: "18px",
+              fontWeight: "700",
+              marginBottom: "20px",
+            }}
+          >
+            {student.name}
+          </div>
+          <div className="profile-meta-list" style={{ width: "100%" }}>
             {[
               ["LRN", student.lrn],
               ["Age", student.age],
@@ -138,8 +177,11 @@ export default function Profile({
           </div>
         </div>
 
-        {/* Records */}
-        <div className="profile-right">
+        {/* Records container (Right) */}
+        <div
+          className="profile-right"
+          style={{ flex: "1", display: "flex", flexDirection: "column" }}
+        >
           <div className="records-header">
             <h2 className="section-title">Health Records</h2>
             {!readOnly && (
@@ -152,92 +194,191 @@ export default function Profile({
             )}
           </div>
 
-          <div className="card">
+          <div
+            className="profile-table-scroll-container"
+            style={{ flex: "1", display: "flex", flexDirection: "column" }}
+          >
             {student.records.length === 0 ? (
-              <div className="empty-cell">
+              <div className="card empty-cell" style={{ flex: "1" }}>
                 No records yet. Add a measurement above.
               </div>
             ) : (
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>School Year</th>
-                    <th>Quarter</th>
-                    <th>Date</th>
-                    <th>Weight (kg)</th>
-                    <th>Height (cm)</th>
-                    <th>BMI</th>
-                    <th>Nutritional Status</th>
-                    <th>HFA</th>
-                    {!readOnly && <th>Action</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((r, i) => {
-                    const bmi = calcBMI(r.weight, r.height);
-                    const status = bmi
-                      ? getBMIStatus(bmi, student.sex, student.birthdate)
-                      : null;
-                    return (
-                      <tr key={i}>
-                        <td>{r.sy}</td>
-                        <td>{r.q}</td>
-                        <td>{r.date}</td>
-                        <td>{r.weight}</td>
-                        <td>{r.height}</td>
-                        <td>{bmi ? bmi.toFixed(2) : "—"}</td>
-                        <td>
-                          {status ? (
-                            <Badge
-                              label={status.label}
-                              color={status.color}
-                              bg={status.bg}
-                            />
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td>
-                          {(() => {
-                            const haz = getHAZStatus(
-                              r.height,
-                              student.sex,
-                              student.birthdate,
-                            );
-                            return haz ? (
-                              <Badge
-                                label={haz.label}
-                                color={haz.color}
-                                bg={haz.bg}
-                              />
-                            ) : (
-                              "—"
-                            );
-                          })()}
-                        </td>
-                        {!readOnly && (
-                          <td>
-                            <button
-                              className="btn-danger"
-                              onClick={() =>
-                                deleteRecord(student.records.length - 1 - i)
-                              }
+              <div
+                className="standalone-vertical-records-list"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "24px",
+                  flex: "1",
+                }}
+              >
+                {records.map((r, i) => {
+                  const bmi = calcBMI(r.weight, r.height);
+                  const status = bmi
+                    ? getBMIStatus(bmi, student.sex, student.birthdate)
+                    : null;
+                  const haz = getHAZStatus(
+                    r.height,
+                    student.sex,
+                    student.birthdate,
+                  );
+
+                  const verticalData = [
+                    ["SCHOOL YEAR", r.sy],
+                    ["QUARTER", r.q],
+                    ["DATE", r.date],
+                    ["WEIGHT", `${r.weight} kg`],
+                    ["HEIGHT", `${r.height} cm`],
+                    ["BMI", bmi ? bmi.toFixed(2) : "—"],
+                    [
+                      "NUTRITIONAL STATUS",
+                      status ? (
+                        <Badge
+                          label={status.label}
+                          color={status.color}
+                          bg={status.bg}
+                        />
+                      ) : (
+                        "—"
+                      ),
+                    ],
+                    [
+                      "HFA",
+                      haz ? (
+                        <Badge
+                          label={haz.label}
+                          color={haz.color}
+                          bg={haz.bg}
+                        />
+                      ) : (
+                        "—"
+                      ),
+                    ],
+                  ];
+
+                  return (
+                    <div
+                      className="card standalone-vertical-card"
+                      key={i}
+                      style={{
+                        padding: "0",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                        borderRadius: "8px",
+                        backgroundColor: "#ffffff",
+                        border: "1px solid #e2e8f0",
+                        overflow: "hidden",
+                        maxWidth: "520px",
+                        display: "flex",
+                        flexDirection: "column",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "12px 16px",
+                          backgroundColor: "#f8fafc",
+                          borderBottom: "1px solid #e2e8f0",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontWeight: "700",
+                            color: "#334155",
+                            fontSize: "14px",
+                          }}
+                        >
+                          Registry No.{" "}
+                          {student.registryNo || r.registryNo || "—"}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          flex: "1",
+                        }}
+                      >
+                        {verticalData.map(([label, data], idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              flex: "1",
+                              borderBottom:
+                                idx === verticalData.length - 1
+                                  ? "none"
+                                  : "1px solid #e2e8f0",
+                            }}
+                          >
+                            <div
+                              style={{
+                                backgroundColor: "#5cb85c",
+                                color: "#ffffff",
+                                fontSize: "11px",
+                                fontWeight: "700",
+                                letterSpacing: "0.5px",
+                                textAlign: "left",
+                                width: "180px",
+                                padding: "12px 16px",
+                                alignSelf: "stretch",
+                                display: "flex",
+                                alignItems: "center",
+                                borderRight: "1px solid #4cae4c",
+                              }}
                             >
-                              Delete
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                              {label}
+                            </div>
+
+                            <div
+                              style={{
+                                fontWeight: "600",
+                                color: "#1e293b",
+                                textAlign: "left",
+                                flex: "1",
+                                padding: "12px 16px",
+                                fontSize: "14px",
+                                display: "flex",
+                                alignItems: "center",
+                              }}
+                            >
+                              {data}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 
-          {/* BMI Trend */}
+          {!readOnly && student.records.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                width: "100%",
+                maxWidth: "520px",
+                marginTop: "16px",
+              }}
+            >
+              <button
+                className="btn btn-primary"
+                style={{ padding: "10px 24px", fontWeight: "600" }}
+                onClick={() => setShowConfirmModal(true)}
+              >
+                Save Changes
+              </button>
+            </div>
+          )}
+
           {student.records.length > 1 && (
-            <div className="card">
+            <div className="card" style={{ marginTop: "24px" }}>
               <h3 className="card-title">BMI Trend</h3>
               <div className="trend-chart">
                 {student.records.map((r, i) => {
@@ -348,8 +489,62 @@ export default function Profile({
             >
               Cancel
             </button>
-            <button className="btn btn-primary" onClick={saveRecord}>
+            <button
+              className="btn btn-primary"
+              onClick={() => setShowConfirmModal(true)}
+            >
               Save Record
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Custom Safe Dialog for Saving Changes */}
+      {showConfirmModal && (
+        <Modal
+          title="Confirm Save Operation"
+          onClose={() => setShowConfirmModal(false)}
+        >
+          <p style={{ padding: "8px 0", color: "#334155", fontSize: "15px" }}>
+            Are you sure you want to commit these changes to the registry?
+          </p>
+          <div className="modal-footer" style={{ marginTop: "16px" }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowConfirmModal(false)}
+            >
+              Cancel
+            </button>
+            <button className="btn btn-primary" onClick={saveRecord}>
+              Confirm & Save
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Electron Safe Custom Dialog for Deleting Student Profile Picture */}
+      {showPhotoDeleteConfirm && (
+        <Modal
+          title="Delete Student Image"
+          onClose={() => setShowPhotoDeleteConfirm(false)}
+        >
+          <p style={{ padding: "8px 0", color: "#334155", fontSize: "15px" }}>
+            Are you sure you want to completely remove this student's profile
+            photo?
+          </p>
+          <div className="modal-footer" style={{ marginTop: "16px" }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowPhotoDeleteConfirm(false)}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-danger"
+              style={{ backgroundColor: "#dc2626", color: "#ffffff" }}
+              onClick={deletePhoto}
+            >
+              Delete Photo
             </button>
           </div>
         </Modal>
