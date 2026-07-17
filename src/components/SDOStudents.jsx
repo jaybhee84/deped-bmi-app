@@ -14,22 +14,27 @@ import { queueStudentForDelete } from "../utils/syncService";
 import { SCHOOL_OPTIONS } from "../constants/schools";
 
 function hasPreviousYearData(student, currentSy) {
-  if (!student?.records?.length) {
+  if (!student?.records?.length || !currentSy) {
     return false;
   }
-
-  const [startYear] = currentSy.split("–");
-  const previousSy = `${parseInt(startYear) - 1}–${startYear}`;
-  return student.records.some((record) => record.sy === previousSy);
+  try {
+    const [startYear] = currentSy.split("-");
+    if (!startYear) return false;
+    const previousSy = `${parseInt(startYear) - 1}-${startYear}`;
+    return student.records.some((record) => record?.sy === previousSy);
+  } catch (e) {
+    console.error("SBFP calculation error fallback applied:", e);
+    return false;
+  }
 }
 
 export default function SDOStudents({
-  students,
+  students = [],
   setStudents,
   onViewProfile,
   readOnly,
 }) {
-  const [filterSy, setFilterSy] = useState("2026–2027");
+  const [filterSy, setFilterSy] = useState(SCHOOL_YEARS[0] || "2026-2027");
   const [filterSchool, setFilterSchool] = useState("ALL SCHOOLS");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
@@ -46,13 +51,17 @@ export default function SDOStudents({
   });
 
   const availableSections = useMemo(() => {
-    const filteredStudents = students.filter((student) =>
-      filterSy === "All"
+    const targetStudents = Array.isArray(students) ? students : [];
+    const filteredStudents = targetStudents.filter((student) => {
+      if (!student) return false;
+      return filterSy === "All"
         ? true
-        : student.records?.some((r) => r.sy === filterSy),
-    );
+        : student.records?.some((r) => r?.sy === filterSy);
+    });
 
-    let list = [...new Set(filteredStudents.map((s) => s.section))];
+    let list = [
+      ...new Set(filteredStudents.map((s) => s?.section).filter(Boolean)),
+    ];
     if (filterGrade !== "All") {
       list = list.filter((section) => section.startsWith(filterGrade));
     }
@@ -60,26 +69,32 @@ export default function SDOStudents({
   }, [students, filterSy, filterGrade]);
 
   const filtered = useMemo(() => {
-    return students.filter((s) => {
+    const targetStudents = Array.isArray(students) ? students : [];
+    return targetStudents.filter((s) => {
+      if (!s) return false;
+
       const matchSy =
-        filterSy === "All" || s.records?.some((r) => r.sy === filterSy);
+        filterSy === "All" || s.records?.some((r) => r?.sy === filterSy);
 
       const matchPeriod =
         filterPeriod === "All" ||
-        s.records?.some((r) => r.sy === filterSy && r.q === filterPeriod);
+        s.records?.some((r) => r?.sy === filterSy && r?.q === filterPeriod);
 
       const matchSchool =
         filterSchool === "ALL SCHOOLS" || s.schoolName === filterSchool;
 
       const matchGrade =
-        filterGrade === "All" || s.section.startsWith(filterGrade);
+        filterGrade === "All" ||
+        (s.section && s.section.startsWith(filterGrade));
 
       const matchSec = filterSection === "All" || s.section === filterSection;
 
+      const sName = s.name || "";
+      const sLrn = s.lrn || "";
       const matchSearch =
         searchQ === "" ||
-        s.name.toLowerCase().includes(searchQ.toLowerCase()) ||
-        s.lrn.includes(searchQ);
+        sName.toLowerCase().includes(searchQ.toLowerCase()) ||
+        sLrn.includes(searchQ);
 
       return (
         matchSchool &&
@@ -101,13 +116,14 @@ export default function SDOStudents({
   ]);
 
   async function saveStudentChanges(student) {
+    if (!setStudents) return;
     try {
       setStudents((prev) =>
-        prev.map((s) =>
+        (Array.isArray(prev) ? prev : []).map((s) =>
           s.id === student.id ? { ...s, hasUnsavedChanges: false } : s,
         ),
       );
-      setSaveMessage({ name: student.name, visible: true });
+      setSaveMessage({ name: student.name || "Learner", visible: true });
       setTimeout(() => setSaveMessage({ name: "", visible: false }), 3000);
     } catch (error) {
       console.error(error);
@@ -116,18 +132,23 @@ export default function SDOStudents({
   }
 
   function deleteStudent(student) {
+    if (!setStudents) return;
     const confirmed = window.confirm(
-      `Delete ${student.name}?\n\nThis will remove the learner and all health records.`,
+      `Delete ${student.name || "this record"}?\n\nThis will remove the learner and all health records.`,
     );
     if (!confirmed) return;
-    queueStudentForDelete(student.id);
-    setStudents((prev) => prev.filter((s) => s.id !== student.id));
+    if (queueStudentForDelete) {
+      queueStudentForDelete(student.id);
+    }
+    setStudents((prev) =>
+      (Array.isArray(prev) ? prev : []).filter((s) => s.id !== student.id),
+    );
   }
 
   function handleAdd() {
-    if (!form.name.trim()) return;
+    if (!form.name.trim() || !setStudents) return;
     setStudents((prev) => [
-      ...prev,
+      ...(Array.isArray(prev) ? prev : []),
       {
         id: Date.now(),
         lrn: form.lrn || "—",
@@ -285,34 +306,51 @@ export default function SDOStudents({
                 </tr>
               ) : (
                 filtered.map((s) => {
-                  const rec = s.records.length
-                    ? s.records[s.records.length - 1]
+                  if (!s) return null;
+                  const recordsList = Array.isArray(s.records)
+                    ? s.records
+                    : [];
+                  const rec = recordsList.length
+                    ? recordsList[recordsList.length - 1]
                     : null;
-                  const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
-                  const status = bmi
-                    ? getBMIStatus(bmi, s.sex, s.birthdate)
-                    : null;
-                  const hfa = rec
-                    ? getHAZStatus(rec.height, s.sex, s.birthdate)
-                    : null;
+
+                  let bmi = null;
+                  let status = null;
+                  let hfa = null;
+
+                  if (rec) {
+                    try {
+                      bmi = calcBMI(rec.weight, rec.height);
+                      status = bmi
+                        ? getBMIStatus(bmi, s.sex, s.birthdate)
+                        : null;
+                      hfa = getHAZStatus(rec.height, s.sex, s.birthdate);
+                    } catch (err) {
+                      console.error(
+                        "Error calculating nutritional status row parameters:",
+                        err,
+                      );
+                    }
+                  }
+
                   const previousSbfp = hasPreviousYearData(
                     s,
-                    filterSy === "All" ? "2026–2027" : filterSy,
+                    filterSy === "All" ? SCHOOL_YEARS[0] || "2026-2027" : filterSy,
                   );
 
                   return (
                     <tr
                       key={s.id}
-                      onClick={() => onViewProfile(s)}
+                      onClick={() => onViewProfile && onViewProfile(s)}
                       style={{ cursor: "pointer" }}
                     >
-                      <td>{s.lrn}</td>
+                      <td>{s.lrn || <span className="sdo-muted">—</span>}</td>
                       <td className="sdo-name-cell">{s.name}</td>
                       <td style={{ textAlign: "center" }}>{s.age}</td>
                       <td style={{ textAlign: "center" }}>{s.sex}</td>
-                      <td>{s.section}</td>
+                      <td>{s.section || "—"}</td>
                       <td style={{ textAlign: "center" }}>
-                        {bmi ? (
+                        {typeof bmi === "number" ? (
                           bmi.toFixed(1)
                         ) : (
                           <span className="sdo-muted">—</span>

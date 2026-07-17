@@ -4,7 +4,7 @@ import "./Sidebar.css";
 
 const SCHOOL_NAV = [
   { id: "dashboard", icon: "📊", label: "Dashboard" },
-  { id: "students", icon: "🎒", label: "Database" },
+  { id: "database", icon: "🎒", label: "Database" },
   { id: "batch", icon: "📋", label: "Batch Entry" },
   { id: "sbfp", icon: "🍱", label: "SBFP Beneficiaries" },
   { id: "reports", icon: "📄", label: "Reports" },
@@ -13,7 +13,7 @@ const SCHOOL_NAV = [
 
 const SDO_NAV = [
   { id: "dashboard", icon: "📊", label: "Dashboard" },
-  { id: "students", icon: "🎒", label: "Database" },
+  { id: "database", icon: "🎒", label: "Database" },
   { id: "reports", icon: "📄", label: "Reports" },
   { id: "sdo-info", icon: "ℹ️", label: "Information" },
   { id: "sdo-settings", icon: "⚙️", label: "SDO Settings" },
@@ -62,7 +62,7 @@ export default function Sidebar({
           <button
             key={item.id}
             className={`nav-item ${
-              page === item.id || (item.id === "students" && page === "profile")
+              page === item.id || (item.id === "database" && page === "profile")
                 ? "active"
                 : ""
             }`}

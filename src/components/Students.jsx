@@ -55,13 +55,21 @@ export default function Students({
         : student.records?.some((r) => r.sy === filterSy),
     );
 
+    const counts = filteredStudents.reduce((acc, student) => {
+      acc[student.section] = (acc[student.section] || 0) + 1;
+      return acc;
+    }, {});
+
     let list = [...new Set(filteredStudents.map((s) => s.section))];
 
     if (filterGrade !== "All") {
       list = list.filter((section) => section.startsWith(filterGrade));
     }
 
-    return list.sort();
+    return list.sort().map((sectionName) => ({
+      name: sectionName,
+      count: counts[sectionName] || 0,
+    }));
   }, [students, filterSy, filterGrade]);
 
   const filtered = useMemo(() => {
@@ -290,9 +298,9 @@ export default function Students({
               onChange={(e) => setFilterSection(e.target.value)}
             >
               <option value="All">All Sections</option>
-              {availableSections.map((section) => (
-                <option key={section} value={section}>
-                  {section}
+              {availableSections.map((sec) => (
+                <option key={sec.name} value={sec.name}>
+                  {sec.name} ({sec.count})
                 </option>
               ))}
             </select>
@@ -329,11 +337,12 @@ export default function Students({
             </div>
           )}
 
-          {/* Table container & Strict Table Element Rendering */}
+          {/* Optimized responsive container wrapper */}
           <div
             style={{
               width: "100%",
-              overflowX: "auto",
+              maxHeight: "calc(100vh - 220px)",
+              overflow: "auto",
               background: "#ffffff",
               border: "1px solid #cbd5e1",
               borderRadius: "8px",
@@ -349,7 +358,7 @@ export default function Students({
                 margin: 0,
               }}
             >
-              <thead>
+              <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
                 <tr style={{ background: "#5D9C32" }}>
                   <th
                     style={{

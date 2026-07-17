@@ -48,5 +48,14 @@ export const RELEASE_NOTES = {
       "Added zero-configuration URL extraction for the global SDO logo to prevent hardcoded Supabase domains and keep the asset routing robust.",
       "Implemented a smart fallback system for the SDO image loader to gracefully revert to the default school emoji if the logo asset fails to load."
     ]
+  },
+  "20.0.12": {
+    title: "🎉 Welcome to Version 20.0.12",
+    notes: [
+      "Optimized the Batch Entry table layout to lock both horizontal and vertical scrolling inside the screen viewport, ensuring the horizontal scrollbar is always visible and accessible without scrolling down.",
+      "Fixed a bug where imported CSV data with custom formatting (such as trailing 'kg' or 'cm' units, or fully spelled sex indicators like 'Male') would freeze text inputs and selection dropdowns.",
+      "Implemented smart text and dimension sanitization on CSV uploads to seamlessly normalize sex values and isolate numerical values for real-time state binding.",
+      "Validated that removing un-saved table entries before submitting will not corrupt state alignment or break the dropdown selections in remaining rows."
+    ]
   }
 };

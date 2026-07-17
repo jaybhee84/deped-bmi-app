@@ -35,6 +35,7 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [profileId, setProfileId] = useState(null);
   const [students, setStudents] = useState([]);
+
   // School-user pages
   const [selectedSchool, setSelectedSchool] = useState("ALL SCHOOLS");
 
@@ -42,6 +43,7 @@ export default function App() {
   const [dashboardSchool, setDashboardSchool] = useState("ALL SCHOOLS");
   const [reportsSchool, setReportsSchool] = useState("CONSOLIDATED");
   const [selectedPeriod, setSelectedPeriod] = useState("Baseline");
+
   // Standardized to standard hyphen to prevent en-dash string-matching bugs
   const [selectedSY, setSelectedSY] = useState("2026-2027");
   const [schoolName, setSchoolName] = useState("");
@@ -58,6 +60,10 @@ export default function App() {
       try {
         const boundSchool = await fetchSchoolForUser(session.id);
         setSchoolName(boundSchool?.name || "");
+        // Keep selected school synced up with local user context
+        if (boundSchool?.name) {
+          setSelectedSchool(boundSchool.name);
+        }
       } catch (e) {
         console.error(e);
         setSchoolName("");
@@ -170,13 +176,18 @@ export default function App() {
         typeof updaterOrValue === "function"
           ? updaterOrValue(prev)
           : updaterOrValue;
-      next.forEach((student) => {
-        const old = prev.find((p) => p.id === student.id);
+
+      const safeNext = Array.isArray(next) ? next : [];
+      const safePrev = Array.isArray(prev) ? prev : [];
+
+      safeNext.forEach((student) => {
+        if (!student) return;
+        const old = safePrev.find((p) => p && p.id === student.id);
         if (!old || JSON.stringify(old) !== JSON.stringify(student)) {
           queueStudentForSync(student.id);
         }
       });
-      return next;
+      return safeNext;
     });
   }
 
@@ -227,6 +238,9 @@ export default function App() {
     async function handleSchoolBound(event) {
       const { schoolId, schoolName } = event.detail;
       setSchoolName(schoolName || "");
+      if (schoolName) {
+        setSelectedSchool(schoolName);
+      }
 
       if (!schoolId) {
         setStudents([]);
@@ -254,6 +268,7 @@ export default function App() {
   }
 
   function viewProfile(student) {
+    if (!student) return;
     setProfileId(student.id);
     setPage("profile");
   }
@@ -265,9 +280,12 @@ export default function App() {
 
   if (!session) return <Login onLogin={handleLogin} />;
 
+  const safeStudents = Array.isArray(students) ? students : [];
+
   const allSchoolsData =
     session?.role === ROLES.DIVISION
-      ? students.reduce((acc, student) => {
+      ? safeStudents.reduce((acc, student) => {
+          if (!student) return acc;
           const school = student.schoolName || "Unknown School";
           if (!acc[school]) {
             acc[school] = [];
@@ -276,7 +294,7 @@ export default function App() {
           return acc;
         }, {})
       : {
-          [schoolName || "Current School"]: students,
+          [schoolName || "Current School"]: safeStudents,
         };
 
   return (
@@ -321,9 +339,12 @@ export default function App() {
           </div>
           <div className="top-bar-right">
             {!readOnly && (
-              <ExportImport students={students} setStudents={updateStudents} />
+              <ExportImport
+                students={safeStudents}
+                setStudents={updateStudents}
+              />
             )}
-            <SyncStatus students={students} />
+            <SyncStatus students={safeStudents} />
           </div>
         </div>
 
@@ -340,20 +361,20 @@ export default function App() {
               setSelectedSY={setSelectedSY}
             />
           ) : (
-            <Dashboard students={students} />
+            <Dashboard students={safeStudents} />
           ))}
 
-        {/* ── Students ── */}
-        {page === "students" &&
+        {/* ── Database Directory ── */}
+        {page === "database" &&
           (isSDO ? (
             <SDOStudents
-              students={students}
+              students={safeStudents}
               onViewProfile={viewProfile}
               readOnly={true}
             />
           ) : (
             <Students
-              students={students}
+              students={safeStudents}
               selectedSchool={selectedSchool}
               setStudents={readOnly ? undefined : updateStudents}
               onViewProfile={viewProfile}
@@ -365,9 +386,9 @@ export default function App() {
         {page === "profile" && (
           <Profile
             studentId={profileId}
-            students={students}
+            students={safeStudents}
             setStudents={readOnly ? undefined : updateStudents}
-            onBack={() => setPage("students")}
+            onBack={() => setPage("database")}
             readOnly={readOnly}
           />
         )}
@@ -413,14 +434,18 @@ export default function App() {
             }
 
             return (
-              <BatchEntry students={students} setStudents={updateStudents} />
+              <BatchEntry
+                students={safeStudents}
+                setStudents={updateStudents}
+                currentUser={session}
+              />
             );
           })()}
 
         {/* ── SBFP Beneficiaries (school only) ── */}
         {page === "sbfp" && !isSDO && (
           <SBFPBeneficiaries
-            students={students}
+            students={safeStudents}
             setStudents={readOnly ? undefined : updateStudents}
             currentUser={session}
           />
@@ -435,7 +460,7 @@ export default function App() {
               setSelectedSchool={setReportsSchool}
             />
           ) : (
-            <Reports students={students} selectedSchool={selectedSchool} />
+            <Reports students={safeStudents} selectedSchool={selectedSchool} />
           ))}
 
         {/* ── Settings (school only) ── */}
@@ -443,7 +468,7 @@ export default function App() {
           <Settings
             schoolName={schoolName}
             setSchoolName={setSchoolName}
-            students={students}
+            students={safeStudents}
             currentUser={session}
           />
         )}

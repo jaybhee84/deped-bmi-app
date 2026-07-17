@@ -66,7 +66,7 @@ function downloadCsvTemplate() {
   URL.revokeObjectURL(url);
 }
 
-export default function BatchEntry({ setStudents }) {
+export default function BatchEntry({ setStudents, currentUser }) {
   const fileInputRef = useRef(null);
   const [gradeLevel, setGradeLevel] = useState("Kinder");
   const [teacherName, setTeacherName] = useState("");
@@ -84,14 +84,27 @@ export default function BatchEntry({ setStudents }) {
   const [school, setSchool] = useState(null);
   const [schoolConfigured, setSchoolConfigured] = useState(false);
 
+  // FETCH & CHECK SQLITE SETUP STATE ON MOUNT
   useEffect(() => {
     async function loadSchool() {
-      const schoolData = await window.sqlite.loadSchool();
-      setSchool(schoolData);
-      setSchoolConfigured(!!(schoolData?.school_id && schoolData?.school_name));
+      if (!currentUser?.id) return;
+
+      try {
+        const schoolData = await window.sqlite.loadSchool(currentUser.id);
+        setSchool(schoolData);
+
+        const isConfigured = !!(
+          schoolData?.school_id?.toString().trim() &&
+          schoolData?.school_name?.toString().trim()
+        );
+        setSchoolConfigured(isConfigured);
+      } catch (err) {
+        console.error("Failed to verify school configuration status:", err);
+        setSchoolConfigured(false);
+      }
     }
     loadSchool();
-  }, []);
+  }, [currentUser]);
 
   const schoolName = school?.school_name || "unknown";
 
@@ -109,21 +122,40 @@ export default function BatchEntry({ setStudents }) {
       skipEmptyLines: true,
       complete: (results) => {
         const importedRows = results.data.map((row) => {
+          // Normalize birthdate
           let birthdate = "";
           if (row.birthdate) {
-            const date = new Date(row.birthdate);
-            if (!isNaN(date.getTime())) {
-              birthdate = date.toISOString().split("T")[0];
+            const dateObj = new Date(row.birthdate);
+            if (!isNaN(dateObj.getTime())) {
+              birthdate = dateObj.toISOString().split("T")[0];
             }
           }
+
+          // Normalize Sex
+          let sex = "M";
+          const rawSex = row.sex?.trim().toUpperCase() || "";
+          if (rawSex.startsWith("F")) {
+            sex = "F";
+          } else if (rawSex.startsWith("M")) {
+            sex = "M";
+          }
+
+          // Strip non-numeric units from dimensions
+          const weight = row.weight
+            ? row.weight.toString().replace(/[^0-9.]/g, "")
+            : "";
+          const height = row.height
+            ? row.height.toString().replace(/[^0-9.]/g, "")
+            : "";
+
           return {
             lrn: row.lrn?.trim() || "",
             name: row.name?.trim() || "",
             birthdate,
             age: birthdate ? ageInYears(birthdate) : "",
-            weight: row.weight?.toString() || "",
-            height: row.height?.toString() || "",
-            sex: row.sex?.trim().toUpperCase() || "M",
+            weight,
+            height,
+            sex,
           };
         });
         setRows(importedRows);
@@ -254,12 +286,35 @@ export default function BatchEntry({ setStudents }) {
   }
 
   return (
-    <div className="page">
+    <div
+      className="page"
+      style={{
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
       <h1 className="page-title">Batch Entry</h1>
-      <p className="page-sub">Enter measurements for an entire class at once</p>
+      <p className="page-sub" style={{ marginBottom: "12px" }}>
+        Enter measurements for an entire class at once
+      </p>
 
-      <div className="card">
-        <div className="batch-class-box">
+      <div
+        className="card"
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          padding: "16px",
+        }}
+      >
+        {/* UPPER CONTROLS GRID */}
+        <div
+          className="batch-class-box"
+          style={{ flexShrink: 0, marginBottom: "12px" }}
+        >
           <div className="batch-class-title">Class / Section Setup</div>
 
           <div className="batch-header-grid">
@@ -282,7 +337,7 @@ export default function BatchEntry({ setStudents }) {
             <div className="form-group teacher-group">
               <label className="form-label">
                 Teacher Name
-                <span className="label-hint"> (auto-saved per grade)</span>
+                <span className="label-hint"> (auto-saved)</span>
               </label>
               <input
                 className="form-input"
@@ -394,29 +449,32 @@ export default function BatchEntry({ setStudents }) {
           </div>
         </div>
 
-        <div className="registry-info-box">
+        {/* COMPACT REGISTRY CALLOUT */}
+        <div
+          className="registry-info-box"
+          style={{
+            flexShrink: 0,
+            padding: "8px 12px",
+            marginBottom: "12px",
+            fontSize: "12px",
+          }}
+        >
           <span className="registry-info-icon">🔖</span>
           <span>
             Students <strong>without an LRN</strong> will be assigned a Registry
-            Number automatically (e.g.{" "}
-            <code>
-              {sy.split("–")[0]}-schoolcode-
-              {gradeLevel === "Kinder" ? "K" : `G${gradeLevel.split(" ")[1]}`}
-              -0001
-            </code>
-            ). This serves as their identifier for Midline / Endline CSV
-            uploads.
+            Number automatically.
           </span>
         </div>
 
-        {/* --- INLINE STYLE TARGETED STANDALONE TABLE CONTAINER --- */}
+        {/* CONTAINER WITH FORCED BOTTOM SCROLLBAR */}
         <div
           className="batch-table-wrap"
           style={{
-            overflowX: "auto",
-            width: "100%",
+            flex: 1, // Fills all remaining layout space dynamically
+            overflow: "auto", // Locks BOTH horizontal and vertical scrolling into this div
             border: "1px solid #e2e8f0",
             borderRadius: "6px",
+            background: "#fff",
           }}
         >
           <table
@@ -430,7 +488,7 @@ export default function BatchEntry({ setStudents }) {
               margin: 0,
             }}
           >
-            <thead>
+            <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
               <tr style={{ background: "#5D9C32" }}>
                 <th
                   style={{
@@ -456,7 +514,7 @@ export default function BatchEntry({ setStudents }) {
                     fontWeight: 600,
                   }}
                 >
-                  LRN
+                  LRN{" "}
                   <span
                     style={{
                       display: "block",
@@ -481,7 +539,7 @@ export default function BatchEntry({ setStudents }) {
                     fontWeight: 600,
                   }}
                 >
-                  NAME
+                  NAME{" "}
                   <span
                     style={{
                       display: "block",
@@ -495,7 +553,6 @@ export default function BatchEntry({ setStudents }) {
                     (Last, First M.)
                   </span>
                 </th>
-                {/* 230px forced width locks birthdate container structure from ever resizing or overflowing */}
                 <th
                   style={{
                     display: "table-cell",
@@ -507,7 +564,7 @@ export default function BatchEntry({ setStudents }) {
                     fontWeight: 600,
                   }}
                 >
-                  BIRTHDATE
+                  BIRTHDATE{" "}
                   <span
                     style={{
                       display: "block",
@@ -532,7 +589,7 @@ export default function BatchEntry({ setStudents }) {
                     fontWeight: 600,
                   }}
                 >
-                  AGE
+                  AGE{" "}
                   <span
                     style={{
                       display: "block",
@@ -570,7 +627,7 @@ export default function BatchEntry({ setStudents }) {
                     fontWeight: 600,
                   }}
                 >
-                  WEIGHT
+                  WEIGHT{" "}
                   <span
                     style={{
                       display: "block",
@@ -595,7 +652,7 @@ export default function BatchEntry({ setStudents }) {
                     fontWeight: 600,
                   }}
                 >
-                  HEIGHT
+                  HEIGHT{" "}
                   <span
                     style={{
                       display: "block",
@@ -694,7 +751,6 @@ export default function BatchEntry({ setStudents }) {
                         {i + 1}
                       </span>
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -716,7 +772,6 @@ export default function BatchEntry({ setStudents }) {
                         }}
                       />
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -738,8 +793,6 @@ export default function BatchEntry({ setStudents }) {
                         }}
                       />
                     </td>
-
-                    {/* Width of 230px here allows standard date inputs (including native dropdown arrow icons) to stay fully visible */}
                     <td
                       style={{
                         display: "table-cell",
@@ -765,7 +818,6 @@ export default function BatchEntry({ setStudents }) {
                         }}
                       />
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -800,7 +852,6 @@ export default function BatchEntry({ setStudents }) {
                         )}
                       </div>
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -820,14 +871,13 @@ export default function BatchEntry({ setStudents }) {
                           height: "34px",
                           fontSize: "13px",
                           textAlign: "center",
-                          textAlignLast: "center", // Cross-browser support for dropdown text alignment
+                          textAlignLast: "center",
                         }}
                       >
                         <option value="M">M</option>
                         <option value="F">F</option>
                       </select>
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -852,7 +902,6 @@ export default function BatchEntry({ setStudents }) {
                         }}
                       />
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -877,7 +926,6 @@ export default function BatchEntry({ setStudents }) {
                         }}
                       />
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -908,7 +956,6 @@ export default function BatchEntry({ setStudents }) {
                         )}
                       </div>
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -932,7 +979,6 @@ export default function BatchEntry({ setStudents }) {
                         )}
                       </div>
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -956,7 +1002,6 @@ export default function BatchEntry({ setStudents }) {
                         )}
                       </div>
                     </td>
-
                     <td
                       style={{
                         display: "table-cell",
@@ -990,21 +1035,26 @@ export default function BatchEntry({ setStudents }) {
           onChange={handleCsvUpload}
         />
 
-        {!schoolConfigured && (
-          <p className="teacher-warning">
-            ⚠ School setup is incomplete. Please go to Settings and enter the
-            School Name and School ID first.
-          </p>
-        )}
-
-        <div className="batch-actions" style={{ marginTop: "1rem" }}>
+        {/* BOTTOM ACTION BUTTONS */}
+        <div
+          className="batch-actions"
+          style={{
+            flexShrink: 0,
+            marginTop: "12px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+          }}
+        >
           <button
             className="btn btn-secondary"
             disabled={!canUpload || !schoolConfigured}
             title={
-              !canUpload
-                ? "Select Grade Level and enter Teacher Name first."
-                : ""
+              !schoolConfigured
+                ? "Please configure School Name and School ID in Settings first."
+                : !canUpload
+                  ? "Select Grade Level and enter Teacher Name first."
+                  : ""
             }
             onClick={() => fileInputRef.current?.click()}
           >
@@ -1041,8 +1091,21 @@ export default function BatchEntry({ setStudents }) {
           )}
         </div>
 
+        {!schoolConfigured && (
+          <p
+            className="teacher-warning"
+            style={{ flexShrink: 0, marginTop: "6px", marginBottom: 0 }}
+          >
+            ⚠ School setup is incomplete. Please go to Settings and enter the
+            School Name and School ID first.
+          </p>
+        )}
+
         {!canUpload && (
-          <p className="teacher-warning">
+          <p
+            className="teacher-warning"
+            style={{ flexShrink: 0, marginTop: "6px", marginBottom: 0 }}
+          >
             ⚠ Please select a Grade Level and enter the Teacher Name before
             uploading or saving.
           </p>
