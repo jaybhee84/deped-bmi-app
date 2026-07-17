@@ -15,6 +15,7 @@ import {
 import "./Settings.css";
 import { SCHOOL_OPTIONS } from "../utils/schools";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
+import { RELEASE_NOTES } from "../data/releaseNotes";
 
 export default function Settings({
   schoolName,
@@ -35,6 +36,7 @@ export default function Settings({
   const [schoolExists, setSchoolExists] = useState(false);
   const [schoolLogo, setSchoolLogo] = useState(null);
   const [appVersion, setAppVersion] = useState("");
+  const latestRelease = RELEASE_NOTES[appVersion];
   useEffect(() => {
     async function getVersion() {
       const version = await window.electronAPI.getAppVersion();
@@ -46,10 +48,19 @@ export default function Settings({
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function loadSchoolDb() {
+      if (!currentUser?.id) return;
+
       try {
-        // 1. Try local SQLite first (fast, works offline)
-        const schoolData = await window.sqlite.loadSchool();
+        // 1. Try local SQLite first (fast, works offline) — but only trust
+        // it if it was bound by THIS user. A different (or brand-new)
+        // account on the same device gets nothing here, not the previous
+        // user's school.
+        const schoolData = await window.sqlite.loadSchool(currentUser.id);
+
+        if (cancelled) return;
 
         if (schoolData) {
           setSchool({
@@ -60,50 +71,68 @@ export default function Settings({
             address: schoolData.address || "",
           });
 
+          // Mark the form as "loaded" immediately — don't make Save/logout
+          // wait on the logo lookup below.
           setSchoolLoaded(true);
+
           const logoUrl = getSchoolLogoUrl(schoolData.school_name);
-
           setSchoolLogo(logoUrl);
-          const localLogo = await window.sqlite.loadSchoolLogo(
-            schoolData.school_id,
-          );
 
-          if (localLogo) {
-            setSchoolLogo(localLogo);
-          }
+          // Background: prefer a locally-cached custom logo if present.
+          // Fire-and-forget so it can't block or race Save/logout.
+          window.sqlite
+            .loadSchoolLogo(schoolData.school_id)
+            .then((localLogo) => {
+              if (!cancelled && localLogo) setSchoolLogo(localLogo);
+            })
+            .catch((e) =>
+              console.error("[SQLite] Failed to load school logo:", e),
+            );
+
           return;
         }
 
-        // 2. Nothing local yet (e.g. fresh device) — check if this user
-        // is already bound to a school in Supabase and pre-fill from there.
-        if (currentUser?.id && navigator.onLine) {
+        // 2. Nothing local for THIS user — check if they're already bound
+        // to a school in Supabase (e.g. new device, or new account bound
+        // to an existing school) and pre-fill from there.
+        if (navigator.onLine) {
           const boundSchool = await fetchSchoolForUser(currentUser.id);
 
-          if (boundSchool) {
-            setSchool({
-              name: boundSchool.name || "",
-              id: boundSchool.id || "",
-              division: boundSchool.division || "",
-              district: boundSchool.district || "",
-              address: boundSchool.address || "",
-            });
+          if (cancelled || !boundSchool) return;
 
-            setSchoolExists(true);
+          setSchool({
+            name: boundSchool.name || "",
+            id: boundSchool.id || "",
+            division: boundSchool.division || "",
+            district: boundSchool.district || "",
+            address: boundSchool.address || "",
+          });
 
-            const logoUrl = getSchoolLogoUrl(boundSchool.name);
-            setSchoolLogo(logoUrl);
+          setSchoolExists(true);
+          setSchoolName(boundSchool.name);
 
-            await window.sqlite.saveSchool({
-              school_name: boundSchool.name,
-              school_id: boundSchool.id,
-              division: boundSchool.division,
-              district: boundSchool.district,
-              address: boundSchool.address,
-            });
+          // Mark the form ready right away — the logo and the local-cache
+          // write below happen in the background and must never block
+          // Save or logout.
+          setSchoolLoaded(true);
 
-            setSchoolName(boundSchool.name);
-            setSchoolLoaded(true);
-          }
+          const logoUrl = getSchoolLogoUrl(boundSchool.name);
+          setSchoolLogo(logoUrl);
+
+          window.sqlite
+            .saveSchool(
+              {
+                name: boundSchool.name,
+                id: boundSchool.id,
+                division: boundSchool.division,
+                district: boundSchool.district,
+                address: boundSchool.address,
+              },
+              currentUser.id,
+            )
+            .catch((e) =>
+              console.error("[SQLite] Failed to cache school locally:", e),
+            );
         }
       } catch (e) {
         console.error("[SQLite] Failed to load school:", e);
@@ -111,6 +140,10 @@ export default function Settings({
     }
 
     loadSchoolDb();
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentUser]);
 
   // Supabase config state
@@ -134,8 +167,8 @@ export default function Settings({
     }
 
     try {
-      // Save locally first
-      await window.sqlite.saveSchool(school);
+      // Save locally first, scoped to the current account
+      await window.sqlite.saveSchool(school, currentUser?.id);
 
       // Sync to Supabase if online
       if (navigator.onLine) {
@@ -148,6 +181,15 @@ export default function Settings({
         if (currentUser?.id) {
           try {
             await bindSchoolToUser(school.id, currentUser.id);
+
+            window.dispatchEvent(
+              new CustomEvent("school-bound", {
+                detail: {
+                  schoolId: school.id,
+                  schoolName: school.name,
+                },
+              }),
+            );
           } catch (bindErr) {
             console.error("Failed binding school to user:", bindErr);
 
@@ -364,11 +406,30 @@ export default function Settings({
             <button
               className="btn btn-danger"
               onClick={async () => {
+                const confirmed = window.confirm(
+                  "This will unlink this account from its school. " +
+                  "Local data on this device will be cleared either way.\n\n" +
+                  "Continue?"
+                );
+
+                if (!confirmed) return;
+
+                let serverUnbindFailed = false;
+
                 try {
-                  if (currentUser?.id && navigator.onLine) {
+                  // Always attempt this — not just when navigator.onLine
+                  // looked true — since that flag can be stale/wrong, and
+                  // skipping it silently left the account bound in
+                  // Supabase while the device looked cleared.
+                  if (currentUser?.id) {
                     await unbindSchoolFromUser(currentUser.id);
                   }
+                } catch (err) {
+                  console.error("Failed to unbind school on server:", err);
+                  serverUnbindFailed = true;
+                }
 
+                try {
                   await window.sqlite.clearSchool();
                   await window.sqlite.saveStudents([]);
 
@@ -393,6 +454,15 @@ export default function Settings({
                       },
                     }),
                   );
+
+                  if (serverUnbindFailed) {
+                    alert(
+                      "This device has been cleared, but the account is " +
+                      "still bound to the school on the server (likely " +
+                      "no internet connection). Try again while online " +
+                      "to fully unlink this account."
+                    );
+                  }
                 } catch (err) {
                   console.error(err);
                   alert("Failed to clear school settings.");
@@ -420,8 +490,8 @@ export default function Settings({
                     src={schoolLogo}
                     alt="School Logo"
                     style={{
-                      width: "100px",
-                      height: "100px",
+                      width: "180px",
+                      height: "180px",
                       objectFit: "contain",
                     }}
                   />
@@ -493,7 +563,6 @@ export default function Settings({
                 );
               })}
             </div>
-
             <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
               Height-for-Age (HAZ) Reference
             </h3>
@@ -586,6 +655,48 @@ export default function Settings({
                 <span>WHO / DepEd</span>
               </div>
             </div>
+            {latestRelease && (
+              <>
+                <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
+                  📋 Release Notes
+                </h3>
+
+                <div
+                  style={{
+                    background: "#F8FAFC",
+                    border: "1px solid #E5E7EB",
+                    borderRadius: 10,
+                    padding: 16,
+                    maxHeight: 260,
+                    overflowY: "auto",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      color: "#1E3A5F",
+                      marginBottom: 10,
+                      fontSize: "15px",
+                    }}
+                  >
+                    {latestRelease.title}
+                  </div>
+
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: 20,
+                      color: "#374151",
+                      lineHeight: 1.7,
+                    }}
+                  >
+                    {latestRelease.notes.map((note, index) => (
+                      <li key={index}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -9,7 +9,6 @@ import {
 } from "../utils/bmi";
 import Badge from "./Badge";
 import Modal from "./Modal";
-import "./Students.css";
 import { queueStudentForDelete } from "../utils/syncService";
 import { getStudentIdentifier } from "../utils/registry";
 import CSVUpload from "./CSVUpload";
@@ -20,7 +19,6 @@ function hasPreviousYearData(student, currentSy) {
   }
 
   const [startYear] = currentSy.split("–");
-
   const previousSy = `${parseInt(startYear) - 1}–${startYear}`;
 
   return student.records.some((record) => record.sy === previousSy);
@@ -49,6 +47,7 @@ export default function Students({
     sex: "M",
     section: "Grade 6",
   });
+
   const availableSections = useMemo(() => {
     const filteredStudents = students.filter((student) =>
       filterSy === "All"
@@ -97,9 +96,9 @@ export default function Students({
       ),
     );
   }
+
   async function saveStudentChanges(student) {
     try {
-      // update local state
       setStudents((prev) =>
         prev.map((s) =>
           s.id === student.id
@@ -111,10 +110,6 @@ export default function Students({
         ),
       );
 
-      // TODO:
-      // update Supabase here
-
-      console.log("Saved student:", student);
       setSaveMessage({
         name: student.name,
         visible: true,
@@ -140,7 +135,6 @@ export default function Students({
     if (!confirmed) return;
 
     queueStudentForDelete(student.id);
-
     setStudents((prev) => prev.filter((s) => s.id !== student.id));
   }
 
@@ -165,24 +159,50 @@ export default function Students({
   }
 
   return (
-    <div className="page">
-      <div className="page-header">
+    <div className="students-page-container page" style={{ padding: "20px" }}>
+      <div
+        className="page-header"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "20px",
+        }}
+      >
         <div>
-          <h1 className="page-title">Students</h1>
-          <p className="page-sub">Manage student profiles and health records</p>
+          <h1
+            className="page-title"
+            style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}
+          >
+            Students
+          </h1>
+          <p
+            className="page-sub"
+            style={{ fontSize: "14px", color: "#64748b", margin: "4px 0 0 0" }}
+          >
+            Manage student profiles and health records
+          </p>
         </div>
         {!readOnly && (
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <CSVUpload
               students={students}
               setStudents={setStudents}
               open={csvOpen}
               setOpen={setCsvOpen}
             />
-
             <button
               className="btn btn-primary"
               onClick={() => setAddOpen(true)}
+              style={{
+                background: "#0f172a",
+                color: "#fff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: "500",
+              }}
             >
               + Add Student
             </button>
@@ -192,15 +212,36 @@ export default function Students({
 
       {!csvOpen && (
         <>
-          <div className="filter-row">
+          {/* Controls Filters */}
+          <div
+            style={{
+              display: "flex",
+              gap: "12px",
+              alignItems: "center",
+              marginBottom: "24px",
+              flexWrap: "wrap",
+            }}
+          >
             <input
-              className="form-input search-input"
+              className="form-input"
+              style={{
+                width: "260px",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+              }}
               placeholder="Search by name or LRN…"
               value={searchQ}
               onChange={(e) => setSearchQ(e.target.value)}
             />
             <select
               className="form-select"
+              style={{
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+                background: "#fff",
+              }}
               value={filterSy}
               onChange={(e) => {
                 setFilterSy(e.target.value);
@@ -208,8 +249,7 @@ export default function Students({
                 setFilterSection("All");
               }}
             >
-              <option value="All"></option>
-
+              <option value="All">All School Years</option>
               {SCHOOL_YEARS.map((sy) => (
                 <option key={sy} value={sy}>
                   {sy}
@@ -218,6 +258,12 @@ export default function Students({
             </select>
             <select
               className="form-select"
+              style={{
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+                background: "#fff",
+              }}
               value={filterGrade}
               onChange={(e) => {
                 setFilterGrade(e.target.value);
@@ -225,7 +271,6 @@ export default function Students({
               }}
             >
               <option value="All">All Grade Levels</option>
-
               {GRADE_LEVELS.map((g) => (
                 <option key={g} value={g}>
                   {g}
@@ -235,11 +280,16 @@ export default function Students({
 
             <select
               className="form-select"
+              style={{
+                padding: "8px 12px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+                background: "#fff",
+              }}
               value={filterSection}
               onChange={(e) => setFilterSection(e.target.value)}
             >
               <option value="All">All Sections</option>
-
               {availableSections.map((section) => (
                 <option key={section} value={section}>
                   {section}
@@ -247,41 +297,242 @@ export default function Students({
               ))}
             </select>
           </div>
+
           {saveMessage.visible && (
-            <div className="success-toast">
-              <div className="toast-icon">✓</div>
-
+            <div
+              style={{
+                position: "fixed",
+                top: "24px",
+                right: "24px",
+                background: "#16a34a",
+                color: "#ffffff",
+                padding: "14px 22px",
+                borderRadius: "12px",
+                fontSize: "14px",
+                fontWeight: "600",
+                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25)",
+                zIndex: 99999,
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+              }}
+            >
+              <div style={{ fontSize: "18px" }}>✓</div>
               <div>
-                <div className="toast-title">Saved Successfully</div>
-
-                <div className="toast-text">
+                <div style={{ fontWeight: "700" }}>Saved Successfully</div>
+                <div
+                  style={{ fontWeight: "400", fontSize: "12px", opacity: 0.9 }}
+                >
                   {saveMessage.name} was updated.
                 </div>
               </div>
             </div>
           )}
-          <div className="card">
-            <table className="data-table">
+
+          {/* Table container & Strict Table Element Rendering */}
+          <div
+            style={{
+              width: "100%",
+              overflowX: "auto",
+              background: "#ffffff",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+            }}
+          >
+            <table
+              style={{
+                width: "1550px",
+                minWidth: "1550px",
+                tableLayout: "fixed",
+                borderCollapse: "collapse",
+                margin: 0,
+              }}
+            >
               <thead>
-                <tr>
-                  <th>LRN</th>
-                  <th>Name</th>
-                  <th>Age</th>
-                  <th>Sex</th>
-                  <th>Section</th>
-                  <th>Latest BMI</th>
-                  <th>Nutritional Status</th>
-                  <th>HFA Status</th>
-                  <th>Consent</th>
-                  <th>4Ps</th>
-                  <th>Prev SBFP</th>
-                  <th>Actions</th>
+                <tr style={{ background: "#5D9C32" }}>
+                  <th
+                    style={{
+                      width: "150px",
+                      minWidth: "150px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "left",
+                    }}
+                  >
+                    LRN
+                  </th>
+                  <th
+                    style={{
+                      width: "240px",
+                      minWidth: "240px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "left",
+                    }}
+                  >
+                    Name
+                  </th>
+                  <th
+                    style={{
+                      width: "80px",
+                      minWidth: "80px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  >
+                    Age
+                  </th>
+                  <th
+                    style={{
+                      width: "80px",
+                      minWidth: "80px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  >
+                    Sex
+                  </th>
+                  <th
+                    style={{
+                      width: "180px",
+                      minWidth: "180px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "left",
+                    }}
+                  >
+                    Section
+                  </th>
+                  <th
+                    style={{
+                      width: "110px",
+                      minWidth: "110px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  >
+                    Latest BMI
+                  </th>
+                  <th
+                    style={{
+                      width: "180px",
+                      minWidth: "180px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  >
+                    Nutritional Status
+                  </th>
+                  <th
+                    style={{
+                      width: "140px",
+                      minWidth: "140px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  >
+                    HFA Status
+                  </th>
+                  <th
+                    style={{
+                      width: "100px",
+                      minWidth: "100px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  >
+                    Consent
+                  </th>
+                  <th
+                    style={{
+                      width: "100px",
+                      minWidth: "100px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  >
+                    4Ps
+                  </th>
+                  <th
+                    style={{
+                      width: "90px",
+                      minWidth: "90px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  >
+                    Prev SBFP
+                  </th>
+                  <th
+                    style={{
+                      width: "100px",
+                      minWidth: "100px",
+                      padding: "12px 14px",
+                      color: "#ffffff",
+                      fontWeight: "600",
+                      fontSize: "12px",
+                      textTransform: "uppercase",
+                      textAlign: "center",
+                    }}
+                  >
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={12} className="empty-cell">
+                    <td
+                      colSpan={12}
+                      style={{
+                        textAlign: "center",
+                        padding: "2rem",
+                        color: "#94a3b8",
+                        fontSize: "14px",
+                      }}
+                    >
                       No students found.
                     </td>
                   </tr>
@@ -291,11 +542,9 @@ export default function Students({
                       ? s.records[s.records.length - 1]
                       : null;
                     const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
-
                     const status = bmi
                       ? getBMIStatus(bmi, s.sex, s.birthdate)
                       : null;
-
                     const hfa = rec
                       ? getHAZStatus(rec.height, s.sex, s.birthdate)
                       : null;
@@ -307,64 +556,190 @@ export default function Students({
                     return (
                       <tr
                         key={s.id}
-                        className="clickable-row"
                         onClick={() => onViewProfile(s)}
+                        style={{
+                          borderBottom: "1px solid #f1f5f9",
+                          cursor: "pointer",
+                        }}
                       >
-                        <td>
-                          <div>
+                        <td
+                          style={{
+                            width: "150px",
+                            minWidth: "150px",
+                            padding: "12px 14px",
+                            textAlign: "left",
+                          }}
+                        >
+                          <div
+                            style={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
                             {s.lrn && s.lrn !== "—" ? (
                               s.lrn
                             ) : (
-                              <span className="muted">—</span>
+                              <span style={{ color: "#94a3b8" }}>—</span>
                             )}
                           </div>
                           {s.registryNo && (
                             <div
                               style={{
-                                fontSize: 10,
-                                color: "var(--gray-400)",
-                                marginTop: 1,
+                                fontSize: "10px",
+                                color: "#94a3b8",
+                                marginTop: "2px",
                               }}
                             >
                               🔖 {s.registryNo}
                             </div>
                           )}
                         </td>
-                        <td className="name-cell">{s.name}</td>
-                        <td>{s.age}</td>
-                        <td>{s.sex}</td>
-                        <td>{s.section}</td>
-                        <td>
+                        <td
+                          style={{
+                            width: "240px",
+                            minWidth: "240px",
+                            padding: "12px 14px",
+                            fontWeight: "600",
+                            textAlign: "left",
+                          }}
+                        >
+                          <div
+                            style={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {s.name}
+                          </div>
+                        </td>
+                        <td
+                          style={{
+                            width: "80px",
+                            minWidth: "80px",
+                            padding: "12px 14px",
+                            textAlign: "center",
+                          }}
+                        >
+                          {s.age}
+                        </td>
+                        <td
+                          style={{
+                            width: "80px",
+                            minWidth: "80px",
+                            padding: "12px 14px",
+                            textAlign: "center",
+                          }}
+                        >
+                          {s.sex}
+                        </td>
+                        <td
+                          style={{
+                            width: "180px",
+                            minWidth: "180px",
+                            padding: "12px 14px",
+                            textAlign: "left",
+                          }}
+                        >
+                          <div
+                            style={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {s.section}
+                          </div>
+                        </td>
+                        <td
+                          style={{
+                            width: "110px",
+                            minWidth: "110px",
+                            padding: "12px 14px",
+                            textAlign: "center",
+                          }}
+                        >
                           {bmi ? (
                             bmi.toFixed(1)
                           ) : (
-                            <span className="muted">—</span>
+                            <span style={{ color: "#94a3b8" }}>—</span>
                           )}
                         </td>
-                        <td>
-                          {status ? (
-                            <Badge
-                              label={status.label}
-                              color={status.color}
-                              bg={status.bg}
-                            />
-                          ) : (
-                            <span className="no-data-tag">No data</span>
-                          )}
+                        <td
+                          style={{
+                            width: "180px",
+                            minWidth: "180px",
+                            padding: "12px 14px",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {status ? (
+                              <Badge
+                                label={status.label}
+                                color={status.color}
+                                bg={status.bg}
+                              />
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#94a3b8",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                No data
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td>
-                          {hfa ? (
-                            <Badge
-                              label={hfa.label}
-                              color={hfa.color}
-                              bg={hfa.bg}
-                            />
-                          ) : (
-                            <span className="no-data-tag">No data</span>
-                          )}
+                        <td
+                          style={{
+                            width: "140px",
+                            minWidth: "140px",
+                            padding: "12px 14px",
+                            textAlign: "center",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {hfa ? (
+                              <Badge
+                                label={hfa.label}
+                                color={hfa.color}
+                                bg={hfa.bg}
+                              />
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#94a3b8",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                No data
+                              </span>
+                            )}
+                          </div>
                         </td>
-
-                        <td>
+                        <td
+                          style={{
+                            width: "100px",
+                            minWidth: "100px",
+                            padding: "12px 14px",
+                            textAlign: "center",
+                          }}
+                        >
                           <select
                             value={s.parentConsent || "N"}
                             onClick={(e) => e.stopPropagation()}
@@ -375,13 +750,29 @@ export default function Students({
                                 e.target.value,
                               )
                             }
+                            style={{
+                              width: "60px",
+                              height: "30px",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "4px",
+                              margin: "0 auto",
+                              display: "block",
+                              textAlign: "center",
+                              textAlignLast: "center",
+                            }}
                           >
                             <option value="Y">Y</option>
                             <option value="N">N</option>
                           </select>
                         </td>
-
-                        <td>
+                        <td
+                          style={{
+                            width: "100px",
+                            minWidth: "100px",
+                            padding: "12px 14px",
+                            textAlign: "center",
+                          }}
+                        >
                           <select
                             value={s.member4ps || "N"}
                             onClick={(e) => e.stopPropagation()}
@@ -392,13 +783,29 @@ export default function Students({
                                 e.target.value,
                               )
                             }
+                            style={{
+                              width: "60px",
+                              height: "30px",
+                              border: "1px solid #cbd5e1",
+                              borderRadius: "4px",
+                              margin: "0 auto",
+                              display: "block",
+                              textAlign: "center",
+                              textAlignLast: "center",
+                            }}
                           >
                             <option value="Y">Y</option>
                             <option value="N">N</option>
                           </select>
                         </td>
-
-                        <td>
+                        <td
+                          style={{
+                            width: "90px",
+                            minWidth: "90px",
+                            padding: "12px 14px",
+                            textAlign: "center",
+                          }}
+                        >
                           <span
                             style={{
                               color: previousSbfp ? "#16a34a" : "#dc2626",
@@ -408,24 +815,49 @@ export default function Students({
                             {previousSbfp ? "Y" : "N"}
                           </span>
                         </td>
-                        <td>
+                        <td
+                          style={{
+                            width: "100px",
+                            minWidth: "100px",
+                            padding: "12px 14px",
+                            textAlign: "center",
+                          }}
+                        >
                           {!readOnly &&
                             (s.hasUnsavedChanges ? (
                               <button
-                                className="btn-save"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   saveStudentChanges(s);
+                                }}
+                                style={{
+                                  background: "#16a34a",
+                                  color: "#fff",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  padding: "4px 8px",
+                                  cursor: "pointer",
+                                  fontSize: "11px",
+                                  fontWeight: "bold",
                                 }}
                               >
                                 Save
                               </button>
                             ) : (
                               <button
-                                className="btn-delete"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   deleteStudent(s);
+                                }}
+                                style={{
+                                  background: "#dc2626",
+                                  color: "#fff",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  padding: "4px 8px",
+                                  cursor: "pointer",
+                                  fontSize: "11px",
+                                  fontWeight: "bold",
                                 }}
                               >
                                 Delete

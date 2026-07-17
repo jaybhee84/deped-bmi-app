@@ -1,0 +1,104 @@
+/* ==========================================
+   SDO REPORTS - RESPONSIVE SCROLL & ZOOM
+   ========================================== */
+
+/* Main Page Container */
+.sdo-reports-page {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+/* Scroll Container Card */
+.sdo-reports-card {
+    background: #fff;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e2e8f0;
+    padding: 1.25rem;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+}
+
+/* Scroll Wrapper for Wide Table */
+.sdo-reports-table-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: auto !important;
+    display: block !important;
+    border: 1px solid #edf2f7;
+    border-radius: 0.25rem;
+    box-sizing: border-box;
+    background-color: #fafafa;
+}
+
+/* Custom Scrollbar Styling */
+.sdo-reports-table-container::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.sdo-reports-table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.sdo-reports-table-container::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+.sdo-reports-table-container::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* The Matrix Grid Table */
+.sdo-reports-table {
+    width: 100%;
+    min-width: 1750px;
+    border-collapse: collapse;
+    table-layout: fixed;
+    /* Essential for keeping columns strictly locked to defined widths */
+}
+
+/* Tightened Cell Styles */
+.sdo-reports-table th,
+.sdo-reports-table td {
+    padding: 0.35rem 0.4rem !important;
+    border: 1px solid #cbd5e0;
+    text-align: center;
+    vertical-align: middle;
+    line-height: 1.25;
+    font-size: 0.75rem;
+}
+
+.sdo-reports-table th {
+    background-color: #5d9c32;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: normal;
+    /* Allows text to wrap nicely if needed */
+    word-wrap: break-word;
+}
+
+/* Prevent percentages and numbers in body cells from wrapping */
+.sdo-reports-table td {
+    white-space: nowrap;
+}
+
+/* Let the Grade level label wrap if needed */
+.sdo-reports-table td.cell-grade {
+    white-space: normal;
+    word-wrap: break-word;
+    font-weight: bold;
+}

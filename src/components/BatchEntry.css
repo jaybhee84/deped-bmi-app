@@ -1,4 +1,14 @@
-/* ── Class Setup Box ──────────────────────────────────────── */
+/* ── Container Card & Setup Box ───────────────────────────── */
+.card {
+  width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid var(--gray-200);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
 .batch-class-box {
   background: #F0F5FF;
   border: 1px solid #C7D8F8;
@@ -29,7 +39,6 @@
   flex: 1;
 }
 
-/* Teacher input slightly wider */
 .teacher-group {
   min-width: 190px !important;
   flex: 2 !important;
@@ -66,58 +75,199 @@
 .section-preview-meta {
   opacity: 0.5;
   font-size: 11px;
-  border-left: 1px solid rgba(255,255,255,0.3);
+  border-left: 1px solid rgba(255, 255, 255, 0.3);
   padding-left: 8px;
 }
 
-/* ── Table ────────────────────────────────────────────────── */
+/* ── TABLE SYSTEM (Standardized Layout) ────────────────────── */
 .batch-table-wrap {
-  overflow-x: auto;
-  margin-bottom: 1rem;
-  border-radius: var(--radius-sm);
+  overflow-x: auto !important;
+  width: 100% !important;
   border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  display: block !important;
+}
+
+.batch-table {
+  display: table !important;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+  width: 1500px !important;
+  /* Bumped to accommodate wider birthdate */
+  min-width: 1500px !important;
+  margin: 0 !important;
+}
+
+.batch-table thead {
+  display: table-header-group !important;
+}
+
+.batch-table tbody {
+  display: table-row-group !important;
+}
+
+.batch-table tr {
+  display: table-row !important;
 }
 
 .batch-table th,
 .batch-table td {
+  display: table-cell !important;
+  padding: 8px !important;
+  box-sizing: border-box !important;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .batch-table th {
-  background: var(--gray-50);
-  position: sticky;
-  top: 0;
-  z-index: 1;
+  background: #5D9C32;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 12px;
+  border-bottom: 2px solid var(--gray-200);
 }
 
+.batch-table td {
+  border-bottom: 1px solid var(--gray-100);
+}
+
+/* ── Explicit Class-based Column Widths (Fully Standalone) ── */
+.batch-table .col-num {
+  width: 45px !important;
+  min-width: 45px !important;
+  max-width: 45px !important;
+}
+
+.batch-table .col-lrn {
+  width: 130px !important;
+  min-width: 130px !important;
+}
+
+.batch-table .col-name {
+  width: 320px !important;
+  min-width: 320px !important;
+}
+
+.batch-table .col-birthdate {
+  width: 200px !important;
+  /* Expanded to prevent date-input truncation! */
+  min-width: 200px !important;
+}
+
+.batch-table .col-age {
+  width: 75px !important;
+  min-width: 75px !important;
+}
+
+.batch-table .col-sex {
+  width: 85px !important;
+  min-width: 85px !important;
+}
+
+.batch-table .col-weight {
+  width: 95px !important;
+  min-width: 95px !important;
+}
+
+.batch-table .col-height {
+  width: 95px !important;
+  min-width: 95px !important;
+}
+
+.batch-table .col-bmi {
+  width: 85px !important;
+  min-width: 85px !important;
+}
+
+.batch-table .col-bmi-status {
+  width: 135px !important;
+  min-width: 135px !important;
+}
+
+.batch-table .col-hfa-status {
+  width: 135px !important;
+  min-width: 135px !important;
+}
+
+.batch-table .col-actions {
+  width: 70px !important;
+  min-width: 70px !important;
+}
+
+/* ── Alignment Helpers ── */
+.cell-center {
+  text-align: center !important;
+}
+
+.cell-left {
+  text-align: left !important;
+}
+
+.input-center {
+  text-align: center !important;
+}
+
+.select-center {
+  text-align: center !important;
+  text-align-last: center !important;
+}
+
+.age-center {
+  margin: 0 auto;
+}
+
+/* ── Form Controls inside Cells ───────────────────────────── */
+.batch-table td input,
+.batch-table td select {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  height: 34px;
+  padding: 6px 8px;
+  font-size: 13px;
+  border: 1px solid var(--gray-300);
+  border-radius: 4px;
+  outline: none;
+  background-color: #fff;
+}
+
+.batch-table td input:focus,
+.batch-table td select:focus {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 2px rgba(26, 54, 93, 0.1);
+}
+
+/* ── Cell Specific Typography ────────────────────────────── */
 .th-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  opacity: 0.8;
   font-weight: 400;
   text-transform: none;
   letter-spacing: 0;
-  opacity: 0.65;
-  font-size: 10px;
+  color: #e2f0d9;
 }
 
-/* ── Cell inputs ──────────────────────────────────────────── */
-.lrn-input   { width: 115px; }
-.name-input  { width: 180px; }
-.date-input  { width: 140px; }
-.num-input   { width: 72px; }
-
-.sex-select {
-  width: 60px;
-  padding: 7px 4px;
+.row-num {
+  color: var(--gray-500);
+  font-size: 13px;
+  font-weight: 600;
 }
 
-/* ── Age display (read-only) ──────────────────────────────── */
 .age-display {
-  min-width: 38px;
-  text-align: center;
-  padding: 7px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  width: 100%;
+  max-width: 60px;
   background: var(--gray-50);
   border: 1px solid var(--gray-200);
-  border-radius: var(--radius-sm);
+  border-radius: 4px;
   font-size: 13px;
+  box-sizing: border-box;
 }
 
 .age-value {
@@ -129,22 +279,33 @@
   color: var(--gray-400);
 }
 
-/* ── Row number ───────────────────────────────────────────── */
-.row-num {
-  color: var(--gray-400);
-  font-size: 12px;
-  text-align: center;
-  width: 28px;
-}
-
-/* ── BMI cell ─────────────────────────────────────────────── */
 .bmi-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
   font-weight: 600;
   font-size: 13px;
-  text-align: center;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  box-sizing: border-box;
 }
 
-/* ── Actions ──────────────────────────────────────────────── */
+/* ── Sticky Last Column (Actions) ────────────────────────── */
+.batch-table .col-actions {
+  position: sticky !important;
+  right: 0 !important;
+  background: #fff !important;
+  z-index: 5 !important;
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.05);
+}
+
+.batch-table th.col-actions {
+  background: #5D9C32 !important;
+}
+
+/* ── Actions Panel ────────────────────────────────────────── */
 .batch-actions {
   display: flex;
   gap: 10px;
@@ -178,17 +339,7 @@
   width: 100%;
 }
 
-/* ── Teacher input & chips ────────────────────────────────── */
-.teacher-input-wrap {
-  position: relative;
-}
-
-.label-hint {
-  font-weight: 400;
-  font-size: 10px;
-  color: var(--gray-400);
-}
-
+/* ── Teacher Input Chips ──────────────────────────────────── */
 .teacher-chips {
   display: flex;
   flex-wrap: wrap;
@@ -232,16 +383,11 @@
   opacity: 0.6;
 }
 
-.chip-remove:hover { opacity: 1; }
-
-.batch-table th:last-child,
-.batch-table td:last-child {
-  position: sticky;
-  right: 0;
-  background: white;
-  z-index: 5;
+.chip-remove:hover {
+  opacity: 1;
 }
-/* ── Registry info box ────────────────────────────────────── */
+
+/* ── Registry Info Box ────────────────────────────────────── */
 .registry-info-box {
   display: flex;
   align-items: flex-start;
@@ -256,7 +402,12 @@
   line-height: 1.5;
 }
 
-.registry-info-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.registry-info-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
 .registry-info-box code {
   background: #FEF3C7;
   padding: 1px 5px;

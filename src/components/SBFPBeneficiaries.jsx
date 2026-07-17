@@ -160,6 +160,7 @@ export default function SBFPBeneficiaries({
   setStudents,
   schoolName = "",
   schoolId = "",
+  currentUser,
 }) {
   const [filterSY, setFilterSY] = useState("2026–2027");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
@@ -193,9 +194,12 @@ export default function SBFPBeneficiaries({
     let cancelled = false;
 
     async function resolveSchool() {
-      // 1) Local SQLite (fast, works offline, matches Settings.jsx)
+      // 1) Local SQLite (fast, works offline, matches Settings.jsx).
+      // Scoped to currentUser so a different account on this device can't
+      // inherit a previous user's school (and, through it, stale SBFP
+      // enrolment numbers keyed by that school's id).
       try {
-        const local = await window.sqlite?.loadSchool?.();
+        const local = await window.sqlite?.loadSchool?.(currentUser?.id);
         if (local && (local.school_name || local.school_id)) {
           if (!cancelled) {
             setResolvedSchool({
@@ -247,7 +251,7 @@ export default function SBFPBeneficiaries({
     return () => {
       cancelled = true;
     };
-  }, [schoolName, schoolId]);
+  }, [schoolName, schoolId, currentUser?.id]);
 
   // ── Enrolment (school-scoped: shared by every user bound to this school) ──
   useEffect(() => {

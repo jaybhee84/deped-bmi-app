@@ -42,7 +42,8 @@ export default function App() {
   const [dashboardSchool, setDashboardSchool] = useState("ALL SCHOOLS");
   const [reportsSchool, setReportsSchool] = useState("CONSOLIDATED");
   const [selectedPeriod, setSelectedPeriod] = useState("Baseline");
-  const [selectedSY, setSelectedSY] = useState("2026–2027");
+  // Standardized to standard hyphen to prevent en-dash string-matching bugs
+  const [selectedSY, setSelectedSY] = useState("2026-2027");
   const [schoolName, setSchoolName] = useState("");
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const [releaseData, setReleaseData] = useState(null);
@@ -56,7 +57,6 @@ export default function App() {
 
       try {
         const boundSchool = await fetchSchoolForUser(session.id);
-
         setSchoolName(boundSchool?.name || "");
       } catch (e) {
         console.error(e);
@@ -66,6 +66,7 @@ export default function App() {
 
     loadSchoolName();
   }, [session]);
+
   const [updateReady, setUpdateReady] = useState(false);
 
   useEffect(() => {
@@ -75,14 +76,11 @@ export default function App() {
   useEffect(() => {
     async function checkReleaseNotes() {
       const version = await window.electronAPI.getAppVersion();
-
       const lastSeen = localStorage.getItem("last_seen_version");
 
       if (version !== lastSeen && RELEASE_NOTES[version]) {
         setReleaseData(RELEASE_NOTES[version]);
-
         setShowReleaseNotes(true);
-
         localStorage.setItem("last_seen_version", version);
       }
     }
@@ -93,13 +91,9 @@ export default function App() {
   const isSDO = session?.role === ROLES.DIVISION;
   const readOnly = !canEdit(session);
 
-  // Returns this device's configured school_id (set via Settings), or null.
-  // Division-office devices never configure a school, so this naturally
-  // stays null for them — which tells syncFromServer/syncToServer to fetch
-  // across all schools instead of scoping to one.
   async function getLocalSchoolId() {
     try {
-      const school = await window.sqlite.loadSchool();
+      const school = await window.sqlite.loadSchool(session?.id);
       return school?.school_id || null;
     } catch (e) {
       console.error("[Sync] Failed to read local school_id:", e);
@@ -112,7 +106,6 @@ export default function App() {
     async function saveStudentsToDb() {
       await localSaveStudents(students);
     }
-
     saveStudentsToDb();
   }, [students]);
 
@@ -130,7 +123,6 @@ export default function App() {
       if (!isSupabaseConfigured()) return;
       const latestStudents = await localLoadStudents();
       const schoolId = await getLocalSchoolId();
-
       await syncToServer(latestStudents, schoolId);
     }
     window.addEventListener("online", handleOnline);
@@ -142,21 +134,16 @@ export default function App() {
       if (!session?.id) return;
 
       try {
-        // SDO users should see ALL schools
         if (session.role === ROLES.DIVISION) {
           const serverData = await syncFromServer(null);
-
           if (serverData.success && Array.isArray(serverData.students)) {
             await localSaveStudents(serverData.students);
             setStudents(serverData.students);
           }
-
           return;
         }
 
-        // School users must be bound to a school
         const boundSchool = await fetchSchoolForUser(session.id);
-
         if (!boundSchool) {
           setStudents([]);
           await localSaveStudents([]);
@@ -164,7 +151,6 @@ export default function App() {
         }
 
         const serverData = await syncFromServer(boundSchool.id);
-
         if (serverData.success && Array.isArray(serverData.students)) {
           await localSaveStudents(serverData.students);
           setStudents(serverData.students);
@@ -193,6 +179,7 @@ export default function App() {
       return next;
     });
   }
+
   async function loadSchoolStudents(schoolId) {
     if (!schoolId) {
       setStudents([]);
@@ -201,7 +188,6 @@ export default function App() {
     }
 
     const result = await syncFromServer(schoolId);
-
     if (result.success && Array.isArray(result.students)) {
       await localSaveStudents(result.students);
       setStudents(result.students);
@@ -213,21 +199,16 @@ export default function App() {
     setPage("dashboard");
 
     try {
-      // SDO user
       if (sess.role === ROLES.DIVISION) {
         const result = await syncFromServer(null);
-
         if (result.success && Array.isArray(result.students)) {
           await localSaveStudents(result.students);
           setStudents(result.students);
         }
-
         return;
       }
 
-      // School user
       const boundSchool = await fetchSchoolForUser(sess.id);
-
       if (!boundSchool) {
         setStudents([]);
         await localSaveStudents([]);
@@ -245,7 +226,6 @@ export default function App() {
   useEffect(() => {
     async function handleSchoolBound(event) {
       const { schoolId, schoolName } = event.detail;
-
       setSchoolName(schoolName || "");
 
       if (!schoolId) {
@@ -258,13 +238,11 @@ export default function App() {
     }
 
     window.addEventListener("school-bound", handleSchoolBound);
-
     return () => window.removeEventListener("school-bound", handleSchoolBound);
   }, [session]);
 
   function handleLogout() {
     logout();
-
     setSession(null);
     setStudents([]);
     setSchoolName("");
@@ -287,18 +265,14 @@ export default function App() {
 
   if (!session) return <Login onLogin={handleLogin} />;
 
-  // allSchoolsData for SDO dashboard
   const allSchoolsData =
     session?.role === ROLES.DIVISION
       ? students.reduce((acc, student) => {
           const school = student.schoolName || "Unknown School";
-
           if (!acc[school]) {
             acc[school] = [];
           }
-
           acc[school].push(student);
-
           return acc;
         }, {})
       : {
@@ -408,32 +382,26 @@ export default function App() {
               return (
                 <div className="access-denied">
                   <div className="access-denied-icon">🏫</div>
-
                   <h2>School Setup Required</h2>
-
                   <p>
                     Before entering learner data, please configure your school
                     information first.
                   </p>
-
                   <div className="setup-steps">
                     <p>
                       <strong>Required Information:</strong>
                     </p>
-
                     <ul>
                       <li>School Name</li>
                       <li>School ID</li>
                       <li>Division</li>
                       <li>District</li>
                     </ul>
-
                     <p>
                       Once completed, all learners entered into the system will
                       automatically be assigned to your school.
                     </p>
                   </div>
-
                   <div
                     className="settings-link"
                     onClick={() => setPage("settings")}
@@ -454,6 +422,7 @@ export default function App() {
           <SBFPBeneficiaries
             students={students}
             setStudents={readOnly ? undefined : updateStudents}
+            currentUser={session}
           />
         )}
 

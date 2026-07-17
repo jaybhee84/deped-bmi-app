@@ -24,6 +24,7 @@ function loadSavedTeachers() {
     return {};
   }
 }
+
 function saveTeachersToStorage(map) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
@@ -51,24 +52,20 @@ function buildSectionLabel(gradeLevel, teacherName, session) {
 
 function downloadCsvTemplate() {
   const headers = [["lrn", "name", "birthdate", "sex", "weight", "height"]];
-
   const csvContent = headers.map((row) => row.join(",")).join("\n");
-
   const blob = new Blob(["\uFEFF" + csvContent], {
     type: "text/csv;charset=utf-8;",
   });
-
   const url = URL.createObjectURL(blob);
-
   const link = document.createElement("a");
   link.href = url;
   link.download = "Batch_Entry_Template.csv";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-
   URL.revokeObjectURL(url);
 }
+
 export default function BatchEntry({ setStudents }) {
   const fileInputRef = useRef(null);
   const [gradeLevel, setGradeLevel] = useState("Kinder");
@@ -85,24 +82,18 @@ export default function BatchEntry({ setStudents }) {
   const sectionLabel = buildSectionLabel(gradeLevel, teacherName, session);
   const canUpload = gradeLevel.trim() && teacherName.trim();
   const [school, setSchool] = useState(null);
-
   const [schoolConfigured, setSchoolConfigured] = useState(false);
 
   useEffect(() => {
     async function loadSchool() {
       const schoolData = await window.sqlite.loadSchool();
-
       setSchool(schoolData);
-
       setSchoolConfigured(!!(schoolData?.school_id && schoolData?.school_name));
     }
-
     loadSchool();
   }, []);
 
   const schoolName = school?.school_name || "unknown";
-
-  // Load school name for registry number generation
 
   function handleCsvUpload(event) {
     if (!teacherName.trim()) {
@@ -116,19 +107,15 @@ export default function BatchEntry({ setStudents }) {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-
       complete: (results) => {
         const importedRows = results.data.map((row) => {
           let birthdate = "";
-
           if (row.birthdate) {
             const date = new Date(row.birthdate);
-
             if (!isNaN(date.getTime())) {
               birthdate = date.toISOString().split("T")[0];
             }
           }
-
           return {
             lrn: row.lrn?.trim() || "",
             name: row.name?.trim() || "",
@@ -139,12 +126,9 @@ export default function BatchEntry({ setStudents }) {
             sex: row.sex?.trim().toUpperCase() || "M",
           };
         });
-
         setRows(importedRows);
-
         alert(`${importedRows.length} students imported successfully.`);
       },
-
       error: (err) => {
         console.error(err);
         alert("Failed to import CSV.");
@@ -200,10 +184,8 @@ export default function BatchEntry({ setStudents }) {
     }
 
     const valid = rows.filter((r) => r.name.trim() && r.weight && r.height);
-
     if (!valid.length) return;
 
-    // Generate registry numbers for students that need them (no LRN)
     const needsRegistry = valid.filter((r) => !r.lrn.trim());
     const registryNums = generateRegistryNumbers(
       sy,
@@ -223,13 +205,11 @@ export default function BatchEntry({ setStudents }) {
           weight: parseFloat(row.weight),
           height: parseFloat(row.height),
         };
-        // Match by LRN if present
         const existing = row.lrn.trim()
           ? updated.find((s) => s.lrn === row.lrn.trim())
           : null;
 
         if (existing) {
-          // Add record to existing student
           const hasSamePeriod = existing.records.some(
             (r) => r.sy === sy && r.q === quarter,
           );
@@ -241,7 +221,6 @@ export default function BatchEntry({ setStudents }) {
             existing.records = [...existing.records, newRec];
           }
         } else {
-          // New student — assign registry number if no LRN
           const registryNo = row.lrn.trim()
             ? undefined
             : registryNums[regIdx++];
@@ -371,6 +350,7 @@ export default function BatchEntry({ setStudents }) {
               />
             </div>
           </div>
+
           {teacherSuggestions.length > 0 && (
             <div className="teacher-chips-row">
               <span className="teacher-chips-label">Saved:</span>
@@ -413,7 +393,7 @@ export default function BatchEntry({ setStudents }) {
             </span>
           </div>
         </div>
-        {/* Registry info box */}
+
         <div className="registry-info-box">
           <span className="registry-info-icon">🔖</span>
           <span>
@@ -428,32 +408,257 @@ export default function BatchEntry({ setStudents }) {
             uploads.
           </span>
         </div>
-        <div className="batch-table-wrap">
-          <table className="data-table batch-table">
+
+        {/* --- INLINE STYLE TARGETED STANDALONE TABLE CONTAINER --- */}
+        <div
+          className="batch-table-wrap"
+          style={{
+            overflowX: "auto",
+            width: "100%",
+            border: "1px solid #e2e8f0",
+            borderRadius: "6px",
+          }}
+        >
+          <table
+            className="batch-table"
+            style={{
+              display: "table",
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+              width: "1480px",
+              minWidth: "1480px",
+              margin: 0,
+            }}
+          >
             <thead>
-              <tr>
-                <th>#</th>
-                <th>
-                  LRN <span className="th-hint">(or leave blank)</span>
+              <tr style={{ background: "#5D9C32" }}>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "50px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                >
+                  #
                 </th>
-                <th>
-                  Name <span className="th-hint">(Last, First M.)</span>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "130px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "left",
+                    fontWeight: 600,
+                  }}
+                >
+                  LRN
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "10px",
+                      opacity: 0.8,
+                      fontWeight: 400,
+                      textTransform: "none",
+                      color: "#e2f0d9",
+                    }}
+                  >
+                    (optional)
+                  </span>
                 </th>
-                <th>Birthdate</th>
-                <th>
-                  Age <span className="th-hint">(auto)</span>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "300px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "left",
+                    fontWeight: 600,
+                  }}
+                >
+                  NAME
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "10px",
+                      opacity: 0.8,
+                      fontWeight: 400,
+                      textTransform: "none",
+                      color: "#e2f0d9",
+                    }}
+                  >
+                    (Last, First M.)
+                  </span>
                 </th>
-                <th>Sex</th>
-                <th>
-                  Weight <span className="th-hint">(kg)</span>
+                {/* 230px forced width locks birthdate container structure from ever resizing or overflowing */}
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "230px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                >
+                  BIRTHDATE
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "10px",
+                      opacity: 0.8,
+                      fontWeight: 400,
+                      textTransform: "none",
+                      color: "#e2f0d9",
+                    }}
+                  >
+                    (YYYY-MM-DD)
+                  </span>
                 </th>
-                <th>
-                  Height <span className="th-hint">(cm)</span>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "80px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                >
+                  AGE
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "10px",
+                      opacity: 0.8,
+                      fontWeight: 400,
+                      textTransform: "none",
+                      color: "#e2f0d9",
+                    }}
+                  >
+                    (Years)
+                  </span>
                 </th>
-                <th>BMI</th>
-                <th>BMI Status</th>
-                <th>HFA Status</th>
-                <th></th>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "90px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                >
+                  SEX
+                </th>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "100px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                >
+                  WEIGHT
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "10px",
+                      opacity: 0.8,
+                      fontWeight: 400,
+                      textTransform: "none",
+                      color: "#e2f0d9",
+                    }}
+                  >
+                    (kg)
+                  </span>
+                </th>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "100px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                >
+                  HEIGHT
+                  <span
+                    style={{
+                      display: "block",
+                      fontSize: "10px",
+                      opacity: 0.8,
+                      fontWeight: 400,
+                      textTransform: "none",
+                      color: "#e2f0d9",
+                    }}
+                  >
+                    (cm)
+                  </span>
+                </th>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "90px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                >
+                  BMI
+                </th>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "140px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                >
+                  BMI Status
+                </th>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "140px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                >
+                  HFA Status
+                </th>
+                <th
+                  style={{
+                    display: "table-cell",
+                    width: "70px",
+                    color: "#fff",
+                    padding: "10px 8px",
+                    fontSize: "12px",
+                    textAlign: "center",
+                    fontWeight: 600,
+                  }}
+                ></th>
               </tr>
             </thead>
             <tbody>
@@ -465,101 +670,302 @@ export default function BatchEntry({ setStudents }) {
                 const status = bmi
                   ? getBMIStatus(bmi, row.sex, row.birthdate)
                   : null;
-                const haz = row.height
+                const _hazStatus = row.height
                   ? getHAZStatus(row.height, row.sex, row.birthdate)
                   : null;
                 return (
-                  <tr key={i}>
-                    <td className="row-num">{i + 1}</td>
-                    <td>
+                  <tr key={i} style={{ borderBottom: "1px solid #edf2f7" }}>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "50px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "#718096",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {i + 1}
+                      </span>
+                    </td>
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "130px",
+                        padding: "8px",
+                        verticalAlign: "middle",
+                      }}
+                    >
                       <input
-                        className="form-input cell-input lrn-input"
-                        placeholder="LRN or blank"
+                        className="form-input"
+                        placeholder="LRN"
                         value={row.lrn}
                         onChange={(e) => updateRow(i, "lrn", e.target.value)}
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          height: "34px",
+                          fontSize: "13px",
+                        }}
                       />
                     </td>
-                    <td>
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "300px",
+                        padding: "8px",
+                        verticalAlign: "middle",
+                      }}
+                    >
                       <input
-                        className="form-input cell-input name-input"
+                        className="form-input"
                         placeholder="e.g. Reyes, Maria A."
                         value={row.name}
                         onChange={(e) => updateRow(i, "name", e.target.value)}
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          height: "34px",
+                          fontSize: "13px",
+                        }}
                       />
                     </td>
-                    <td>
+
+                    {/* Width of 230px here allows standard date inputs (including native dropdown arrow icons) to stay fully visible */}
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "230px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
                       <input
                         type="date"
-                        className="form-input cell-input date-input"
+                        className="form-input"
                         value={row.birthdate}
                         onChange={(e) =>
                           updateRow(i, "birthdate", e.target.value)
                         }
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          height: "34px",
+                          fontSize: "13px",
+                          textAlign: "center",
+                        }}
                       />
                     </td>
-                    <td>
-                      <div className="age-display">
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "80px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          height: "34px",
+                          width: "100%",
+                          maxWidth: "60px",
+                          background: "#f7fafc",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "4px",
+                          fontSize: "13px",
+                          boxSizing: "border-box",
+                          margin: "0 auto",
+                        }}
+                      >
                         {row.age !== "" ? (
-                          <span className="age-value">{row.age}</span>
+                          <span style={{ fontWeight: 700, color: "#1a365d" }}>
+                            {row.age}
+                          </span>
                         ) : (
-                          <span className="age-placeholder">—</span>
+                          <span style={{ color: "#a0aec0" }}>—</span>
                         )}
                       </div>
                     </td>
-                    <td>
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "90px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
                       <select
-                        className="form-select sex-select"
+                        className="form-select"
                         value={row.sex}
                         onChange={(e) => updateRow(i, "sex", e.target.value)}
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          height: "34px",
+                          fontSize: "13px",
+                          textAlign: "center",
+                          textAlignLast: "center", // Cross-browser support for dropdown text alignment
+                        }}
                       >
                         <option value="M">M</option>
                         <option value="F">F</option>
                       </select>
                     </td>
-                    <td>
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "100px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
                       <input
                         type="number"
-                        className="form-input cell-input num-input"
+                        className="form-input"
                         placeholder="kg"
                         value={row.weight}
                         onChange={(e) => updateRow(i, "weight", e.target.value)}
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          height: "34px",
+                          fontSize: "13px",
+                          textAlign: "center",
+                        }}
                       />
                     </td>
-                    <td>
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "100px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
                       <input
                         type="number"
-                        className="form-input cell-input num-input"
+                        className="form-input"
                         placeholder="cm"
                         value={row.height}
                         onChange={(e) => updateRow(i, "height", e.target.value)}
+                        style={{
+                          width: "100%",
+                          boxSizing: "border-box",
+                          height: "34px",
+                          fontSize: "13px",
+                          textAlign: "center",
+                        }}
                       />
                     </td>
-                    <td className="bmi-cell">
-                      {bmi ? bmi.toFixed(2) : <span className="muted">—</span>}
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "90px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          height: "34px",
+                          fontWeight: 600,
+                          fontSize: "13px",
+                          background: "#f7fafc",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "4px",
+                          boxSizing: "border-box",
+                        }}
+                      >
+                        {bmi ? (
+                          bmi.toFixed(2)
+                        ) : (
+                          <span style={{ color: "#a0aec0" }}>—</span>
+                        )}
+                      </div>
                     </td>
-                    <td>
-                      {status ? (
-                        <Badge
-                          label={status.label}
-                          color={status.color}
-                          bg={status.bg}
-                        />
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "140px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      <div
+                        style={{ display: "flex", justifyContent: "center" }}
+                      >
+                        {status ? (
+                          <Badge
+                            label={status.label}
+                            color={status.color}
+                            bg={status.bg}
+                          />
+                        ) : (
+                          <span style={{ color: "#a0aec0" }}>—</span>
+                        )}
+                      </div>
                     </td>
-                    <td>
-                      {haz ? (
-                        <Badge
-                          label={haz.label}
-                          color={haz.color}
-                          bg={haz.bg}
-                        />
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "140px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
+                      <div
+                        style={{ display: "flex", justifyContent: "center" }}
+                      >
+                        {_hazStatus ? (
+                          <Badge
+                            label={_hazStatus.label}
+                            color={_hazStatus.color}
+                            bg={_hazStatus.bg}
+                          />
+                        ) : (
+                          <span style={{ color: "#a0aec0" }}>—</span>
+                        )}
+                      </div>
                     </td>
-                    <td>
+
+                    <td
+                      style={{
+                        display: "table-cell",
+                        width: "70px",
+                        padding: "8px",
+                        textAlign: "center",
+                        verticalAlign: "middle",
+                      }}
+                    >
                       {rows.length > 1 && (
                         <button
                           className="btn-danger"
@@ -575,6 +981,7 @@ export default function BatchEntry({ setStudents }) {
             </tbody>
           </table>
         </div>
+
         <input
           type="file"
           accept=".csv"
@@ -582,13 +989,15 @@ export default function BatchEntry({ setStudents }) {
           style={{ display: "none" }}
           onChange={handleCsvUpload}
         />
+
         {!schoolConfigured && (
           <p className="teacher-warning">
             ⚠ School setup is incomplete. Please go to Settings and enter the
             School Name and School ID first.
           </p>
         )}
-        <div className="batch-actions">
+
+        <div className="batch-actions" style={{ marginTop: "1rem" }}>
           <button
             className="btn btn-secondary"
             disabled={!canUpload || !schoolConfigured}
@@ -605,6 +1014,7 @@ export default function BatchEntry({ setStudents }) {
           <button className="btn btn-secondary" onClick={addRow}>
             + Add Row
           </button>
+
           <button className="btn btn-secondary" onClick={downloadCsvTemplate}>
             ⬇ Download CSV Template
           </button>
@@ -630,6 +1040,7 @@ export default function BatchEntry({ setStudents }) {
             </span>
           )}
         </div>
+
         {!canUpload && (
           <p className="teacher-warning">
             ⚠ Please select a Grade Level and enter the Teacher Name before

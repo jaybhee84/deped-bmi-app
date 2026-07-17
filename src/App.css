@@ -1,88 +1,118 @@
+/* 
+  STRICTLY SCOPED TO APP LEVEL
+  Guarantees page layout styling only controls the main structural frame.
+*/
 .app-shell {
   display: flex;
   height: 100vh;
   overflow: hidden;
-}
 
-.main-content {
-  flex: 1;
-  overflow-y: auto;
-  background: var(--gray-100);
-  display: flex;
-  flex-direction: column;
-}
+  /* ── Main Content Space Maximization ──────────────────────── */
+  .main-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Prevent default window-level horizontal scroll */
+    min-width: 0;
+    /* Allow container child elements to shrink correctly */
+    background: var(--gray-100);
+    display: flex;
+    flex-direction: column;
+  }
 
-/* ── Top bar ──────────────────────────────────────────────── */
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 1.5rem;
-  background: #fff;
-  border-bottom: 1px solid var(--gray-200);
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  flex-shrink: 0;
-}
+  /* Target page wrappers to scale wide and center */
+  .main-content>.page,
+  .main-content>div:not(.top-bar):not(.access-denied) {
+    width: 96%;
+    max-width: 1650px;
+    margin: 1.5rem auto;
+    flex-grow: 1;
+    box-sizing: border-box;
+    min-width: 0;
+    /* Support flexible viewport layouts within pages */
+  }
 
-.top-bar-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+  /* ── Top bar ──────────────────────────────────────────────── */
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1.5rem;
+    background: #fff;
+    border-bottom: 1px solid var(--gray-200);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    flex-shrink: 0;
+  }
 
-/* ── Top bar welcome ──────────────────────────────────────── */
-.top-bar-left {
-  display: flex;
-  align-items: center;
-}
+  .top-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-.welcome-msg {
-  font-size: 24px;
-  color: var(--gray-700);
-}
+  /* ── Top bar welcome ──────────────────────────────────────── */
+  .top-bar-left {
+    display: flex;
+    align-items: center;
+  }
 
-.welcome-position {
-  color: var(--gray-400);
-  font-weight: 400;
-}
+  .welcome-msg {
+    font-size: 24px;
+    color: var(--gray-700);
+  }
 
-/* ── Access denied ────────────────────────────────────────── */
-.access-denied {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 60vh;
-  gap: 10px;
-  color: var(--gray-500);
-  text-align: center;
-}
+  .welcome-position {
+    color: var(--gray-400);
+    font-weight: 400;
+  }
 
-.access-denied-icon { font-size: 48px; }
-.access-denied h2   { font-size: 18px; color: var(--gray-700); }
-.access-denied p    { font-size: 14px; }
+  /* ── Access denied ────────────────────────────────────────── */
+  .access-denied {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    gap: 10px;
+    color: var(--gray-500);
+    text-align: center;
+  }
 
-.setup-steps {
-  margin-top: 16px;
-  text-align: left;
-  max-width: 500px;
-}
+  .access-denied-icon {
+    font-size: 48px;
+  }
 
-.setup-steps ul {
-  margin-top: 10px;
-  margin-bottom: 14px;
-}
+  .access-denied h2 {
+    font-size: 18px;
+    color: var(--gray-700);
+  }
 
-.settings-link {
-  margin-top: 20px;
-  color: #2563eb;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: underline;
-}
+  .access-denied p {
+    font-size: 14px;
+  }
 
-.settings-link:hover {
-  color: #1d4ed8;
+  .setup-steps {
+    margin-top: 16px;
+    text-align: left;
+    max-width: 500px;
+  }
+
+  .setup-steps ul {
+    margin-top: 10px;
+    margin-bottom: 14px;
+  }
+
+  .settings-link {
+    margin-top: 20px;
+    color: #2563eb;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
+  .settings-link:hover {
+    color: #1d4ed8;
+  }
 }

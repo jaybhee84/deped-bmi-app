@@ -48,77 +48,64 @@ export default function SDODashboard({
     };
   }, []);
 
-  const schoolNames = [
-    "ALL SCHOOLS",
+  // Filtered only to Elementary/Primary schools and alphabetically sorted
+  const schoolNames = useMemo(() => {
+    const rawSchools = [
+      "Isabela East Central Elementary School",
+      "Isabela Bliss Elementary School",
+      "Bishop Querexeta Elementary School",
+      "Kaumpurnah Elementary School",
+      "Simeon & Josefa Obsequio Elementary School",
+      "Begang Central Elementary School",
+      "Busay Elementary School",
+      "Tabiawan Elementary School",
+      "Latuan Elementary School",
+      "Panunsulan Elementary School",
+      "Kawa-Kawa Elementary School",
+      "Look-Jambangan Elementary School",
+      "Kauman Ekka Elementary School",
+      "Palasanan Primary School",
+      "Spillway Elementary School",
+      "Kapatagan Diutay Elementary School",
+      "Hadji Camlani Elementary School",
+      "Calvario Peak Elementary School",
+      "Calvario Elementary School",
+      "Masola Elementary School",
+      "Lanote Elementary School",
+      "Lunot Elementary School",
+      "Cabunbata Elementary School",
+      "Isabela Central Pilot Elementary School",
+      "Isabela Central Pilot Elementary School - Night",
+      "Westside Elementary School",
+      "Ustadz Wahab Akbar Elementary School",
+      "Sunset Elementary School",
+      "Ajibon Elementary School",
+      "Sumagdang Elementary School",
+      "Kumalarang Elementary School",
+      "Menzi Elementary School",
+      "Balatanay Elementary School",
+      "Balawatin Elementary School",
+      "Makiri Elementary School",
+      "Campo Barn Elementary School",
+      "Hadji Maulana Primary School",
+      "Caro Elementary School",
+      "Malamawi Central Elementary School",
+      "Tampalan Elementary School",
+      "Diki Elementary School",
+      "Marang Marang Elementary School",
+      "Lukbuton Elementary School",
+      "Hadji Amilhamja Lahaba Memorial Elementary School",
+      "MS Bernardo Elementary School",
+      "Lampinigan Elementary School",
+      "Ismael Integrated School",
+      "Panigayan Integrated School",
+      "Badjao Floating Integrated School",
+      "Geras Integrated School",
+    ];
 
-    // ELEMENTARY
-    "Isabela East Central Elementary School",
-    "Isabela Bliss Elementary School",
-    "Bishop Querexeta Elementary School",
-    "Kaumpurnah Elementary School",
-    "Simeon & Josefa Obsequio Elementary School",
-    "Begang Central Elementary School",
-    "Busay Elementary School",
-    "Tabiawan Elementary School",
-    "Latuan Elementary School",
-    "Panunsulan Elementary School",
-    "Kawa-Kawa Elementary School",
-    "Look-Jambangan Elementary School",
-    "Kauman Ekka Elementary School",
-    "Palasanan Primary School",
-    "Spillway Elementary School",
-    "Kapatagan Diutay Elementary School",
-    "Hadji Camlani Elementary School",
-    "Calvario Peak Elementary School",
-    "Calvario Elementary School",
-    "Masola Elementary School",
-    "Lanote Elementary School",
-    "Lunot Elementary School",
-    "Cabunbata Elementary School",
-    "Isabela Central Pilot Elementary School",
-    "Isabela Central Pilot Elementary School - Night",
-    "Westside Elementary School",
-    "Ustadz Wahab Akbar Elementary School",
-    "Sunset Elementary School",
-    "Ajibon Elementary School",
-    "Sumagdang Elementary School",
-    "Kumalarang Elementary School",
-    "Menzi Elementary School",
-    "Balatanay Elementary School",
-    "Balawatin Elementary School",
-    "Makiri Elementary School",
-    "Campo Barn Elementary School",
-    "Hadji Maulana Primary School",
-    "Caro Elementary School",
-    "Malamawi Central Elementary School",
-    "Tampalan Elementary School",
-    "Diki Elementary School",
-    "Marang Marang Elementary School",
-    "Lukbuton Elementary School",
-    "Hadji Amilhamja Lahaba Memorial Elementary School",
-    "MS Bernardo Elementary School",
-    "Lampinigan Elementary School",
-    "Ismael Integrated School",
-    "Panigayan Integrated School",
-    "Badjao Floating Integrated School",
-    "Geras Integrated School",
-
-    // HIGH SCHOOL
-    "Basilan National High School",
-    "Basilan National High School - Night",
-    "Baluno National High School",
-    "Malamawi National High School",
-    "Begang National High School",
-    "Isabela City National High School",
-    "Kumalarang National High School",
-    "Ismael Integrated School (High School)",
-    "Lampinigan National High School",
-    "Tandung Ahas National High School",
-    "Panigayan Integrated School (High School)",
-    "Badjao Floating Integrated School (High School)",
-    "Geras Integrated School (High School)",
-    "Caro National High School",
-  ];
+    // Alphabetize the list
+    return [...rawSchools].sort((a, b) => a.localeCompare(b));
+  }, []);
 
   const [filterSY, setFilterSY] = useState("2026–2027");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
@@ -319,202 +306,12 @@ export default function SDODashboard({
             >
               <option value="ALL SCHOOLS">ALL SCHOOLS</option>
 
-              <optgroup label="ELEMENTARY">
-                <option value="Isabela East Central Elementary School">
-                  Isabela East Central Elementary School
-                </option>
-                <option value="Isabela Bliss Elementary School">
-                  Isabela Bliss Elementary School
-                </option>
-                <option value="Bishop Querexeta Elementary School">
-                  Bishop Querexeta Elementary School
-                </option>
-                <option value="Kaumpurnah Elementary School">
-                  Kaumpurnah Elementary School
-                </option>
-                <option value="Simeon & Josefa Obsequio Elementary School">
-                  Simeon & Josefa Obsequio Elementary School
-                </option>
-                <option value="Begang Central Elementary School">
-                  Begang Central Elementary School
-                </option>
-                <option value="Busay Elementary School">
-                  Busay Elementary School
-                </option>
-                <option value="Tabiawan Elementary School">
-                  Tabiawan Elementary School
-                </option>
-                <option value="Latuan Elementary School">
-                  Latuan Elementary School
-                </option>
-                <option value="Panunsulan Elementary School">
-                  Panunsulan Elementary School
-                </option>
-                <option value="Kawa-Kawa Elementary School">
-                  Kawa-Kawa Elementary School
-                </option>
-                <option value="Look-Jambangan Elementary School">
-                  Look-Jambangan Elementary School
-                </option>
-                <option value="Kauman Ekka Elementary School">
-                  Kauman Ekka Elementary School
-                </option>
-                <option value="Palasanan Primary School">
-                  Palasanan Primary School
-                </option>
-                <option value="Spillway Elementary School">
-                  Spillway Elementary School
-                </option>
-                <option value="Kapatagan Diutay Elementary School">
-                  Kapatagan Diutay Elementary School
-                </option>
-                <option value="Hadji Camlani Elementary School">
-                  Hadji Camlani Elementary School
-                </option>
-                <option value="Calvario Peak Elementary School">
-                  Calvario Peak Elementary School
-                </option>
-                <option value="Calvario Elementary School">
-                  Calvario Elementary School
-                </option>
-                <option value="Masola Elementary School">
-                  Masola Elementary School
-                </option>
-                <option value="Lanote Elementary School">
-                  Lanote Elementary School
-                </option>
-                <option value="Lunot Elementary School">
-                  Lunot Elementary School
-                </option>
-                <option value="Cabunbata Elementary School">
-                  Cabunbata Elementary School
-                </option>
-                <option value="Isabela Central Pilot Elementary School">
-                  Isabela Central Pilot Elementary School
-                </option>
-                <option value="Isabela Central Pilot Elementary School - Night">
-                  Isabela Central Pilot Elementary School - Night
-                </option>
-                <option value="Westside Elementary School">
-                  Westside Elementary School
-                </option>
-                <option value="Ustadz Wahab Akbar Elementary School">
-                  Ustadz Wahab Akbar Elementary School
-                </option>
-                <option value="Sunset Elementary School">
-                  Sunset Elementary School
-                </option>
-                <option value="Ajibon Elementary School">
-                  Ajibon Elementary School
-                </option>
-                <option value="Sumagdang Elementary School">
-                  Sumagdang Elementary School
-                </option>
-                <option value="Kumalarang Elementary School">
-                  Kumalarang Elementary School
-                </option>
-                <option value="Menzi Elementary School">
-                  Menzi Elementary School
-                </option>
-                <option value="Balatanay Elementary School">
-                  Balatanay Elementary School
-                </option>
-                <option value="Balawatin Elementary School">
-                  Balawatin Elementary School
-                </option>
-                <option value="Makiri Elementary School">
-                  Makiri Elementary School
-                </option>
-                <option value="Campo Barn Elementary School">
-                  Campo Barn Elementary School
-                </option>
-                <option value="Hadji Maulana Primary School">
-                  Hadji Maulana Primary School
-                </option>
-                <option value="Caro Elementary School">
-                  Caro Elementary School
-                </option>
-                <option value="Malamawi Central Elementary School">
-                  Malamawi Central Elementary School
-                </option>
-                <option value="Tampalan Elementary School">
-                  Tampalan Elementary School
-                </option>
-                <option value="Diki Elementary School">
-                  Diki Elementary School
-                </option>
-                <option value="Marang Marang Elementary School">
-                  Marang Marang Elementary School
-                </option>
-                <option value="Lukbuton Elementary School">
-                  Lukbuton Elementary School
-                </option>
-                <option value="Hadji Amilhamja Lahaba Memorial Elementary School">
-                  Hadji Amilhamja Lahaba Memorial Elementary School
-                </option>
-                <option value="MS Bernardo Elementary School">
-                  MS Bernardo Elementary School
-                </option>
-                <option value="Lampinigan Elementary School">
-                  Lampinigan Elementary School
-                </option>
-                <option value="Ismael Integrated School">
-                  Ismael Integrated School
-                </option>
-                <option value="Panigayan Integrated School">
-                  Panigayan Integrated School
-                </option>
-                <option value="Badjao Floating Integrated School">
-                  Badjao Floating Integrated School
-                </option>
-                <option value="Geras Integrated School">
-                  Geras Integrated School
-                </option>
-              </optgroup>
-
-              <optgroup label="HIGH SCHOOL">
-                <option value="Basilan National High School">
-                  Basilan National High School
-                </option>
-                <option value="Basilan National High School - Night">
-                  Basilan National High School - Night
-                </option>
-                <option value="Baluno National High School">
-                  Baluno National High School
-                </option>
-                <option value="Malamawi National High School">
-                  Malamawi National High School
-                </option>
-                <option value="Begang National High School">
-                  Begang National High School
-                </option>
-                <option value="Isabela City National High School">
-                  Isabela City National High School
-                </option>
-                <option value="Kumalarang National High School">
-                  Kumalarang National High School
-                </option>
-                <option value="Ismael Integrated School (High School)">
-                  Ismael Integrated School (High School)
-                </option>
-                <option value="Lampinigan National High School">
-                  Lampinigan National High School
-                </option>
-                <option value="Tandung Ahas National High School">
-                  Tandung Ahas National High School
-                </option>
-                <option value="Panigayan Integrated School (High School)">
-                  Panigayan Integrated School (High School)
-                </option>
-                <option value="Badjao Floating Integrated School (High School)">
-                  Badjao Floating Integrated School (High School)
-                </option>
-                <option value="Geras Integrated School (High School)">
-                  Geras Integrated School (High School)
-                </option>
-                <option value="Caro National High School">
-                  Caro National High School
-                </option>
+              <optgroup label="ELEMENTARY SCHOOLS">
+                {schoolNames.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
               </optgroup>
             </select>
           </div>
@@ -585,11 +382,19 @@ export default function SDODashboard({
             const foundSchool =
               !isAll && schools.find((s) => s.name === selectedSchool);
 
+            // 1. Grab a valid working URL from a known elementary school in your bucket
+            const sampleUrl =
+              getSchoolLogoUrl("Isabela East Central Elementary School") || "";
+            // 2. Dynamically replace the filename at the end of the URL with 'sdo.png'
+            const sdoLogoUrl = sampleUrl
+              ? `${sampleUrl.substring(0, sampleUrl.lastIndexOf("/"))}/sdo.png`
+              : null;
+
             const info = isAll
               ? {
                   name: "ALL SCHOOLS",
                   division: "Isabela City Schools Division Office",
-                  logo: null,
+                  logo: sdoLogoUrl, // Exactly points to your Supabase 'school-logos/sdo.png'
                 }
               : {
                   ...(foundSchool || {
@@ -606,6 +411,20 @@ export default function SDODashboard({
                     src={info.logo}
                     alt={info.name}
                     className="sdo-banner-logo"
+                    onError={(e) => {
+                      // Fallback: If sdo.png is missing or fails to load, gracefully revert to the emoji
+                      e.target.style.display = "none";
+                      if (
+                        !e.target.parentNode.querySelector(
+                          ".sdo-banner-logo-placeholder",
+                        )
+                      ) {
+                        e.target.insertAdjacentHTML(
+                          "afterend",
+                          '<div class="sdo-banner-logo-placeholder">🏫</div>',
+                        );
+                      }
+                    }}
                   />
                 ) : (
                   <div className="sdo-banner-logo-placeholder">🏫</div>

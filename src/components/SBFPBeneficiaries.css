@@ -10,7 +10,10 @@
   margin-bottom: 1rem;
 }
 
-.sbfp-no-config-icon { font-size: 24px; flex-shrink: 0; }
+.sbfp-no-config-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
 
 .sbfp-no-config-title {
   font-weight: 700;
@@ -53,8 +56,17 @@
   font-weight: 600;
 }
 
-.sbfp-config-tag.grade    { background: #EFF6FF; color: var(--navy); border: 1px solid #C7D8F8; }
-.sbfp-config-tag.criteria { background: #FAEEDA; color: var(--amber); border: 1px solid #F5D08A; }
+.sbfp-config-tag.grade {
+  background: #EFF6FF;
+  color: var(--navy);
+  border: 1px solid #C7D8F8;
+}
+
+.sbfp-config-tag.criteria {
+  background: #FAEEDA;
+  color: var(--amber);
+  border: 1px solid #F5D08A;
+}
 
 .sbfp-config-meta {
   font-size: 11px;
@@ -90,6 +102,176 @@
   letter-spacing: 0.4px;
 }
 
+/* ── DATA TABLE SYSTEM (Prevent Squishing) ────────────────── */
+
+/* Enables responsive horizontal scrolling on the card */
+.card.screen-only {
+  width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid var(--gray-200);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  overflow-x: auto !important;
+}
+
+.data-table {
+  display: table !important;
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+  /* Forces strict column sizing rule */
+  width: 1540px !important;
+  /* Comfortable total width for all 13 columns */
+  min-width: 1540px !important;
+  margin: 0 !important;
+}
+
+.data-table thead {
+  display: table-header-group !important;
+}
+
+.data-table tbody {
+  display: table-row-group !important;
+}
+
+.data-table tr {
+  display: table-row !important;
+  transition: background 0.12s ease;
+}
+
+.data-table th,
+.data-table td {
+  display: table-cell !important;
+  padding: 10px 8px !important;
+  box-sizing: border-box !important;
+  text-align: left;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Keeps text on a single, clean line */
+}
+
+/* Brand green headers to match your UI */
+.data-table th {
+  background: #5D9C32 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid var(--gray-200);
+}
+
+.data-table td {
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13px;
+  color: var(--gray-800);
+}
+
+/* 
+   Rigid Column Width Specifications (13 Columns Total)
+*/
+
+/* Col 1: # (Row Counter) */
+.data-table th:nth-child(1),
+.data-table td:nth-child(1) {
+  width: 45px !important;
+  min-width: 45px !important;
+  text-align: center;
+}
+
+/* Col 2: LRN */
+.data-table th:nth-child(2),
+.data-table td:nth-child(2) {
+  width: 130px !important;
+  min-width: 130px !important;
+}
+
+/* Col 3: Name (Provides ample space for full names) */
+.data-table th:nth-child(3),
+.data-table td:nth-child(3) {
+  width: 250px !important;
+  min-width: 250px !important;
+  font-weight: 600;
+}
+
+/* Col 4: Age */
+.data-table th:nth-child(4),
+.data-table td:nth-child(4) {
+  width: 55px !important;
+  min-width: 55px !important;
+  text-align: center;
+}
+
+/* Col 5: Sex */
+.data-table th:nth-child(5),
+.data-table td:nth-child(5) {
+  width: 55px !important;
+  min-width: 55px !important;
+  text-align: center;
+}
+
+/* Col 6: Grade */
+.data-table th:nth-child(6),
+.data-table td:nth-child(6) {
+  width: 95px !important;
+  min-width: 95px !important;
+}
+
+/* Col 7: Section */
+.data-table th:nth-child(7),
+.data-table td:nth-child(7) {
+  width: 180px !important;
+  min-width: 180px !important;
+}
+
+/* Col 8: Weight (kg) */
+.data-table th:nth-child(8),
+.data-table td:nth-child(8) {
+  width: 100px !important;
+  min-width: 100px !important;
+  text-align: center;
+}
+
+/* Col 9: Height (cm) */
+.data-table th:nth-child(9),
+.data-table td:nth-child(9) {
+  width: 100px !important;
+  min-width: 100px !important;
+  text-align: center;
+}
+
+/* Col 10: BMI */
+.data-table th:nth-child(10),
+.data-table td:nth-child(10) {
+  width: 80px !important;
+  min-width: 80px !important;
+  text-align: center;
+}
+
+/* Col 11: Nutritional Status (Badge) */
+.data-table th:nth-child(11),
+.data-table td:nth-child(11) {
+  width: 150px !important;
+  min-width: 150px !important;
+}
+
+/* Col 12: Height Status (Badge) */
+.data-table th:nth-child(12),
+.data-table td:nth-child(12) {
+  width: 130px !important;
+  min-width: 130px !important;
+}
+
+/* Col 13: Reason for Inclusion (Flexible remaining space) */
+.data-table th:nth-child(13),
+.data-table td:nth-child(13) {
+  width: 170px !important;
+  min-width: 170px !important;
+}
+
 /* ── Reason tags ──────────────────────────────────────────── */
 .reason-tags {
   display: flex;
@@ -108,11 +290,25 @@
   white-space: nowrap;
 }
 
+/* ── Utility Classes ──────────────────────────────────────── */
+.name-cell {
+  font-weight: 500;
+}
+
+.no-data-tag {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
 /* ── Print styles ─────────────────────────────────────────── */
-.print-header { display: none; }
+.print-header {
+  display: none;
+}
 
 @media print {
-  .no-print { display: none !important; }
+  .no-print {
+    display: none !important;
+  }
 
   .print-header {
     display: block;
@@ -163,6 +359,7 @@
   text-align: center;
   vertical-align: middle;
 }
+
 .deped-table {
   table-layout: auto;
   width: auto;

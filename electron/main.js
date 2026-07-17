@@ -88,13 +88,13 @@ ipcMain.handle("students:load", () => {
 // SCHOOL IPC
 // =========================
 
-ipcMain.handle("school:save", (_, school) => {
-  saveSchool(school);
+ipcMain.handle("school:save", (_, { school, userId }) => {
+  saveSchool(school, userId);
   return true;
 });
 
-ipcMain.handle("school:load", () => {
-  return loadSchool();
+ipcMain.handle("school:load", (_, userId) => {
+  return loadSchool(userId);
 });
 
 ipcMain.handle("school:clear", () => {
