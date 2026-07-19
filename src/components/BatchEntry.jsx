@@ -5,7 +5,6 @@ import {
   getHAZStatus,
   ageInYears,
   SCHOOL_YEARS,
-  QUARTERS,
   GRADE_LEVELS,
   SESSIONS,
 } from "../utils/bmi";
@@ -13,6 +12,10 @@ import Badge from "./Badge";
 import "./BatchEntry.css";
 import { generateRegistryNumbers } from "../utils/registry";
 import Papa from "papaparse";
+import CSVUpload from "./CSVUpload";
+
+// Tapping into the context tunnel up one directory level
+import { useSchoolScope } from "../context/SchoolContext";
 
 const STORAGE_KEY = "deped_bmi_teachers";
 
@@ -43,6 +46,7 @@ function emptyRow() {
   };
 }
 
+// Fixed function structure alignment
 function buildSectionLabel(gradeLevel, teacherName, session) {
   const t = teacherName.trim() || "Unknown";
   return gradeLevel === "Kinder"
@@ -59,54 +63,47 @@ function downloadCsvTemplate() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "Batch_Entry_Template.csv";
+  link.download = "Baseline_Entry_Template.csv";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
 
-export default function BatchEntry({ setStudents, currentUser }) {
+export default function BatchEntry({ students, setStudents, currentUser }) {
   const fileInputRef = useRef(null);
+
+  // Pull data out of the shared global tunnel
+  const { school, loading: contextLoading } = useSchoolScope();
+
   const [gradeLevel, setGradeLevel] = useState("Kinder");
   const [teacherName, setTeacherName] = useState("");
   const [session, setSession] = useState("Morning");
   const [sy, setSy] = useState("2026–2027");
-  const [quarter, setQuarter] = useState("Baseline");
+
+  // Period dropdown removed; hardcoded strictly to Baseline entry point
+  const quarter = "Baseline";
+
   const [date, setDate] = useState("");
   const [rows, setRows] = useState([emptyRow()]);
   const [saved, setSaved] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
 
   const [savedTeachers, setSavedTeachers] = useState(loadSavedTeachers);
   const teacherSuggestions = savedTeachers[gradeLevel] || [];
   const sectionLabel = buildSectionLabel(gradeLevel, teacherName, session);
   const canUpload = gradeLevel.trim() && teacherName.trim();
-  const [school, setSchool] = useState(null);
+
   const [schoolConfigured, setSchoolConfigured] = useState(false);
 
-  // FETCH & CHECK SQLITE SETUP STATE ON MOUNT
+  // Reactively verify initialization using ONLY the school_id source of truth
   useEffect(() => {
-    async function loadSchool() {
-      if (!currentUser?.id) return;
+    const isConfigured = !!school?.school_id?.toString().trim();
+    setSchoolConfigured(isConfigured);
+  }, [school]);
 
-      try {
-        const schoolData = await window.sqlite.loadSchool(currentUser.id);
-        setSchool(schoolData);
-
-        const isConfigured = !!(
-          schoolData?.school_id?.toString().trim() &&
-          schoolData?.school_name?.toString().trim()
-        );
-        setSchoolConfigured(isConfigured);
-      } catch (err) {
-        console.error("Failed to verify school configuration status:", err);
-        setSchoolConfigured(false);
-      }
-    }
-    loadSchool();
-  }, [currentUser]);
-
-  const schoolName = school?.school_name || "unknown";
+  const schoolName = school?.school_name || school?.name || "Unknown School";
+  const verifiedSchoolId = school?.school_id || "";
 
   function handleCsvUpload(event) {
     if (!teacherName.trim()) {
@@ -122,7 +119,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
       skipEmptyLines: true,
       complete: (results) => {
         const importedRows = results.data.map((row) => {
-          // Normalize birthdate
           let birthdate = "";
           if (row.birthdate) {
             const dateObj = new Date(row.birthdate);
@@ -131,7 +127,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
             }
           }
 
-          // Normalize Sex
           let sex = "M";
           const rawSex = row.sex?.trim().toUpperCase() || "";
           if (rawSex.startsWith("F")) {
@@ -140,7 +135,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
             sex = "M";
           }
 
-          // Strip non-numeric units from dimensions
           const weight = row.weight
             ? row.weight.toString().replace(/[^0-9.]/g, "")
             : "";
@@ -210,7 +204,7 @@ export default function BatchEntry({ setStudents, currentUser }) {
   function saveAll() {
     if (!schoolConfigured) {
       alert(
-        "School setup is required.\n\nPlease go to Settings and enter the School Name and School ID before adding learners.",
+        "School setup is required.\n\nPlease complete the configuration setup flow before adding learners.",
       );
       return;
     }
@@ -268,8 +262,8 @@ export default function BatchEntry({ setStudents, currentUser }) {
             section: sectionLabel,
             parentConsent: "N",
             member4ps: "N",
-            schoolId: school.school_id,
-            schoolName: school.school_name,
+            schoolId: verifiedSchoolId,
+            schoolName: schoolName,
             records: [newRec],
           });
         }
@@ -282,42 +276,53 @@ export default function BatchEntry({ setStudents, currentUser }) {
     setRows([emptyRow()]);
     setTimeout(() => setSaved(false), 3500);
 
-    window.electronAPI.forceRefocusWindow();
+    if (window.electronAPI?.forceRefocusWindow) {
+      window.electronAPI.forceRefocusWindow();
+    }
+  }
+
+  if (contextLoading) {
+    return (
+      <div className="page" style={{ padding: "20px", color: "#666" }}>
+        Resolving workspace context parameters...
+      </div>
+    );
   }
 
   return (
     <div
       className="page"
       style={{
-        height: "100vh",
+        minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
+        padding: "20px",
+        overflowY: "auto",
       }}
     >
-      <h1 className="page-title">Batch Entry</h1>
+      <h1 className="page-title">Baseline Entry</h1>
       <p className="page-sub" style={{ marginBottom: "12px" }}>
-        Enter measurements for an entire class at once
+        Enter measurements for an entire class at once (School:{" "}
+        <strong>{schoolName}</strong>)
       </p>
 
       <div
         className="card"
         style={{
-          flex: 1,
           display: "flex",
           flexDirection: "column",
-          overflow: "hidden",
           padding: "16px",
+          marginBottom: "24px",
         }}
       >
         {/* UPPER CONTROLS GRID */}
-        <div
-          className="batch-class-box"
-          style={{ flexShrink: 0, marginBottom: "12px" }}
-        >
+        <div className="batch-class-box" style={{ marginBottom: "12px" }}>
           <div className="batch-class-title">Class / Section Setup</div>
 
-          <div className="batch-header-grid">
+          <div
+            className="batch-header-grid"
+            style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}
+          >
             <div className="form-group">
               <label className="form-label">Grade Level</label>
               <select
@@ -336,8 +341,7 @@ export default function BatchEntry({ setStudents, currentUser }) {
 
             <div className="form-group teacher-group">
               <label className="form-label">
-                Teacher Name
-                <span className="label-hint"> (auto-saved)</span>
+                Teacher Name<span className="label-hint"> (auto-saved)</span>
               </label>
               <input
                 className="form-input"
@@ -378,19 +382,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
               >
                 {SCHOOL_YEARS.map((s) => (
                   <option key={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Period</label>
-              <select
-                className="form-select full-width"
-                value={quarter}
-                onChange={(e) => setQuarter(e.target.value)}
-              >
-                {QUARTERS.map((q) => (
-                  <option key={q}>{q}</option>
                 ))}
               </select>
             </div>
@@ -449,11 +440,10 @@ export default function BatchEntry({ setStudents, currentUser }) {
           </div>
         </div>
 
-        {/* COMPACT REGISTRY CALLOUT */}
+        {/* REGISTRY INFO */}
         <div
           className="registry-info-box"
           style={{
-            flexShrink: 0,
             padding: "8px 12px",
             marginBottom: "12px",
             fontSize: "12px",
@@ -466,14 +456,14 @@ export default function BatchEntry({ setStudents, currentUser }) {
           </span>
         </div>
 
-        {/* CONTAINER WITH FORCED BOTTOM SCROLLBAR */}
+        {/* DATA ENTRIES TABLE */}
         <div
           className="batch-table-wrap"
           style={{
-            flex: 1, // Fills all remaining layout space dynamically
-            overflow: "auto", // Locks BOTH horizontal and vertical scrolling into this div
-            border: "1px solid #e2e8f0",
-            borderRadius: "6px",
+            maxHeight: "400px",
+            overflow: "auto",
+            border: "1px solid #cbd5e1",
+            borderRadius: "8px",
             background: "#fff",
           }}
         >
@@ -498,7 +488,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 >
                   #
@@ -511,22 +500,9 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "left",
-                    fontWeight: 600,
                   }}
                 >
-                  LRN{" "}
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: "10px",
-                      opacity: 0.8,
-                      fontWeight: 400,
-                      textTransform: "none",
-                      color: "#e2f0d9",
-                    }}
-                  >
-                    (optional)
-                  </span>
+                  LRN
                 </th>
                 <th
                   style={{
@@ -536,22 +512,9 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "left",
-                    fontWeight: 600,
                   }}
                 >
-                  NAME{" "}
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: "10px",
-                      opacity: 0.8,
-                      fontWeight: 400,
-                      textTransform: "none",
-                      color: "#e2f0d9",
-                    }}
-                  >
-                    (Last, First M.)
-                  </span>
+                  NAME
                 </th>
                 <th
                   style={{
@@ -561,22 +524,9 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 >
-                  BIRTHDATE{" "}
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: "10px",
-                      opacity: 0.8,
-                      fontWeight: 400,
-                      textTransform: "none",
-                      color: "#e2f0d9",
-                    }}
-                  >
-                    (YYYY-MM-DD)
-                  </span>
+                  BIRTHDATE
                 </th>
                 <th
                   style={{
@@ -586,22 +536,9 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 >
-                  AGE{" "}
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: "10px",
-                      opacity: 0.8,
-                      fontWeight: 400,
-                      textTransform: "none",
-                      color: "#e2f0d9",
-                    }}
-                  >
-                    (Years)
-                  </span>
+                  AGE
                 </th>
                 <th
                   style={{
@@ -611,7 +548,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 >
                   SEX
@@ -624,22 +560,9 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 >
-                  WEIGHT{" "}
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: "10px",
-                      opacity: 0.8,
-                      fontWeight: 400,
-                      textTransform: "none",
-                      color: "#e2f0d9",
-                    }}
-                  >
-                    (kg)
-                  </span>
+                  WEIGHT
                 </th>
                 <th
                   style={{
@@ -649,22 +572,9 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 >
-                  HEIGHT{" "}
-                  <span
-                    style={{
-                      display: "block",
-                      fontSize: "10px",
-                      opacity: 0.8,
-                      fontWeight: 400,
-                      textTransform: "none",
-                      color: "#e2f0d9",
-                    }}
-                  >
-                    (cm)
-                  </span>
+                  HEIGHT
                 </th>
                 <th
                   style={{
@@ -674,7 +584,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 >
                   BMI
@@ -687,7 +596,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 >
                   BMI Status
@@ -700,7 +608,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 >
                   HFA Status
@@ -713,7 +620,6 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     padding: "10px 8px",
                     fontSize: "12px",
                     textAlign: "center",
-                    fontWeight: 600,
                   }}
                 ></th>
               </tr>
@@ -727,81 +633,37 @@ export default function BatchEntry({ setStudents, currentUser }) {
                 const status = bmi
                   ? getBMIStatus(bmi, row.sex, row.birthdate)
                   : null;
-                const _hazStatus = row.height
+                const haz = row.height
                   ? getHAZStatus(row.height, row.sex, row.birthdate)
                   : null;
                 return (
-                  <tr key={i} style={{ borderBottom: "1px solid #edf2f7" }}>
+                  <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td
                       style={{
                         display: "table-cell",
-                        width: "50px",
                         padding: "8px",
                         textAlign: "center",
-                        verticalAlign: "middle",
                       }}
                     >
-                      <span
-                        style={{
-                          color: "#718096",
-                          fontSize: "13px",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {i + 1}
-                      </span>
+                      {i + 1}
                     </td>
-                    <td
-                      style={{
-                        display: "table-cell",
-                        width: "130px",
-                        padding: "8px",
-                        verticalAlign: "middle",
-                      }}
-                    >
+                    <td style={{ display: "table-cell", padding: "8px" }}>
                       <input
                         className="form-input"
-                        placeholder="LRN"
                         value={row.lrn}
                         onChange={(e) => updateRow(i, "lrn", e.target.value)}
-                        style={{
-                          width: "100%",
-                          boxSizing: "border-box",
-                          height: "34px",
-                          fontSize: "13px",
-                        }}
+                        style={{ width: "100%", height: "34px" }}
                       />
                     </td>
-                    <td
-                      style={{
-                        display: "table-cell",
-                        width: "300px",
-                        padding: "8px",
-                        verticalAlign: "middle",
-                      }}
-                    >
+                    <td style={{ display: "table-cell", padding: "8px" }}>
                       <input
                         className="form-input"
-                        placeholder="e.g. Reyes, Maria A."
                         value={row.name}
                         onChange={(e) => updateRow(i, "name", e.target.value)}
-                        style={{
-                          width: "100%",
-                          boxSizing: "border-box",
-                          height: "34px",
-                          fontSize: "13px",
-                        }}
+                        style={{ width: "100%", height: "34px" }}
                       />
                     </td>
-                    <td
-                      style={{
-                        display: "table-cell",
-                        width: "230px",
-                        padding: "8px",
-                        textAlign: "center",
-                        verticalAlign: "middle",
-                      }}
-                    >
+                    <td style={{ display: "table-cell", padding: "8px" }}>
                       <input
                         type="date"
                         className="form-input"
@@ -811,9 +673,7 @@ export default function BatchEntry({ setStudents, currentUser }) {
                         }
                         style={{
                           width: "100%",
-                          boxSizing: "border-box",
                           height: "34px",
-                          fontSize: "13px",
                           textAlign: "center",
                         }}
                       />
@@ -821,107 +681,45 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     <td
                       style={{
                         display: "table-cell",
-                        width: "80px",
                         padding: "8px",
                         textAlign: "center",
-                        verticalAlign: "middle",
                       }}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          height: "34px",
-                          width: "100%",
-                          maxWidth: "60px",
-                          background: "#f7fafc",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "4px",
-                          fontSize: "13px",
-                          boxSizing: "border-box",
-                          margin: "0 auto",
-                        }}
-                      >
-                        {row.age !== "" ? (
-                          <span style={{ fontWeight: 700, color: "#1a365d" }}>
-                            {row.age}
-                          </span>
-                        ) : (
-                          <span style={{ color: "#a0aec0" }}>—</span>
-                        )}
-                      </div>
+                      {row.age !== "" ? row.age : "—"}
                     </td>
-                    <td
-                      style={{
-                        display: "table-cell",
-                        width: "90px",
-                        padding: "8px",
-                        textAlign: "center",
-                        verticalAlign: "middle",
-                      }}
-                    >
+                    <td style={{ display: "table-cell", padding: "8px" }}>
                       <select
                         className="form-select"
                         value={row.sex}
                         onChange={(e) => updateRow(i, "sex", e.target.value)}
-                        style={{
-                          width: "100%",
-                          boxSizing: "border-box",
-                          height: "34px",
-                          fontSize: "13px",
-                          textAlign: "center",
-                          textAlignLast: "center",
-                        }}
+                        style={{ width: "100%", height: "34px" }}
                       >
                         <option value="M">M</option>
                         <option value="F">F</option>
                       </select>
                     </td>
-                    <td
-                      style={{
-                        display: "table-cell",
-                        width: "100px",
-                        padding: "8px",
-                        textAlign: "center",
-                        verticalAlign: "middle",
-                      }}
-                    >
+                    <td style={{ display: "table-cell", padding: "8px" }}>
                       <input
                         type="number"
                         className="form-input"
-                        placeholder="kg"
                         value={row.weight}
                         onChange={(e) => updateRow(i, "weight", e.target.value)}
                         style={{
                           width: "100%",
-                          boxSizing: "border-box",
                           height: "34px",
-                          fontSize: "13px",
                           textAlign: "center",
                         }}
                       />
                     </td>
-                    <td
-                      style={{
-                        display: "table-cell",
-                        width: "100px",
-                        padding: "8px",
-                        textAlign: "center",
-                        verticalAlign: "middle",
-                      }}
-                    >
+                    <td style={{ display: "table-cell", padding: "8px" }}>
                       <input
                         type="number"
                         className="form-input"
-                        placeholder="cm"
                         value={row.height}
                         onChange={(e) => updateRow(i, "height", e.target.value)}
                         style={{
                           width: "100%",
-                          boxSizing: "border-box",
                           height: "34px",
-                          fontSize: "13px",
                           textAlign: "center",
                         }}
                       />
@@ -929,86 +727,39 @@ export default function BatchEntry({ setStudents, currentUser }) {
                     <td
                       style={{
                         display: "table-cell",
-                        width: "90px",
                         padding: "8px",
                         textAlign: "center",
-                        verticalAlign: "middle",
                       }}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          height: "34px",
-                          fontWeight: 600,
-                          fontSize: "13px",
-                          background: "#f7fafc",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "4px",
-                          boxSizing: "border-box",
-                        }}
-                      >
-                        {bmi ? (
-                          bmi.toFixed(2)
-                        ) : (
-                          <span style={{ color: "#a0aec0" }}>—</span>
-                        )}
-                      </div>
+                      {bmi ? bmi.toFixed(2) : "—"}
+                    </td>
+                    <td style={{ display: "table-cell", padding: "8px" }}>
+                      {status ? (
+                        <Badge
+                          label={status.label}
+                          color={status.color}
+                          bg={status.bg}
+                        />
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td style={{ display: "table-cell", padding: "8px" }}>
+                      {haz ? (
+                        <Badge
+                          label={haz.label}
+                          color={haz.color}
+                          bg={haz.bg}
+                        />
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td
                       style={{
                         display: "table-cell",
-                        width: "140px",
                         padding: "8px",
                         textAlign: "center",
-                        verticalAlign: "middle",
-                      }}
-                    >
-                      <div
-                        style={{ display: "flex", justifyContent: "center" }}
-                      >
-                        {status ? (
-                          <Badge
-                            label={status.label}
-                            color={status.color}
-                            bg={status.bg}
-                          />
-                        ) : (
-                          <span style={{ color: "#a0aec0" }}>—</span>
-                        )}
-                      </div>
-                    </td>
-                    <td
-                      style={{
-                        display: "table-cell",
-                        width: "140px",
-                        padding: "8px",
-                        textAlign: "center",
-                        verticalAlign: "middle",
-                      }}
-                    >
-                      <div
-                        style={{ display: "flex", justifyContent: "center" }}
-                      >
-                        {_hazStatus ? (
-                          <Badge
-                            label={_hazStatus.label}
-                            color={_hazStatus.color}
-                            bg={_hazStatus.bg}
-                          />
-                        ) : (
-                          <span style={{ color: "#a0aec0" }}>—</span>
-                        )}
-                      </div>
-                    </td>
-                    <td
-                      style={{
-                        display: "table-cell",
-                        width: "70px",
-                        padding: "8px",
-                        textAlign: "center",
-                        verticalAlign: "middle",
                       }}
                     >
                       {rows.length > 1 && (
@@ -1035,81 +786,60 @@ export default function BatchEntry({ setStudents, currentUser }) {
           onChange={handleCsvUpload}
         />
 
-        {/* BOTTOM ACTION BUTTONS */}
+        {/* FOOTER ACTIONS */}
         <div
           className="batch-actions"
           style={{
-            flexShrink: 0,
             marginTop: "12px",
             display: "flex",
-            alignItems: "center",
             gap: "10px",
+            alignItems: "center",
           }}
         >
           <button
             className="btn btn-secondary"
             disabled={!canUpload || !schoolConfigured}
-            title={
-              !schoolConfigured
-                ? "Please configure School Name and School ID in Settings first."
-                : !canUpload
-                  ? "Select Grade Level and enter Teacher Name first."
-                  : ""
-            }
             onClick={() => fileInputRef.current?.click()}
           >
             Upload CSV
           </button>
-
           <button className="btn btn-secondary" onClick={addRow}>
             + Add Row
           </button>
-
           <button className="btn btn-secondary" onClick={downloadCsvTemplate}>
-            ⬇ Download CSV Template
+            ⬇ Template
           </button>
-
           <button
             className="btn btn-primary"
             onClick={saveAll}
             disabled={!canUpload || !schoolConfigured}
-            title={
-              !schoolConfigured
-                ? "Please configure School Name and School ID in Settings first."
-                : !canUpload
-                  ? "Select Grade Level and enter Teacher Name first."
-                  : ""
-            }
           >
             Save All Records
           </button>
 
-          {saved && (
-            <span className="save-confirm">
-              ✓ Saved to <strong>{sectionLabel}</strong>!
-            </span>
-          )}
+          {saved && <span className="save-confirm">✓ Saved successfully!</span>}
         </div>
 
         {!schoolConfigured && (
           <p
             className="teacher-warning"
-            style={{ flexShrink: 0, marginTop: "6px", marginBottom: 0 }}
+            style={{ color: "red", marginTop: "6px" }}
           >
-            ⚠ School setup is incomplete. Please go to Settings and enter the
-            School Name and School ID first.
+            ⚠ Tunnel blocked: Missing an active School ID configuration profile
+            mapping.
           </p>
         )}
+      </div>
 
-        {!canUpload && (
-          <p
-            className="teacher-warning"
-            style={{ flexShrink: 0, marginTop: "6px", marginBottom: 0 }}
-          >
-            ⚠ Please select a Grade Level and enter the Teacher Name before
-            uploading or saving.
-          </p>
-        )}
+      {/* CSV UPLOAD DISPLAYED DIRECTLY BELOW */}
+      <div style={{ width: "100%", clear: "both" }}>
+        <CSVUpload
+          students={students}
+          setStudents={setStudents}
+          open={csvOpen}
+          setOpen={setCsvOpen}
+          currentUser={currentUser}
+        />
       </div>
     </div>
   );

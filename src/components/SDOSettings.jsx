@@ -16,11 +16,92 @@ function sortByGradeOrder(grades) {
   );
 }
 
+// Custom Confirmation Dialog Component to eliminate dropdown lifecycle freezing
+function ConfirmationModal({ isOpen, onClose, onConfirm, isSaving }) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="modal-overlay"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(15, 23, 42, 0.6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        className="card modal-content"
+        style={{
+          maxWidth: "450px",
+          width: "100%",
+          padding: "24px",
+          borderRadius: "12px",
+          boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
+          background: "#ffffff",
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 12px 0",
+            fontSize: "1.25rem",
+            color: "#1e293b",
+          }}
+        >
+          Save & Apply Configuration?
+        </h3>
+        <p
+          style={{
+            color: "#64748b",
+            fontSize: "0.95rem",
+            lineHeight: "1.5",
+            margin: "0 0 20px 0",
+          }}
+        >
+          This will overwrite the currently active SBFP beneficiary criteria for
+          all schools across the division immediately.
+        </p>
+        <div
+          style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}
+        >
+          <button
+            className="btn btn-secondary"
+            onClick={onClose}
+            disabled={isSaving}
+            style={{ padding: "8px 16px" }}
+          >
+            Cancel
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={onConfirm}
+            disabled={isSaving}
+            style={{ padding: "8px 16px" }}
+          >
+            {isSaving ? "Applying..." : "Yes, Apply Config"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SDOSettings({ currentUser }) {
   const [config, setConfig] = useState(DEFAULT_SBFP_CONFIG);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+
+  // Custom Modal States
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     loadSbfpConfig().then((cfg) => {
@@ -38,8 +119,6 @@ export default function SDOSettings({ currentUser }) {
           : prev.grades.filter((g) => g !== grade),
       );
 
-      // If a grade is added to "Grade Levels to Include", it's redundant
-      // as a per-criterion restriction, so strip it from any restrictions.
       let nextRestrictions = prev.criterionGradeRestrictions;
       if (isAdding && nextRestrictions) {
         nextRestrictions = Object.fromEntries(
@@ -108,8 +187,6 @@ export default function SDOSettings({ currentUser }) {
     setConfig((prev) => {
       let nextRestrictions = prev.criterionGradeRestrictions;
       if (nextRestrictions) {
-        // All grades are now covered on the left, so no restriction list
-        // has anything left to offer.
         nextRestrictions = Object.fromEntries(
           Object.entries(nextRestrictions).map(([criterion]) => [
             criterion,
@@ -130,12 +207,8 @@ export default function SDOSettings({ currentUser }) {
   }
 
   async function handleSave() {
-    const confirmed = window.confirm(
-      "Save and Apply Configuration?\n\n" +
-        "This will overwrite the currently active SBFP beneficiary criteria for all schools.",
-    );
-
-    if (!confirmed) return;
+    setIsSaving(true);
+    setError("");
 
     const updated = {
       ...config,
@@ -143,27 +216,37 @@ export default function SDOSettings({ currentUser }) {
       setAt: new Date().toISOString(),
     };
 
-    setError("");
-
     const ok = await saveSbfpConfig(updated);
 
     if (ok) {
       setConfig(updated);
+
+      // Force database schema caching pull directly down to state layout matrices
+      const freshConfig = await loadSbfpConfig();
+      if (freshConfig) {
+        setConfig(freshConfig);
+      }
+
       setSaved(true);
+      setIsModalOpen(false);
       setTimeout(() => setSaved(false), 3000);
     } else {
       setError("Failed to save configuration. Please try again.");
     }
+    setIsSaving(false);
   }
 
   const totalSelected = config.grades.length + config.criteria.length;
 
-  function describeCriterionScope(criterion) {
+  // Returns the criterion's grade scope as an array when there's a real
+  // grade list to show — lets the preview render each grade as its own
+  // sub-bullet instead of one comma-separated line.
+  function getCriterionScopeGrades(criterion) {
     const restriction = config.criterionGradeRestrictions?.[criterion];
     if (restriction === undefined) return "All grades";
     if (restriction.length === 0)
       return "No grades (restriction active, none selected)";
-    return restriction.join(", ");
+    return restriction;
   }
 
   function renderCriterionOption(c) {
@@ -193,7 +276,7 @@ export default function SDOSettings({ currentUser }) {
                 checked={isRestricted}
                 onChange={() => toggleCriterionRestriction(c)}
               />{" "}
-              Restrict by Grade Level
+              Limit to Specific Grade Levels (or Apply to Selected Grades Only)
             </label>
 
             {isRestricted && (
@@ -346,7 +429,10 @@ export default function SDOSettings({ currentUser }) {
                 </span>
               )}
             </div>
-            <button className="btn btn-primary" onClick={handleSave}>
+            <button
+              className="btn btn-primary"
+              onClick={() => setIsModalOpen(true)}
+            >
               💾 Save & Apply to All Schools
             </button>
             {saved && (
@@ -393,11 +479,23 @@ export default function SDOSettings({ currentUser }) {
                     Nutritional Status Criteria
                   </div>
                   <ul className="sdo-preview-rule-list">
-                    {config.criteria.map((c) => (
-                      <li key={c}>
-                        <strong>{c}</strong> — {describeCriterionScope(c)}
-                      </li>
-                    ))}
+                    {config.criteria.map((c) => {
+                      const scope = getCriterionScopeGrades(c);
+                      return (
+                        <li key={c}>
+                          <strong>{c}</strong>
+                          {Array.isArray(scope) ? (
+                            <ul className="sdo-preview-sub-list">
+                              {scope.map((g) => (
+                                <li key={g}>{g}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <> — {scope}</>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
@@ -413,18 +511,40 @@ export default function SDOSettings({ currentUser }) {
                       <strong>{config.grades.join(", ")}</strong>
                     </li>
                   )}
-                  {config.criteria.map((c) => (
-                    <li key={c}>
-                      Learners with status <strong>{c}</strong> —{" "}
-                      <strong>{describeCriterionScope(c)}</strong>
-                    </li>
-                  ))}
+                  {config.criteria.map((c) => {
+                    const scope = getCriterionScopeGrades(c);
+                    return (
+                      <li key={c}>
+                        Learners with status <strong>{c}</strong>
+                        {Array.isArray(scope) ? (
+                          <ul className="sdo-preview-sub-list">
+                            {scope.map((g) => (
+                              <li key={g}>{g}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <>
+                            {" "}
+                            — <strong>{scope}</strong>
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </>
           )}
         </div>
       </div>
+
+      {/* Confirmation Overlay Modal injection point */}
+      <ConfirmationModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={handleSave}
+        isSaving={isSaving}
+      />
     </div>
   );
 }

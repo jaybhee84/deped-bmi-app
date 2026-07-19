@@ -9,7 +9,11 @@ import {
 } from "../utils/bmi";
 import Badge from "./Badge";
 import "./Reports.css";
-import { loadSbfpConfig, isOfficialBeneficiary } from "../utils/sbfpConfig";
+import {
+  loadSbfpConfig,
+  isOfficialBeneficiary,
+  DEFAULT_SBFP_CONFIG,
+} from "../utils/sbfpConfig";
 
 function getSbfpKey(sy) {
   return "sbfp_settings_" + sy;
@@ -33,7 +37,33 @@ export default function Reports({ students = [] }) {
   const [beneficiaryGrades, setBeneficiaryGrades] = useState([]);
   const [beneficiaryCriteria, setBeneficiaryCriteria] = useState([]);
 
-  const sbfpConfig = loadSbfpConfig();
+  // Initialize state with cached local data if available for instant offline loading
+  const [sbfpConfig, setSbfpConfig] = useState(() => {
+    try {
+      const cached = localStorage.getItem("sbfp_cached_config");
+      return cached ? JSON.parse(cached) : DEFAULT_SBFP_CONFIG;
+    } catch {
+      return DEFAULT_SBFP_CONFIG;
+    }
+  });
+
+  // Fetch the latest config from Supabase. Cache it if successful, fallback to local cache if offline.
+  useEffect(() => {
+    loadSbfpConfig().then((resolvedConfig) => {
+      if (resolvedConfig) {
+        setSbfpConfig(resolvedConfig);
+        try {
+          // Save a copy locally so it's available next time the user is offline
+          localStorage.setItem(
+            "sbfp_cached_config",
+            JSON.stringify(resolvedConfig),
+          );
+        } catch (e) {
+          console.error("Failed to save offline sbfp config cache", e);
+        }
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const saved = loadSbfpSettings(sy);
@@ -57,6 +87,7 @@ export default function Reports({ students = [] }) {
         );
         return matchGrade && matchSection && hasRecordForSelectedPeriod;
       });
+
   const rows = filtered
     .map((s) => {
       const selectedRecord = (s.records || []).find(
@@ -97,11 +128,14 @@ export default function Reports({ students = [] }) {
     "Grade 6": 6,
   };
 
-  displayRows.sort((a, b) => {
+  const sortedDisplayRows = [...displayRows].sort((a, b) => {
     const gradeDiff =
       (gradeOrder[a.grade] ?? 999) - (gradeOrder[b.grade] ?? 999);
     if (gradeDiff !== 0) return gradeDiff;
-    return a.name.localeCompare(b.name);
+
+    const nameA = a?.name || "";
+    const nameB = b?.name || "";
+    return nameA.localeCompare(nameB);
   });
 
   const counts = {
@@ -111,7 +145,8 @@ export default function Reports({ students = [] }) {
     Overweight: 0,
     Obese: 0,
   };
-  displayRows.forEach((r) => {
+
+  sortedDisplayRows.forEach((r) => {
     if (r.status?.label && counts[r.status.label] !== undefined) {
       counts[r.status.label]++;
     }
@@ -122,19 +157,19 @@ export default function Reports({ students = [] }) {
       alert("Please select a School Year to generate the report preview.");
       return;
     }
-    if (displayRows.length === 0) {
+    if (sortedDisplayRows.length === 0) {
       alert("No student records found matching the chosen filter parameters.");
       return;
     }
 
-    const firstStudent = displayRows[0];
+    const firstStudent = sortedDisplayRows[0];
     const extractedSchoolName =
       firstStudent?.schoolName || students[0]?.schoolName || "Unknown School";
     const extractedSchoolId =
       firstStudent?.schoolId || students[0]?.schoolId || "N/A";
 
     const uniqueSections = [
-      ...new Set(displayRows.map((r) => r.section).filter(Boolean)),
+      ...new Set(sortedDisplayRows.map((r) => r.section).filter(Boolean)),
     ];
     const dynamicSectionLabel =
       section === "All"
@@ -143,9 +178,8 @@ export default function Reports({ students = [] }) {
           : uniqueSections[0] || "All " + gradeLevel
         : section;
 
-    // Locate this block inside Reports.jsx and update the learners mapping:
     const payload = {
-      reportType: "portrait", // <--- ADD THIS LINE
+      reportType: "portrait",
       title: "School-Based Feeding Program (SBFP) Nutritional Report",
       meta: {
         schoolName: extractedSchoolName.toUpperCase().trim(),
@@ -155,7 +189,7 @@ export default function Reports({ students = [] }) {
         period: period,
         date: new Date().toLocaleDateString("en-PH"),
       },
-      learners: displayRows.map((r) => ({
+      learners: sortedDisplayRows.map((r) => ({
         lrn: r.lrn || "—",
         name: r.name,
         sex: r.sex,
@@ -175,6 +209,7 @@ export default function Reports({ students = [] }) {
       alert("Electron API preview channel not detected.");
     }
   }
+
   return (
     <div className="page">
       <div className="page-header no-print">
@@ -286,7 +321,7 @@ export default function Reports({ students = [] }) {
         </div>
       </div>
 
-      {displayRows.length === 0 ? (
+      {sortedDisplayRows.length === 0 ? (
         <div
           className="card empty-state center"
           style={{ padding: "40px", marginTop: "20px" }}
@@ -306,7 +341,7 @@ export default function Reports({ students = [] }) {
             }}
           >
             <h3 style={{ margin: 0 }}>
-              Learner Log Summary ({displayRows.length} total)
+              Learner Log Summary ({sortedDisplayRows.length} total)
             </h3>
             <div style={{ display: "flex", gap: "15px", fontSize: "13px" }}>
               <span>
@@ -351,7 +386,7 @@ export default function Reports({ students = [] }) {
               </tr>
             </thead>
             <tbody>
-              {displayRows.map((student, idx) => (
+              {sortedDisplayRows.map((student, idx) => (
                 <tr
                   key={student.id || idx}
                   style={{ borderBottom: "1px solid #dee2e6" }}

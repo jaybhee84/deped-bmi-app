@@ -105,7 +105,7 @@
 
 /* ── User card updates ────────────────────────────────────── */
 .user-welcome {
-  color: rgba(255,255,255,0.45);
+  color: rgba(255, 255, 255, 0.45);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -113,13 +113,13 @@
 }
 
 .user-name {
-  color: rgba(255,255,255,0.95);
+  color: rgba(255, 255, 255, 0.95);
   font-size: 13px;
   font-weight: 700;
 }
 
 .user-position {
-  color: rgba(255,255,255,0.5);
+  color: rgba(255, 255, 255, 0.5);
   font-size: 11px;
   margin-top: 1px;
   margin-bottom: 6px;
@@ -134,17 +134,24 @@
   margin-bottom: 8px;
 }
 
-.user-role-tag.school   { background: rgba(255,255,255,0.15); color: #fff; }
-.user-role-tag.division { background: #EAF3DE; color: var(--green); }
+.user-role-tag.school {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.user-role-tag.division {
+  background: #EAF3DE;
+  color: var(--green);
+}
 
 .logout-btn {
   display: block;
   width: 100%;
   padding: 6px;
   border-radius: 6px;
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   background: transparent;
-  color: rgba(255,255,255,0.6);
+  color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -153,9 +160,9 @@
 }
 
 .logout-btn:hover {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
-  border-color: rgba(255,255,255,0.4);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .sidebar-sdo-tag {
@@ -167,6 +174,25 @@
   font-size: 10px;
   font-weight: 700;
   border-radius: 10px;
+}
+
+/* ── Distinct "current view" badge, separated from the division name
+   so it reads as a status chip rather than a duplicate pill ── */
+.sidebar-view-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(163, 230, 130, 0.35);
+  color: #bfe8a0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  width: fit-content;
 }
 
 .update-btn {
@@ -185,4 +211,3 @@
 .update-btn:hover {
   background: #1d4ed8;
 }
-

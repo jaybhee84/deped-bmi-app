@@ -63,9 +63,10 @@ export function loadSupabaseConfig() {
 export async function saveSchoolInfo(school) {
   const cfg = loadSupabaseConfig();
 
+  // FIXED: Changed payload key from school_name to name to match the schools table schema
   const payload = {
     school_id: school.id,
-    school_name: school.name,
+    name: school.name,
     division: school.division,
     district: school.district,
     address: school.address,
@@ -155,9 +156,48 @@ export async function fetchSchoolForUser(userId) {
 
   if (!row) return null;
 
+  // FIXED: Map row.name to the expected frontend contract property
   return {
     id: row.school_id,
-    name: row.school_name,
+    name: row.name || row.school_name,
+    logo_url: row.logo_url,
+    division: row.division,
+    district: row.district,
+    address: row.address,
+  };
+}
+
+export async function fetchSchoolById(schoolId) {
+  if (!schoolId) return null;
+
+  const cfg = loadSupabaseConfig();
+
+  const res = await fetch(
+    `${cfg.url}/rest/v1/schools?school_id=eq.${encodeURIComponent(schoolId)}&select=*`,
+    {
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("Failed fetching school by id:", err);
+    return null;
+  }
+
+  const rows = await res.json();
+  const row = rows?.[0];
+
+  if (!row) return null;
+
+  // FIXED: Map row.name safely to support components reading this lookup payload
+  return {
+    id: row.school_id,
+    name: row.name || row.school_name,
+    logo_url: row.logo_url,
     division: row.division,
     district: row.district,
     address: row.address,
@@ -183,10 +223,6 @@ export async function saveSchoolLogoToSupabase({ schoolId, filename, dataUrl }) 
     console.error('[Supabase] Logo upload failed:', uploadError);
     throw uploadError;
   }
-
-  const { data: publicUrlData } = supabase.storage
-    .from('school-logos')
-    .getPublicUrl(storagePath);
 
   const logoUrl = publicUrlData?.publicUrl;
 
@@ -221,7 +257,8 @@ export function isSupabaseConfigured() {
 export async function fetchAllSchools() {
   const cfg = loadSupabaseConfig();
 
-  const res = await fetch(`${cfg.url}/rest/v1/schools?select=*&order=school_name.asc`, {
+  // FIXED: order changed from school_name.asc to name.asc to prevent 400 Bad Request anomalies
+  const res = await fetch(`${cfg.url}/rest/v1/schools?select=*&order=name.asc`, {
     headers: {
       apikey: cfg.key,
       Authorization: `Bearer ${cfg.key}`,
@@ -236,7 +273,7 @@ export async function fetchAllSchools() {
   const rows = await res.json();
   return rows.map((r) => ({
     id: r.school_id,
-    name: r.school_name,
+    name: r.name || r.school_name, 
     division: r.division,
     district: r.district,
     address: r.address,
@@ -291,7 +328,7 @@ function clearDeleteQueue() {
 
 export async function fetchSchoolLogo(schoolId) {
   const { data, error } = await supabase
-    .from("school_logos")
+    .from("schools")
     .select("logo_url")
     .eq("school_id", schoolId)
     .single();
@@ -306,8 +343,9 @@ export async function fetchSchoolLogo(schoolId) {
 export async function getSchoolByName(name) {
   const cfg = loadSupabaseConfig();
 
+  // FIXED: Query parameter filter changed from school_name=eq to name=eq
   const res = await fetch(
-    `${cfg.url}/rest/v1/schools?school_name=eq.${encodeURIComponent(name)}&select=*`,
+    `${cfg.url}/rest/v1/schools?name=eq.${encodeURIComponent(name)}&select=*`,
     {
       headers: {
         apikey: cfg.key,
@@ -369,7 +407,7 @@ async function supabaseUpsert(cfg, students) {
   const payload = students.map(s => ({
     id: String(s.id),
     school_id: s.school_id || s.schoolId || "",
-    school_name: s.school_name || s.schoolName || "",
+    school_name: s.school_name || s.schoolName || "", // Retains school_name column structure inside student records schema
     lrn: s.lrn,
     registry_no: s.registryNo || null,
     name: s.name,
@@ -438,7 +476,6 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
   if (!res.ok) throw new Error(`Supabase fetch error: ${res.status}`);
   let rows = await res.json();
 
-  // FIXED: Fallback lookup strategy if querying by school ID fails but matching name rows exist
   if (rows.length === 0 && schoolName) {
     const fallbackUrl = `${cfg.url}/rest/v1/students?select=*&school_name=eq.${encodeURIComponent(schoolName)}&order=name.asc`;
     const fallbackRes = await fetch(fallbackUrl, { headers });
@@ -450,7 +487,6 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
     }
   }
 
-  // Convert back to app format with strict string ID casting to avoid loop anomalies
   return rows.map(r => ({
     id: String(r.id),
     schoolId: r.school_id || schoolId || "",
@@ -495,7 +531,6 @@ export async function syncToServer(students, schoolId) {
       clearQueue();
     }
 
-    // Resolve text name fallback token for local active profile instance mapping
     let activeSchoolName = "";
     if (toSync.length > 0 && toSync[0].schoolName) {
       activeSchoolName = toSync[0].schoolName;
@@ -524,7 +559,6 @@ export async function syncFromServer(schoolId) {
   const cfg = loadSupabaseConfig();
 
   try {
-    // Resolve current text name from local database cache prior to triggering remote fetch
     let activeSchoolName = "";
     try {
       const currentLocal = await localLoadStudents();
@@ -534,7 +568,6 @@ export async function syncFromServer(schoolId) {
 
     const serverStudents = await supabaseFetchAll(cfg, schoolId, activeSchoolName);
 
-    // Auto-patch unlinked items with active mapping attributes
     if (serverStudents.length > 0 && schoolId) {
       serverStudents.forEach(s => {
         if (!s.schoolId) s.schoolId = schoolId;
@@ -543,7 +576,7 @@ export async function syncFromServer(schoolId) {
     }
 
     await localSaveStudents(serverStudents);
-    saveLastSync(new Date()); // FIXED: Updates layout timestamp badge text directly following smooth manual/auto runs
+    saveLastSync(new Date()); 
 
     return {
       success: true,

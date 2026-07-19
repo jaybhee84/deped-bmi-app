@@ -8,7 +8,62 @@ import {
 } from "../utils/bmi";
 import Badge from "./Badge";
 import Modal from "./Modal";
+import MobileCaptureModal from "./MobileCaptureModal";
 import "./Profile.css";
+
+function MetricRow({ label, value }) {
+  return (
+    <div className="metric-item-row">
+      <span className="metric-label-modern">{label}</span>
+      <span className="metric-value-modern">{value}</span>
+    </div>
+  );
+}
+
+function HealthRecordCard({ record, student }) {
+  const bmi = calcBMI(record.weight, record.height);
+  const status = bmi ? getBMIStatus(bmi, student.sex, student.birthdate) : null;
+  const haz = getHAZStatus(record.height, student.sex, student.birthdate);
+
+  return (
+    <div className="modern-record-card">
+      <div className="card-header-modern">
+        <span className="period-badge-label">{record.q}</span>
+        <span className="registry-text">
+          Registry No. {student.registryNo || record.registryNo || "—"}
+        </span>
+      </div>
+
+      <div className="card-body-modern">
+        <MetricRow label="School Year" value={record.sy} />
+        <MetricRow label="Date Measured" value={record.date} />
+        <MetricRow label="Weight" value={`${record.weight} kg`} />
+        <MetricRow label="Height" value={`${record.height} cm`} />
+        <MetricRow label="BMI" value={bmi ? bmi.toFixed(2) : "—"} />
+        <MetricRow
+          label="Nutritional Status"
+          value={
+            status ? (
+              <Badge label={status.label} color={status.color} bg={status.bg} />
+            ) : (
+              "—"
+            )
+          }
+        />
+        <MetricRow
+          label="HFA Status"
+          value={
+            haz ? (
+              <Badge label={haz.label} color={haz.color} bg={haz.bg} />
+            ) : (
+              "—"
+            )
+          }
+        />
+      </div>
+    </div>
+  );
+}
 
 export default function Profile({
   studentId,
@@ -16,11 +71,17 @@ export default function Profile({
   setStudents,
   onBack,
   readOnly,
+  supabase,
 }) {
   const student = students.find((s) => s.id === studentId);
   const [addOpen, setAddOpen] = useState(false);
+  const [mobileSyncOpen, setMobileSyncOpen] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
   const [showPhotoDeleteConfirm, setShowPhotoDeleteConfirm] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [saveStatusMessage, setSaveStatusMessage] = useState(null);
+  const [isInlineSaving, setIsInlineSaving] = useState(false); // Controls loading indicators during execution
   const fileInputRef = useRef(null);
   const [rec, setRec] = useState({
     sy: "2025–2026",
@@ -35,6 +96,11 @@ export default function Profile({
   const initials =
     (student.name.split(",")[1]?.trim()[0] || "?") + student.name[0];
 
+  const safeRegistryName = student.registryNo
+    ? student.registryNo.replace(/[^a-zA-Z0-9-_]/g, "_")
+    : `student_${student.id}`;
+
+  // 1. Core local state addition for a new health card measurement
   function saveRecord() {
     if (!rec.date || !rec.weight || !rec.height) return;
     const newRec = {
@@ -50,20 +116,162 @@ export default function Profile({
     setAddOpen(false);
     setShowConfirmModal(false);
     setRec({ sy: "2025–2026", q: "Q1", date: "", weight: "", height: "" });
+    triggerStatusFeedback("Measurement added locally.");
+  }
+
+  function triggerStatusFeedback(msg) {
+    setSaveStatusMessage(msg);
+    setTimeout(() => {
+      setSaveStatusMessage(null);
+    }, 4000);
+  }
+
+  // 2. Hybrid SQLite + Supabase Storage workflow for Manual Uploads
+  async function handleManualPhotoUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64Data = reader.result;
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === student.id
+            ? { ...s, photo: base64Data, sync_status: "pending_sync" }
+            : s,
+        ),
+      );
+
+      if (window.electronAPI?.saveToSQLite) {
+        await window.electronAPI.saveToSQLite({
+          id: student.id,
+          photo: base64Data,
+          sync_status: "pending_sync",
+        });
+      }
+
+      if (supabase && navigator.onLine) {
+        try {
+          setIsUploading(true);
+          const fileExt = file.name.split(".").pop() || "jpg";
+          const fileName = `${safeRegistryName}.${fileExt}`;
+          const filePath = `avatars/${fileName}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from("profiles")
+            .upload(filePath, file, { upsert: true });
+
+          if (uploadError) throw uploadError;
+
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("profiles").getPublicUrl(filePath);
+
+          setStudents((prev) =>
+            prev.map((s) =>
+              s.id === student.id
+                ? { ...s, photo: publicUrl, sync_status: "synced" }
+                : s,
+            ),
+          );
+
+          if (window.electronAPI?.saveToSQLite) {
+            await window.electronAPI.saveToSQLite({
+              id: student.id,
+              photo: publicUrl,
+              sync_status: "synced",
+            });
+          }
+        } catch (err) {
+          console.warn("Supabase bucket unreachable. Kept local base64.", err);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // 3. Combined Local Registry Persistence & Remote Database Sync (NO NATIVE ALERTS)
+  async function handlePersistRegistryChanges() {
+    try {
+      setIsInlineSaving(true);
+      setShowConfirmModal(false); // Close operational safety confirmation box immediately
+
+      if (window.electronAPI?.saveStudentRecords) {
+        await window.electronAPI.saveStudentRecords(
+          student.id,
+          student.records,
+          student.photo,
+        );
+      }
+
+      if (supabase && navigator.onLine) {
+        const { error } = await supabase
+          .from("students")
+          .update({
+            photo: student.photo,
+            records: student.records,
+          })
+          .eq("id", student.id);
+
+        if (error) throw error;
+        triggerStatusFeedback("✓ Registry saved to Local Database & Cloud!");
+      } else {
+        triggerStatusFeedback(
+          "✓ Saved to SQLite! Changes queued for online sync.",
+        );
+      }
+
+      setIsSavingChanges(false);
+    } catch (err) {
+      console.error("Critical persistence failure:", err);
+      triggerStatusFeedback("⚠ Error preserving structural modifications.");
+    } finally {
+      setIsInlineSaving(false);
+    }
+  }
+
+  function handleMainSaveClick() {
+    setIsSavingChanges(true);
+    setShowConfirmModal(true);
+  }
+
+  function handleModalSaveClick() {
+    setIsSavingChanges(false);
+    setShowConfirmModal(true);
   }
 
   function deletePhoto() {
     setStudents((prev) =>
-      prev.map((s) => (s.id === student.id ? { ...s, photo: null } : s)),
+      prev.map((s) =>
+        s.id === student.id
+          ? { ...s, photo: null, sync_status: "pending_sync" }
+          : s,
+      ),
     );
+    if (window.electronAPI?.saveToSQLite) {
+      window.electronAPI.saveToSQLite({
+        id: student.id,
+        photo: null,
+        sync_status: "pending_sync",
+      });
+    }
     setShowPhotoDeleteConfirm(false);
+    triggerStatusFeedback("Photo removed from card.");
   }
 
   const previewBMI =
     rec.weight && rec.height ? calcBMI(rec.weight, rec.height) : null;
   const previewStatus = previewBMI ? getBMIStatus(previewBMI) : null;
 
-  const records = [...student.records].reverse();
+  const baselineRec = student.records.find((r) => r.q === "Baseline");
+  const midlineRec = student.records.find((r) => r.q === "Midline");
+  const endlineRec = student.records.find((r) => r.q === "Endline");
+
+  const fallbackRecords = [...student.records].reverse();
+  const hasNamedQuarters = baselineRec || midlineRec || endlineRec;
 
   return (
     <div className="page">
@@ -73,44 +281,14 @@ export default function Profile({
         </button>
       </div>
 
-      <div
-        className="profile-grid"
-        style={{ display: "flex", alignItems: "stretch", gap: "24px" }}
-      >
-        {/* Info card (Left) */}
-        <div
-          className="card profile-info-card"
-          style={{
-            flex: "0 0 320px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            padding: "24px 16px",
-            margin: "0",
-          }}
-        >
-          {/* Enlarged photo container with right-click handler */}
+      <div className="profile-grid">
+        {/* Info Card (Left) */}
+        <div className="card profile-info-card">
           <div
-            className="avatar avatar-clickable"
-            style={{
-              width: "200px",
-              height: "200px",
-              borderRadius: "12px",
-              overflow: "hidden",
-              marginBottom: "16px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "#f1f5f9",
-              border: "2px dashed #cbd5e1",
-              fontSize: "42px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              position: "relative",
-            }}
+            className={`avatar avatar-clickable ${isUploading ? "loading-shimmer" : ""}`}
             onClick={() => fileInputRef.current?.click()}
             onContextMenu={(e) => {
-              e.preventDefault(); // Prevents standard system context menu
+              e.preventDefault();
               if (student.photo) {
                 setShowPhotoDeleteConfirm(true);
               }
@@ -118,14 +296,14 @@ export default function Profile({
             title={
               student.photo
                 ? "Left-click to change photo. Right-click to delete photo."
-                : "Left-click to upload photo."
+                : "Left-click to upload photo manually."
             }
           >
             {student.photo ? (
               <img
                 src={student.photo}
                 alt={student.name}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                className="profile-photo"
               />
             ) : (
               initials
@@ -136,32 +314,24 @@ export default function Profile({
             type="file"
             accept="image/*"
             style={{ display: "none" }}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) return;
-
-              const reader = new FileReader();
-              reader.onload = () => {
-                setStudents((prev) =>
-                  prev.map((s) =>
-                    s.id === student.id ? { ...s, photo: reader.result } : s,
-                  ),
-                );
-              };
-              reader.readAsDataURL(file);
-            }}
+            onChange={handleManualPhotoUpload}
           />
-          <div
-            className="profile-name"
+          <div className="profile-name">{student.name}</div>
+
+          <button
+            className="btn btn-secondary"
             style={{
-              fontSize: "18px",
-              fontWeight: "700",
               marginBottom: "20px",
+              fontSize: "12px",
+              width: "100%",
+              fontWeight: "600",
             }}
+            onClick={() => setMobileSyncOpen(true)}
           >
-            {student.name}
-          </div>
-          <div className="profile-meta-list" style={{ width: "100%" }}>
+            📸 Take Photo via Phone
+          </button>
+
+          <div className="profile-meta-list">
             {[
               ["LRN", student.lrn],
               ["Age", student.age],
@@ -177,11 +347,8 @@ export default function Profile({
           </div>
         </div>
 
-        {/* Records container (Right) */}
-        <div
-          className="profile-right"
-          style={{ flex: "1", display: "flex", flexDirection: "column" }}
-        >
+        {/* Records Container (Right) */}
+        <div className="profile-right">
           <div className="records-header">
             <h2 className="section-title">Health Records</h2>
             {!readOnly && (
@@ -194,186 +361,86 @@ export default function Profile({
             )}
           </div>
 
-          <div
-            className="profile-table-scroll-container"
-            style={{ flex: "1", display: "flex", flexDirection: "column" }}
-          >
+          <div className="profile-table-scroll-container">
             {student.records.length === 0 ? (
               <div className="card empty-cell" style={{ flex: "1" }}>
                 No records yet. Add a measurement above.
               </div>
-            ) : (
-              <div
-                className="standalone-vertical-records-list"
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "24px",
-                  flex: "1",
-                }}
-              >
-                {records.map((r, i) => {
-                  const bmi = calcBMI(r.weight, r.height);
-                  const status = bmi
-                    ? getBMIStatus(bmi, student.sex, student.birthdate)
-                    : null;
-                  const haz = getHAZStatus(
-                    r.height,
-                    student.sex,
-                    student.birthdate,
-                  );
-
-                  const verticalData = [
-                    ["SCHOOL YEAR", r.sy],
-                    ["QUARTER", r.q],
-                    ["DATE", r.date],
-                    ["WEIGHT", `${r.weight} kg`],
-                    ["HEIGHT", `${r.height} cm`],
-                    ["BMI", bmi ? bmi.toFixed(2) : "—"],
-                    [
-                      "NUTRITIONAL STATUS",
-                      status ? (
-                        <Badge
-                          label={status.label}
-                          color={status.color}
-                          bg={status.bg}
-                        />
-                      ) : (
-                        "—"
-                      ),
-                    ],
-                    [
-                      "HFA",
-                      haz ? (
-                        <Badge
-                          label={haz.label}
-                          color={haz.color}
-                          bg={haz.bg}
-                        />
-                      ) : (
-                        "—"
-                      ),
-                    ],
-                  ];
-
-                  return (
-                    <div
-                      className="card standalone-vertical-card"
-                      key={i}
-                      style={{
-                        padding: "0",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-                        borderRadius: "8px",
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #e2e8f0",
-                        overflow: "hidden",
-                        maxWidth: "520px",
-                        display: "flex",
-                        flexDirection: "column",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          padding: "12px 16px",
-                          backgroundColor: "#f8fafc",
-                          borderBottom: "1px solid #e2e8f0",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontWeight: "700",
-                            color: "#334155",
-                            fontSize: "14px",
-                          }}
-                        >
-                          Registry No.{" "}
-                          {student.registryNo || r.registryNo || "—"}
-                        </span>
-                      </div>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          flex: "1",
-                        }}
-                      >
-                        {verticalData.map(([label, data], idx) => (
-                          <div
-                            key={idx}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              flex: "1",
-                              borderBottom:
-                                idx === verticalData.length - 1
-                                  ? "none"
-                                  : "1px solid #e2e8f0",
-                            }}
-                          >
-                            <div
-                              style={{
-                                backgroundColor: "#5cb85c",
-                                color: "#ffffff",
-                                fontSize: "11px",
-                                fontWeight: "700",
-                                letterSpacing: "0.5px",
-                                textAlign: "left",
-                                width: "180px",
-                                padding: "12px 16px",
-                                alignSelf: "stretch",
-                                display: "flex",
-                                alignItems: "center",
-                                borderRight: "1px solid #4cae4c",
-                              }}
-                            >
-                              {label}
-                            </div>
-
-                            <div
-                              style={{
-                                fontWeight: "600",
-                                color: "#1e293b",
-                                textAlign: "left",
-                                flex: "1",
-                                padding: "12px 16px",
-                                fontSize: "14px",
-                                display: "flex",
-                                alignItems: "center",
-                              }}
-                            >
-                              {data}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+            ) : hasNamedQuarters ? (
+              <div className="health-records-container">
+                <div className="records-grid-row">
+                  {baselineRec ? (
+                    <HealthRecordCard record={baselineRec} student={student} />
+                  ) : (
+                    <div className="empty-period-card">
+                      No Baseline record filled.
                     </div>
-                  );
-                })}
+                  )}
+
+                  {midlineRec ? (
+                    <HealthRecordCard record={midlineRec} student={student} />
+                  ) : (
+                    <div className="empty-period-card">
+                      No Midline record filled.
+                    </div>
+                  )}
+                </div>
+
+                <div className="records-grid-row endline-row">
+                  {endlineRec ? (
+                    <HealthRecordCard record={endlineRec} student={student} />
+                  ) : (
+                    <div className="empty-period-card full-width-empty">
+                      No Endline record filled yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="health-records-container regular-list">
+                {fallbackRecords.map((r, i) => (
+                  <HealthRecordCard key={i} record={r} student={student} />
+                ))}
               </div>
             )}
           </div>
 
           {!readOnly && student.records.length > 0 && (
             <div
+              className="save-actions-container"
               style={{
                 display: "flex",
-                justifyContent: "flex-end",
-                width: "100%",
-                maxWidth: "520px",
-                marginTop: "16px",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                gap: "8px",
               }}
             >
               <button
                 className="btn btn-primary"
                 style={{ padding: "10px 24px", fontWeight: "600" }}
-                onClick={() => setShowConfirmModal(true)}
+                disabled={isInlineSaving}
+                onClick={handleMainSaveClick}
               >
-                Save Changes
+                {isInlineSaving ? "Saving..." : "Save Changes"}
               </button>
+
+              {/* Dynamic inline notification below the Save Button */}
+              {saveStatusMessage && (
+                <div
+                  className="save-status-inline-message"
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    color: saveStatusMessage.includes("⚠")
+                      ? "#dc2626"
+                      : "#16a34a",
+                    transition: "all 0.3s ease",
+                    paddingRight: "4px",
+                  }}
+                >
+                  {saveStatusMessage}
+                </div>
+              )}
             </div>
           )}
 
@@ -409,6 +476,7 @@ export default function Profile({
         </div>
       </div>
 
+      {/* Manual Input Addition Modal */}
       {addOpen && (
         <Modal title="Add Health Record" onClose={() => setAddOpen(false)}>
           <div className="form-grid-2">
@@ -489,21 +557,47 @@ export default function Profile({
             >
               Cancel
             </button>
-            <button
-              className="btn btn-primary"
-              onClick={() => setShowConfirmModal(true)}
-            >
+            <button className="btn btn-primary" onClick={handleModalSaveClick}>
               Save Record
             </button>
           </div>
         </Modal>
       )}
 
-      {/* Custom Safe Dialog for Saving Changes */}
+      {/* Mobile QR Core Capture Hook */}
+      {mobileSyncOpen && (
+        <MobileCaptureModal
+          student={student}
+          supabaseClient={supabase}
+          fileName={`${safeRegistryName}.jpg`}
+          onClose={() => setMobileSyncOpen(false)}
+          onPhotoSynced={async (updatedPhotoData) => {
+            setStudents((prev) =>
+              prev.map((s) =>
+                s.id === student.id ? { ...s, photo: updatedPhotoData } : s,
+              ),
+            );
+            if (window.electronAPI?.saveToSQLite) {
+              await window.electronAPI.saveToSQLite({
+                id: student.id,
+                photo: updatedPhotoData,
+              });
+            }
+            triggerStatusFeedback(
+              "Photo successfully received from phone camera!",
+            );
+          }}
+        />
+      )}
+
+      {/* Confirmation Modals */}
       {showConfirmModal && (
         <Modal
           title="Confirm Save Operation"
-          onClose={() => setShowConfirmModal(false)}
+          onClose={() => {
+            setShowConfirmModal(false);
+            setIsSavingChanges(false);
+          }}
         >
           <p style={{ padding: "8px 0", color: "#334155", fontSize: "15px" }}>
             Are you sure you want to commit these changes to the registry?
@@ -511,18 +605,25 @@ export default function Profile({
           <div className="modal-footer" style={{ marginTop: "16px" }}>
             <button
               className="btn btn-secondary"
-              onClick={() => setShowConfirmModal(false)}
+              onClick={() => {
+                setShowConfirmModal(false);
+                setIsSavingChanges(false);
+              }}
             >
               Cancel
             </button>
-            <button className="btn btn-primary" onClick={saveRecord}>
+            <button
+              className="btn btn-primary"
+              onClick={
+                isSavingChanges ? handlePersistRegistryChanges : saveRecord
+              }
+            >
               Confirm & Save
             </button>
           </div>
         </Modal>
       )}
 
-      {/* Electron Safe Custom Dialog for Deleting Student Profile Picture */}
       {showPhotoDeleteConfirm && (
         <Modal
           title="Delete Student Image"

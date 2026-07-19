@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
-import "./Settings.css";
+import "./Information.css"; // Fixed: Aligned CSS import to shared styles
 import { RELEASE_NOTES } from "../data/releaseNotes";
 
 export default function SDOInformation() {
@@ -104,7 +104,6 @@ export default function SDOInformation() {
               <span>Version</span>
               <span>{version || "—"}</span>
             </div>
-
             <div className="about-row">
               <span>Standard</span>
               <span>WHO / DepEd</span>
@@ -114,6 +113,7 @@ export default function SDOInformation() {
               <span>SDO / Division</span>
             </div>
           </div>
+
           {latestRelease && (
             <>
               <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
@@ -140,7 +140,6 @@ export default function SDOInformation() {
                 >
                   {latestRelease.title}
                 </div>
-                NPM
                 <ul
                   style={{
                     margin: 0,

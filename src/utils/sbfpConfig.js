@@ -78,19 +78,23 @@ export async function saveSbfpConfig(config) {
  * based on the SDO-configured criteria.
  */
 export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
-  if (!config) return false;
+  // 1. If config is null, undefined, or a Promise instance, return false safely
+  if (!config || typeof config.then === "function") return false;
 
   const grade = student.section?.split(" - ")[0] || "";
 
+  // 2. Added safe fallbacks (|| []) to avoid undefined errors
+  const configGrades = config.grades || [];
+  const configCriteria = config.criteria || [];
+  const restrictions = config.criterionGradeRestrictions || {};
+
   // Automatic grade inclusion
-  if (config.grades.includes(grade)) {
+  if (configGrades.includes(grade)) {
     return true;
   }
 
-  const restrictions = config.criterionGradeRestrictions || {};
-
   // BMI
-  if (bmiStatus?.label && config.criteria.includes(bmiStatus.label)) {
+  if (bmiStatus?.label && configCriteria.includes(bmiStatus.label)) {
     const allowedGrades = restrictions[bmiStatus.label];
 
     if (!allowedGrades || allowedGrades.length === 0) {
@@ -103,7 +107,7 @@ export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
   }
 
   // HAZ
-  if (hazStatus?.label && config.criteria.includes(hazStatus.label)) {
+  if (hazStatus?.label && configCriteria.includes(hazStatus.label)) {
     const allowedGrades = restrictions[hazStatus.label];
 
     if (!allowedGrades || allowedGrades.length === 0) {
@@ -148,10 +152,8 @@ export async function loadSbfpEnrolment(schoolId, sy) {
 }
 
 /**
- * Save manual enrolment numbers for a given school + school year to
- * Supabase. Upserts on the (school_id, sy) composite key, so any other
- * user bound to the same school will see these numbers next time they
- * load this page.
+ * Save manual enrolment numbers for a given school + school year to Supabase.
+ * Uses a streamlined upsert pipeline targeting the composite key.
  */
 export async function saveSbfpEnrolment(schoolId, sy, enrolmentData) {
   if (!schoolId) {
@@ -162,7 +164,7 @@ export async function saveSbfpEnrolment(schoolId, sy, enrolmentData) {
   try {
     const { error } = await supabase.from("sbfp_enrolment").upsert(
       {
-        school_id: schoolId,
+        school_id: String(schoolId).trim(),
         sy,
         data: enrolmentData,
         updated_at: new Date().toISOString(),

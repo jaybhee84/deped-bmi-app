@@ -134,12 +134,12 @@ export function getNutritionalStatus(weight, height, sex, birthdate) {
 
 export const GRADE_LEVELS = [
   'Kinder', 'Grade 1', 'Grade 2', 'Grade 3',
-  'Grade 4', 'Grade 5', 'Grade 6',
+  'Grade 4', 'Grade 5', 'Grade 6', 
 ];
 
 export const SECTIONS = [
   'Kinder', 'Grade 1', 'Grade 2', 'Grade 3',
-  'Grade 4', 'Grade 5', 'Grade 6',
+  'Grade 4', 'Grade 5', 'Grade 6', 
 ];
 
 export function getCurrentSchoolYear() {
@@ -155,16 +155,18 @@ export function getCurrentSchoolYear() {
   return `${year - 1}–${year}`;
 }
 
+// Automatically generates the current school year and the next 3 future years
 export function getSchoolYears() {
   const currentSY = getCurrentSchoolYear();
   const startYear = parseInt(currentSY.split('–')[0]);
 
-  return [
-    `${startYear - 2}–${startYear - 1}`,
-    `${startYear - 1}–${startYear}`,
-    `${startYear}–${startYear + 1}`,
-    `${startYear + 1}–${startYear + 2}`,
-  ];
+  const years = [];
+  for (let i = 0; i < 4; i++) {
+    const start = startYear + i;
+    const end = start + 1;
+    years.push(`${start}–${end}`);
+  }
+  return years;
 }
 
 export const SCHOOL_YEARS = getSchoolYears();

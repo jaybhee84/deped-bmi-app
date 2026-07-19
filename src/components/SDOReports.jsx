@@ -10,7 +10,6 @@ import Badge from "./Badge";
 import "./SDOReports.css";
 import { SCHOOL_OPTIONS } from "../utils/schools.js";
 
-// ── Grade x Sex summary helpers (DepEd consolidated report format) ────────
 function emptyStats() {
   return {
     enrolment: 0,
@@ -131,10 +130,7 @@ function computeGradeSummary(students, sy, period) {
     Total: mergeStats(grandM, grandF),
   };
 
-  return {
-    rows,
-    grand,
-  };
+  return { rows, grand };
 }
 
 function getGradeColor(grade) {
@@ -177,9 +173,7 @@ export default function SDOReports({
 
   const [sy, setSy] = useState("2026–2027");
   const [period, setPeriod] = useState("Baseline");
-  const [nutritionFilter, setNutritionFilter] = useState("All");
 
-  // ZOOM STATE & REF HOOKS
   const [zoomScale, setZoomScale] = useState(1.0);
   const containerRef = useRef(null);
 
@@ -192,20 +186,17 @@ export default function SDOReports({
         e.preventDefault();
         const zoomStep = 0.05;
         let newScale = zoomScale;
-
         if (e.deltaY < 0) {
-          newScale = Math.min(zoomScale + zoomStep, 2.0); // Cap zoom at 200%
+          newScale = Math.min(zoomScale + zoomStep, 2.0);
         } else {
-          newScale = Math.max(zoomScale - zoomStep, 0.5); // Cap zoom down to 50%
+          newScale = Math.max(zoomScale - zoomStep, 0.5);
         }
         setZoomScale(newScale);
       }
     };
 
     container.addEventListener("wheel", handleWheel, { passive: false });
-    return () => {
-      container.removeEventListener("wheel", handleWheel);
-    };
+    return () => container.removeEventListener("wheel", handleWheel);
   }, [zoomScale]);
 
   const students = useMemo(() => {
@@ -237,11 +228,6 @@ export default function SDOReports({
     })
     .filter(Boolean);
 
-  const displayRows = rows.filter((r) => {
-    if (nutritionFilter === "All") return true;
-    return r.status?.label === nutritionFilter;
-  });
-
   const gradeOrder = {
     Kinder: 0,
     "Grade 1": 1,
@@ -252,7 +238,7 @@ export default function SDOReports({
     "Grade 6": 6,
   };
 
-  displayRows.sort((a, b) => {
+  rows.sort((a, b) => {
     const gradeDiff =
       (gradeOrder[a.grade] ?? 999) - (gradeOrder[b.grade] ?? 999);
     if (gradeDiff !== 0) return gradeDiff;
@@ -260,13 +246,8 @@ export default function SDOReports({
   });
 
   const reportData = useMemo(() => {
-    const reportStudents =
-      selectedSchool === "CONSOLIDATED"
-        ? Object.values(allSchoolsData).flat()
-        : students;
-
-    return computeGradeSummary(reportStudents, sy, period);
-  }, [selectedSchool, allSchoolsData, students, sy, period]);
+    return computeGradeSummary(students, sy, period);
+  }, [students, sy, period]);
 
   const counts = {
     Normal: 0,
@@ -276,34 +257,81 @@ export default function SDOReports({
     Obese: 0,
     "No Data": 0,
   };
-  displayRows.forEach((r) => {
+  rows.forEach((r) => {
     if (r.status) counts[r.status.label]++;
     else counts["No Data"]++;
   });
 
   function handlePrintReport() {
-    const payload = {
-      reportType: "landscape",
-      meta: {
-        schoolName:
-          selectedSchool === "CONSOLIDATED"
-            ? "ISABELA CITY SCHOOLS DIVISION OFFICE"
-            : selectedSchool,
-        sy,
-        period,
-        date: new Date().toLocaleDateString("en-PH"),
-      },
-      rows: reportData.rows,
-      grand: reportData.grand,
-    };
-    window.electronAPI.generatePrintPreview(payload);
+    console.log("=== PRINT PREVIEW DIAGNOSTICS ===");
+    console.log("Selected Value Context:", selectedSchool);
+
+    if (selectedSchool === "ALL SCHOOLS") {
+      const schools = SCHOOL_OPTIONS.filter((school) => {
+        const s = school.toLowerCase();
+        return (
+          !s.includes("high school") &&
+          !s.includes("national high school") &&
+          !s.includes("nhs") &&
+          school !== "ALL SCHOOLS"
+        );
+      }).sort((a, b) => a.localeCompare(b));
+
+      const multiPagePayloads = schools.map((schoolKey) => {
+        const schoolStudents = allSchoolsData[schoolKey] || [];
+        const summary = computeGradeSummary(schoolStudents, sy, period);
+
+        return {
+          reportType: "landscape",
+          meta: {
+            schoolName: schoolKey,
+            sy,
+            period,
+            date: new Date().toLocaleDateString("en-PH"),
+          },
+          rows: summary.rows,
+          grand: summary.grand,
+        };
+      });
+
+      if (multiPagePayloads.length === 0) {
+        alert("No school data found for printing.");
+        return;
+      }
+
+      if (window.electronAPI?.generatePrintPreview) {
+        window.electronAPI.generatePrintPreview(multiPagePayloads);
+      } else if (window.electronAPI?.generatePdfPreview) {
+        window.electronAPI.generatePdfPreview(multiPagePayloads);
+      }
+    } else {
+      const payload = {
+        reportType: "landscape",
+        meta: {
+          schoolName:
+            selectedSchool === "CONSOLIDATED"
+              ? "ISABELA CITY SCHOOLS DIVISION OFFICE"
+              : selectedSchool,
+          sy,
+          period,
+          date: new Date().toLocaleDateString("en-PH"),
+        },
+        rows: reportData.rows,
+        grand: reportData.grand,
+      };
+
+      if (window.electronAPI?.generatePrintPreview) {
+        window.electronAPI.generatePrintPreview(payload);
+      } else if (window.electronAPI?.generatePdfPreview) {
+        window.electronAPI.generatePdfPreview(payload);
+      }
+    }
   }
 
   return (
     <div className="sdo-reports-page">
       <div className="filter-row no-print">
-        {/* School */}
-        <div className="form-group">
+        <div className="form-group" style={{ flexGrow: 2, minWidth: "220px" }}>
           <label className="form-label">School</label>
           <select
             className="form-select"
@@ -311,7 +339,7 @@ export default function SDOReports({
             onChange={(e) => setSelectedSchool(e.target.value)}
           >
             <option value="CONSOLIDATED">Consolidated Report</option>
-            <option value="ALL SCHOOLS">All Schools</option>
+            <option value="ALL SCHOOLS">All Schools (Print Per Page)</option>
             {SCHOOL_OPTIONS.filter((school) => {
               const s = school.toLowerCase();
               return (
@@ -330,8 +358,7 @@ export default function SDOReports({
           </select>
         </div>
 
-        {/* School Year */}
-        <div className="form-group">
+        <div className="form-group" style={{ flexGrow: 1 }}>
           <label className="form-label">School Year</label>
           <select
             className="form-select"
@@ -346,8 +373,7 @@ export default function SDOReports({
           </select>
         </div>
 
-        {/* Period */}
-        <div className="form-group">
+        <div className="form-group" style={{ flexGrow: 1 }}>
           <label className="form-label">Period</label>
           <select
             className="form-select"
@@ -360,62 +386,53 @@ export default function SDOReports({
           </select>
         </div>
 
-        {/* Nutritional Status */}
-        <div className="form-group">
-          <label className="form-label">Nutritional Status</label>
-          <select
-            className="form-select"
-            value={nutritionFilter}
-            onChange={(e) => setNutritionFilter(e.target.value)}
-          >
-            <option value="All">All</option>
-            <option value="Normal">Normal</option>
-            <option value="Wasted">Wasted</option>
-            <option value="Severely Wasted">Severely Wasted</option>
-            <option value="Overweight">Overweight</option>
-            <option value="Obese">Obese</option>
-          </select>
-        </div>
+        <button
+          className="btn btn-primary"
+          onClick={handlePrintReport}
+          style={{
+            height: "38px",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            alignSelf: "flex-end",
+          }}
+        >
+          🖨️ Print Report
+        </button>
       </div>
 
-      {/* Print header */}
       <div className="print-header">
         <p>
-          School: {selectedSchool} | School Year: {sy} | Period: {period} |
-          Status: {nutritionFilter}
+          School: {selectedSchool} | School Year: {sy} | Period: {period}
         </p>
-        <p>Total Learners: {displayRows.length}</p>
+        <p>Total Learners: {rows.length}</p>
       </div>
 
-      {/* Summary row */}
-      <div className="report-summary no-print">
+      <div
+        className="report-summary no-print"
+        style={{ justifyContent: "flex-start" }}
+      >
         {Object.entries(counts).map(([label, count]) => (
           <div key={label} className="summary-pill">
             <span className="summary-count">{count}</span>
             <span className="summary-label">{label}</span>
           </div>
         ))}
-        <button className="btn btn-primary" onClick={handlePrintReport}>
-          🖨 Print Report
-        </button>
       </div>
 
-      {/* Consolidated Matrix Card Container */}
       <div
         className="sdo-reports-card"
         style={{
           display: "flex",
           flexDirection: "column",
-          height: "75vh",
+          height: "72vh",
           position: "relative",
+          marginTop: "4px",
         }}
       >
-        {/* HEADER AREA - Always remains static and perfectly centered to screen */}
         <div
           style={{ marginBottom: "20px", flexShrink: 0, textAlign: "center" }}
         >
-          {/* Zoom Notification in Top-Right */}
-
           <h2
             style={{
               margin: "0 0 4px 0",
@@ -427,19 +444,15 @@ export default function SDOReports({
           >
             DEPED NUTRITIONAL STATUS REPORT
           </h2>
-
           <div
-            style={{
-              fontSize: "1.15rem",
-              fontWeight: "600",
-              color: "#334155",
-            }}
+            style={{ fontSize: "1.15rem", fontWeight: "600", color: "#334155" }}
           >
             {selectedSchool === "CONSOLIDATED"
               ? "ISABELA CITY SCHOOLS DIVISION OFFICE"
-              : selectedSchool}
+              : selectedSchool === "ALL SCHOOLS"
+                ? "ALL DIVISION SCHOOLS"
+                : selectedSchool}
           </div>
-
           <div
             style={{
               fontSize: "0.9rem",
@@ -452,7 +465,6 @@ export default function SDOReports({
           </div>
         </div>
 
-        {/* TABLE CONTAINER - Handles both horizontal and vertical scrolling independently */}
         <div
           className="sdo-reports-table-container"
           ref={containerRef}
@@ -463,52 +475,34 @@ export default function SDOReports({
             maxHeight: "none",
           }}
         >
-          <table
-            className="sdo-reports-table"
-            style={{
-              zoom: zoomScale,
-            }}
-          >
-            {/* COLUMN WIDTH DEFINITIONS (25 Columns Total) */}
+          <table className="sdo-reports-table" style={{ zoom: zoomScale }}>
             <colgroup>
-              <col style={{ width: "110px" }} /> {/* Grade Levels */}
-              <col style={{ width: "55px" }} /> {/* Sex */}
-              <col style={{ width: "90px" }} /> {/* Enrolment */}
-              {/* Pupils Weighed (No. & %) */}
+              <col style={{ width: "110px" }} />
+              <col style={{ width: "55px" }} />
+              <col style={{ width: "90px" }} />
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* BMI - Severely Wasted (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* BMI - Wasted (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* BMI - Normal (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* BMI - Overweight (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* BMI - Obese (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* HFA - Severely Stunted (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* HFA - Stunted (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* HFA - Normal (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* HFA - Tall (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
-              {/* Pupils Taken Height (No. & %) */}
               <col style={{ width: "65px" }} />
               <col style={{ width: "65px" }} />
             </colgroup>
-
             <thead>
               <tr>
                 <th rowSpan="3">Grade Levels</th>
@@ -559,7 +553,6 @@ export default function SDOReports({
                 <th>%</th>
               </tr>
             </thead>
-
             <tbody>
               {reportData.rows.map((row) => (
                 <React.Fragment key={row.grade}>
@@ -594,11 +587,10 @@ export default function SDOReports({
                     <td>{row.M.hfa["Normal"]}</td>
                     <td>{pct(row.M.hfa["Normal"], row.M.takenHeight)}</td>
                     <td>{row.M.hfa["Tall"]}</td>
-                    <td>{pct(row.M.hfa["Tall"], row.M.takenHeight)}</td>
+                    <td>{pct(row.F.hfa["Tall"], row.M.takenHeight)}</td>
                     <td>{row.M.takenHeight}</td>
                     <td>{pct(row.M.takenHeight, row.M.enrolment)}</td>
                   </tr>
-
                   <tr style={{ backgroundColor: getGradeColor(row.grade) }}>
                     <td>F</td>
                     <td>{row.F.enrolment}</td>
@@ -627,7 +619,6 @@ export default function SDOReports({
                     <td>{row.F.takenHeight}</td>
                     <td>{pct(row.F.takenHeight, row.F.enrolment)}</td>
                   </tr>
-
                   <tr
                     style={{
                       backgroundColor: getGradeColor(row.grade),
@@ -763,7 +754,6 @@ export default function SDOReports({
                   )}
                 </td>
               </tr>
-
               <tr
                 style={{
                   backgroundColor: "#FFE69C",
@@ -851,7 +841,6 @@ export default function SDOReports({
                   )}
                 </td>
               </tr>
-
               <tr
                 style={{
                   backgroundColor: "#FFE69C",

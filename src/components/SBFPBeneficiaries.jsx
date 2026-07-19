@@ -143,6 +143,110 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
   return { rows: withTotals, grand };
 }
 
+// ── CUSTOM INLINE DIALOG COMPONENT ──────────────────────────────────────────
+function CustomAlertDialog({ isOpen, title, message, type = "info", onClose }) {
+  if (!isOpen) return null;
+
+  const headerColors = {
+    error: "bg-red-50 text-red-700 border-red-200",
+    success: "bg-green-50 text-green-700 border-green-200",
+    info: "bg-blue-50 text-blue-700 border-blue-200",
+  };
+
+  const buttonColors = {
+    error: "bg-red-600 hover:bg-red-700 focus:ring-red-500",
+    success: "bg-green-600 hover:bg-green-700 focus:ring-green-500",
+    info: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500",
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+        background: "rgba(15, 23, 42, 0.4)",
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "440px",
+          overflow: "hidden",
+          backgroundColor: "#FFFFFF",
+          borderRadius: "12px",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          border: "1px solid #F1F5F9",
+        }}
+      >
+        <div
+          className={`px-6 py-4 border-b font-semibold flex items-center gap-2 ${headerColors[type]}`}
+          style={{
+            padding: "16px 24px",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            borderBottom: "1px solid #E2E8F0",
+          }}
+        >
+          {type === "error" && <span>⚠️</span>}
+          {type === "success" && <span>✅</span>}
+          {type === "info" && <span>ℹ️</span>}
+          {title}
+        </div>
+
+        <div
+          style={{
+            padding: "20px 24px",
+            color: "#475569",
+            fontSize: "14px",
+            lineHeight: "1.6",
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {message}
+        </div>
+
+        <div
+          style={{
+            padding: "12px 24px",
+            backgroundColor: "#F8FAFC",
+            display: "flex",
+            justifyContent: "end",
+            borderTop: "1px solid #F1F5F9",
+          }}
+        >
+          <button
+            onClick={onClose}
+            className={buttonColors[type]}
+            style={{
+              padding: "8px 16px",
+              color: "#FFFFFF",
+              fontSize: "14px",
+              fontWeight: 500,
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SBFPBeneficiaries({
   students,
   setStudents,
@@ -150,7 +254,7 @@ export default function SBFPBeneficiaries({
   schoolId = "",
   currentUser,
 }) {
-  const [filterSY, setFilterSY] = useState("2026-2027");
+  const [filterSY, setFilterSY] = useState("2026–2027");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
   const [searchQ, setSearchQ] = useState("");
@@ -158,12 +262,29 @@ export default function SBFPBeneficiaries({
   const [isDirty, setIsDirty] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
 
+  // Dialog State
+  const [dialogConfig, setDialogConfig] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "info",
+  });
+
+  const triggerDialog = (title, message, type = "info") => {
+    setDialogConfig({ isOpen: true, title, message, type });
+  };
+
+  const closeDialog = () => {
+    setDialogConfig((prev) => ({ ...prev, isOpen: false }));
+  };
+
   const csvFileInputRef = React.useRef(null);
   const saveTimeoutRef = React.useRef(null);
 
+  const initialSchoolId = schoolId || currentUser?.school_id || "";
   const [resolvedSchool, setResolvedSchool] = useState({
     name: schoolName,
-    id: schoolId,
+    id: initialSchoolId,
   });
 
   useEffect(() => {
@@ -175,6 +296,21 @@ export default function SBFPBeneficiaries({
     let cancelled = false;
 
     async function resolveSchool() {
+      if (currentUser?.school_id) {
+        try {
+          const local = await window.sqlite?.loadSchool?.(currentUser?.id);
+          if (local && !cancelled) {
+            setResolvedSchool({
+              name: local.school_name || "",
+              id: currentUser.school_id,
+            });
+            return;
+          }
+        } catch (e) {
+          console.error("[SBFP] Profile session validation error:", e);
+        }
+      }
+
       try {
         const local = await window.sqlite?.loadSchool?.(currentUser?.id);
         if (local && (local.school_name || local.school_id)) {
@@ -224,9 +360,8 @@ export default function SBFPBeneficiaries({
     return () => {
       cancelled = true;
     };
-  }, [schoolName, schoolId, currentUser?.id]);
+  }, [schoolName, schoolId, currentUser]);
 
-  // FIXED: Converts school_id into explicit string/text value to guarantee clean matching with Supabase text column
   useEffect(() => {
     if (!resolvedSchool.id) {
       setManualEnrolment({});
@@ -237,7 +372,6 @@ export default function SBFPBeneficiaries({
 
     async function fetchEnrolmentLifecycle() {
       try {
-        // 1. Check local SQLite storage first
         const localData = await loadSbfpEnrolment(resolvedSchool.id, filterSY);
 
         if (localData && Object.keys(localData).length > 0) {
@@ -249,13 +383,11 @@ export default function SBFPBeneficiaries({
           return;
         }
 
-        // 2. Fallback to network request if SQLite contains no entries
         if (!navigator.onLine) return;
 
         const config = loadSupabaseConfig();
         if (!config?.url || !config?.key) return;
 
-        // Strip any whitespace and force parsing into text string
         const textSchoolId = String(resolvedSchool.id).trim();
 
         const supabaseInstance = createClient(config.url, config.key);
@@ -310,8 +442,10 @@ export default function SBFPBeneficiaries({
 
   async function handleSaveEnrolment() {
     if (!resolvedSchool.id) {
-      alert(
-        "No school is set up yet. Go to Settings and save your school info first.",
+      triggerDialog(
+        "Missing Profile Scope",
+        "No school identification configuration details are initialized yet. Please access your local Settings view context to assert primary institution parameters first.",
+        "error",
       );
       return;
     }
@@ -334,7 +468,11 @@ export default function SBFPBeneficiaries({
         setSaveMessage("");
       }, 3000);
     } else {
-      alert("Failed to save enrolment.");
+      triggerDialog(
+        "Database Write Error",
+        "The application failed to update your enrollment numbers. This might be due to a strict security profile rule restriction mismatch context. Please review the operational permissions map with the SDO.",
+        "error",
+      );
     }
   }
 
@@ -344,20 +482,44 @@ export default function SBFPBeneficiaries({
     loadSbfpConfig().then(setConfig);
   }, []);
 
-  const isConfigured = config.grades.length > 0 || config.criteria.length > 0;
+  const isConfigured = config.grades?.length > 0 || config.criteria?.length > 0;
+
   const beneficiaries = useMemo(() => {
     return students
       .map((s) => {
         const rec =
-          s.records.find((r) => r.sy === filterSY && r.q === filterPeriod) ||
+          s.records?.find((r) => r.sy === filterSY && r.q === filterPeriod) ||
           null;
 
         const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
         const baz = bmi ? getBMIStatus(bmi, s.sex, s.birthdate) : null;
         const haz = rec ? getHAZStatus(rec.height, s.sex, s.birthdate) : null;
-        const grade = s.section?.split(" - ")[0] || "";
+        const grade = s.section?.split(" - ")[0] || s.grade || "";
 
-        const isBen = rec ? isOfficialBeneficiary(s, baz, haz, config) : true;
+        let isBen = false;
+        if (rec) {
+          const gradeInclusion = config.grades?.includes(grade);
+
+          const hasBmiMatch = config.criteria?.includes(baz?.label);
+          const bmiRestrictionActive =
+            config.criterionGradeRestrictions?.[baz?.label] !== undefined;
+          const passesBmiRestriction = bmiRestrictionActive
+            ? config.criterionGradeRestrictions[baz.label].includes(grade)
+            : true;
+          const bazInclusion = hasBmiMatch && passesBmiRestriction;
+
+          const hasHazMatch = config.criteria?.includes(haz?.label);
+          const hazRestrictionActive =
+            config.criterionGradeRestrictions?.[haz?.label] !== undefined;
+          const passesHazRestriction = hazRestrictionActive
+            ? config.criterionGradeRestrictions[haz.label].includes(grade)
+            : true;
+          const hazInclusion = hasHazMatch && passesHazRestriction;
+
+          isBen = gradeInclusion || bazInclusion || hazInclusion;
+        } else {
+          isBen = true;
+        }
 
         return { ...s, bmi, baz, haz, grade, rec, isBen };
       })
@@ -482,7 +644,11 @@ export default function SBFPBeneficiaries({
 
   function handleExportCsv() {
     if (!filtered.length) {
-      alert("No beneficiaries to export.");
+      triggerDialog(
+        "Export Notice",
+        "There are no beneficiaries currently matching your target metrics to isolate and compile into a CSV file summary structure.",
+        "info",
+      );
       return;
     }
 
@@ -544,7 +710,11 @@ export default function SBFPBeneficiaries({
       const lines = text.trim().split("\n").filter(Boolean);
 
       if (!lines.length) {
-        alert("CSV file is empty.");
+        triggerDialog(
+          "Parsing Failed",
+          "The target CSV file you selected is completely blank. Please load a structured data payload containing record rows.",
+          "error",
+        );
         return;
       }
 
@@ -560,13 +730,19 @@ export default function SBFPBeneficiaries({
       const hasHeight = headers.includes("height");
 
       if (!hasRegistry && !hasLRN && !hasName) {
-        alert(
-          "CSV must have a Registry No., LRN, or Name column. Use Export CSV to get the correct format.",
+        triggerDialog(
+          "Invalid Column Format",
+          "CSV must contain at least a Registry No., LRN, or Name reference coordinate. Execute an Export structural query to match standard data layouts.",
+          "error",
         );
         return;
       }
       if (!hasWeight || !hasHeight) {
-        alert("CSV must have weight and height columns.");
+        triggerDialog(
+          "Missing Parameters",
+          "The matching engine requires standard numeric weight and height identifier properties to execute synchronization operations.",
+          "error",
+        );
         return;
       }
 
@@ -588,16 +764,20 @@ export default function SBFPBeneficiaries({
 
         if (!registryNo && !lrn && !name) {
           errs.push(
-            `Row ${i + 2}: missing Registry No., LRN, and Name — can't match.`,
+            `Row ${i + 2}: structural index missing reference mapping metadata.`,
           );
           return;
         }
         if (isNaN(weight) || weight <= 0) {
-          errs.push(`Row ${i + 2}: invalid weight for ${label}.`);
+          errs.push(
+            `Row ${i + 2}: specified tracking weight is incorrect for ${label}.`,
+          );
           return;
         }
         if (isNaN(height) || height <= 0) {
-          errs.push(`Row ${i + 2}: invalid height for ${label}.`);
+          errs.push(
+            `Row ${i + 2}: structural stature tracking height is invalid for ${label}.`,
+          );
           return;
         }
 
@@ -614,7 +794,9 @@ export default function SBFPBeneficiaries({
         }
 
         if (!match) {
-          errs.push(`Row ${i + 2}: no student found for "${label}".`);
+          errs.push(
+            `Row ${i + 2}: no active local student profile mapped to target sequence identifier "${label}".`,
+          );
           return;
         }
 
@@ -622,7 +804,12 @@ export default function SBFPBeneficiaries({
       });
 
       if (!matches.length) {
-        alert("No matching students found.\n\n" + errs.slice(0, 10).join("\n"));
+        triggerDialog(
+          "Import Matching Failure",
+          "Could not synchronize row indices.\n\n" +
+            errs.slice(0, 5).join("\n"),
+          "error",
+        );
         return;
       }
 
@@ -655,11 +842,15 @@ export default function SBFPBeneficiaries({
         matches.length !== 1 ? "s" : ""
       } for ${filterPeriod} ${filterSY}.${
         errs.length
-          ? `\n\n${errs.length} row(s) skipped:\n` +
-            errs.slice(0, 10).join("\n")
+          ? `\n\n${errs.length} record conflict deviations omitted:\n` +
+            errs.slice(0, 5).join("\n")
           : ""
       }`;
-      alert(summary);
+      triggerDialog(
+        "Import Finished",
+        summary,
+        errs.length ? "info" : "success",
+      );
     };
     reader.readAsText(file);
     e.target.value = "";
@@ -667,7 +858,11 @@ export default function SBFPBeneficiaries({
 
   function handlePrintBeneficiaries() {
     if (!sortedRows.length) {
-      alert("No beneficiaries found.");
+      triggerDialog(
+        "Print Operation Deferred",
+        "No structural rows isolated to send to printer spool arrays under current filter scopes.",
+        "info",
+      );
       return;
     }
 
@@ -698,7 +893,11 @@ export default function SBFPBeneficiaries({
     if (window.electronAPI?.generatePrintPreview) {
       window.electronAPI.generatePrintPreview(payload);
     } else {
-      alert("Electron API preview channel not detected.");
+      triggerDialog(
+        "Hardware Context Missing",
+        "Electron native bridge API layer was not identified in the active platform wrapper context.",
+        "error",
+      );
     }
   }
 
@@ -770,12 +969,12 @@ export default function SBFPBeneficiaries({
           <span className="sbfp-config-label">
             Official criteria set by SDO:
           </span>
-          {config.grades.map((g) => (
+          {config.grades?.map((g) => (
             <span key={g} className="sbfp-config-tag grade">
               {g}
             </span>
           ))}
-          {config.criteria.map((c) => (
+          {config.criteria?.map((c) => (
             <span key={c} className="sbfp-config-tag criteria">
               {c}
             </span>
@@ -1169,13 +1368,28 @@ export default function SBFPBeneficiaries({
             </thead>
             <tbody>
               {sortedRows.map((s, idx) => {
-                const gradeInclusion = config.grades.includes(s.grade);
-                const bazInclusion = config.criteria.includes(s.baz?.label);
-                const hazInclusion = config.criteria.includes(s.haz?.label);
+                const gradeInclusion = config.grades?.includes(s.grade);
+
+                const bazInclusion =
+                  config.criteria?.includes(s.baz?.label) &&
+                  (config.criterionGradeRestrictions?.[s.baz?.label] ===
+                    undefined ||
+                    config.criterionGradeRestrictions[s.baz.label].includes(
+                      s.grade,
+                    ));
+
+                const hazInclusion =
+                  config.criteria?.includes(s.haz?.label) &&
+                  (config.criterionGradeRestrictions?.[s.haz?.label] ===
+                    undefined ||
+                    config.criterionGradeRestrictions[s.haz.label].includes(
+                      s.grade,
+                    ));
+
                 const reasons = [];
                 if (gradeInclusion) reasons.push(`Grade (${s.grade})`);
-                if (bazInclusion) reasons.push(s.baz?.label);
-                if (hazInclusion) reasons.push(s.haz?.label);
+                if (bazInclusion && s.baz?.label) reasons.push(s.baz.label);
+                if (hazInclusion && s.haz?.label) reasons.push(s.haz.label);
 
                 return (
                   <tr key={s.id}>
@@ -1344,6 +1558,15 @@ export default function SBFPBeneficiaries({
           })}
         </p>
       </div>
+
+      {/* --- RENDER CUSTOM CONTEXT DIALOG --- */}
+      <CustomAlertDialog
+        isOpen={dialogConfig.isOpen}
+        title={dialogConfig.title}
+        message={dialogConfig.message}
+        type={dialogConfig.type}
+        onClose={closeDialog}
+      />
     </div>
   );
 }

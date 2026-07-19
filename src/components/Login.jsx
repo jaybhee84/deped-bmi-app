@@ -5,8 +5,6 @@ import {
   ROLES,
   SCHOOL_POSITIONS,
   DIVISION_POSITIONS,
-} from "../utils/auth";
-import {
   saveSession,
   cacheOfflineCredentials,
   attemptOfflineLogin,
@@ -15,6 +13,7 @@ import {
 import { supabase } from "../utils/supabase";
 import "./Login.css";
 import logo from "../images/ok-sa-deped.png";
+
 console.log("Logo:", logo);
 
 // ── Subcomponent: Role picker ─────────────────────────────────────────────
@@ -23,30 +22,45 @@ function RolePicker({ onPick }) {
     <div className="role-picker">
       <p className="role-picker-title">I am registering as:</p>
       <div className="role-picker-cards">
-        <button className="role-card" onClick={() => onPick(ROLES.SCHOOL)}>
+        <button
+          type="button"
+          className="role-card"
+          onClick={() => onPick(ROLES.SCHOOL)}
+        >
           <span className="role-card-icon">🏫</span>
           <span className="role-card-label">School Based</span>
         </button>
-        <button className="role-card" onClick={() => onPick(ROLES.DIVISION)}>
+        <button
+          type="button"
+          className="role-card"
+          onClick={() => onPick(ROLES.DIVISION)}
+        >
           <span className="role-card-icon">🏥</span>
           <span className="role-card-label">SDO Based</span>
         </button>
       </div>
-      <button className="back-link" onClick={() => onPick(null)}>
+      <button type="button" className="back-link" onClick={() => onPick(null)}>
         ← Back to Sign In
       </button>
     </div>
   );
 }
+
 //---Forgot Password--------
 function ForgotPassword({ onBack }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  async function handleReset() {
+  async function handleReset(e) {
+    e.preventDefault(); // Prevents page reload on Enter press
     setError("");
     setMessage("");
+
+    if (!email.trim()) {
+      setError("Email is required.");
+      return;
+    }
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: "http://localhost:5173/reset-password",
@@ -61,44 +75,40 @@ function ForgotPassword({ onBack }) {
   }
 
   return (
-    <div className="reg-form">
+    // CHANGED TO <form>
+    <form className="reg-form" onSubmit={handleReset}>
       <h3>Forgot Password</h3>
 
       <div className="login-field">
         <label className="form-label">DepEd Email</label>
-
         <input
           className="form-input login-input"
           type="email"
           placeholder="Enter your registered email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          required
         />
       </div>
 
       {error && <div className="login-error">{error}</div>}
 
       {message && (
-        <div
-          style={{
-            color: "green",
-            marginBottom: "10px",
-          }}
-        >
-          {message}
-        </div>
+        <div style={{ color: "green", marginBottom: "10px" }}>{message}</div>
       )}
 
-      <button className="login-btn" onClick={handleReset}>
+      {/* CHANGED TO type="submit" */}
+      <button type="submit" className="login-btn">
         Send Reset Link
       </button>
 
-      <button className="back-link" onClick={onBack}>
+      <button type="button" className="back-link" onClick={onBack}>
         ← Back to Login
       </button>
-    </div>
+    </form>
   );
 }
+
 // ── Subcomponent: Register form ───────────────────────────────────────────
 function RegisterForm({ role, onSuccess, onBack }) {
   const isSchool = role === ROLES.SCHOOL;
@@ -124,10 +134,8 @@ function RegisterForm({ role, onSuccess, onBack }) {
     setError("");
   };
 
-  // Auto-suggest username from name, but allow editing
   const suggestedUser = suggestUsername(form.firstName, form.lastName);
 
-  // Sync suggested username into form when name changes
   React.useEffect(() => {
     const finalUsername = form.username.trim();
     if (!finalUsername) {
@@ -142,7 +150,8 @@ function RegisterForm({ role, onSuccess, onBack }) {
     }
   }, [suggestedUser]);
 
-  async function handleRegister() {
+  async function handleRegister(e) {
+    e.preventDefault(); // Prevents page reload on Enter press
     const finalUsername = form.username.trim();
 
     if (!form.lastName.trim() || !form.firstName.trim()) {
@@ -225,7 +234,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
         <p className="reg-success-hint">
           Please remember your username and password.
         </p>
-        <button className="login-btn" onClick={onSuccess}>
+        <button type="button" className="login-btn" onClick={onSuccess}>
           Go to Sign In
         </button>
       </div>
@@ -233,7 +242,8 @@ function RegisterForm({ role, onSuccess, onBack }) {
   }
 
   return (
-    <div className="reg-form">
+    // CHANGED TO <form>
+    <form className="reg-form" onSubmit={handleRegister}>
       <div className="reg-role-banner">
         <span>{isSchool ? "🏫" : "🏥"}</span>
         <span>{isSchool ? "School Based" : "SDO Based"} Registration</span>
@@ -250,6 +260,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
             placeholder="e.g. Santos"
             value={form.lastName}
             onChange={(e) => upd("lastName", e.target.value)}
+            required
           />
         </div>
         <div className="login-field">
@@ -261,6 +272,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
             placeholder="e.g. Maria"
             value={form.firstName}
             onChange={(e) => upd("firstName", e.target.value)}
+            required
           />
         </div>
         <div className="login-field mi-field">
@@ -276,6 +288,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
           />
         </div>
       </div>
+
       <div className="login-field">
         <label className="form-label">
           DepEd Email <span className="req">*</span>
@@ -285,9 +298,10 @@ function RegisterForm({ role, onSuccess, onBack }) {
           type="email"
           value={form.email}
           onChange={(e) => upd("email", e.target.value)}
+          required
         />
       </div>
-      {/* Position — school only */}
+
       {isSchool && (
         <div className="login-field">
           <label className="form-label">
@@ -305,7 +319,6 @@ function RegisterForm({ role, onSuccess, onBack }) {
         </div>
       )}
 
-      {/* Username — editable, auto-filled from name */}
       <div className="login-field">
         <label className="form-label">
           Username <span className="req">*</span>
@@ -320,6 +333,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
             setForm((f) => ({ ...f, username: val, usernameTouched: true }));
             setError("");
           }}
+          required
         />
       </div>
 
@@ -335,6 +349,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
             placeholder="At least 6 characters"
             value={form.password}
             onChange={(e) => upd("password", e.target.value)}
+            required
           />
           <button
             type="button"
@@ -357,21 +372,25 @@ function RegisterForm({ role, onSuccess, onBack }) {
           placeholder="Re-enter your password"
           value={form.confirmPw}
           onChange={(e) => upd("confirmPw", e.target.value)}
+          required
         />
       </div>
+
       {error && <div className="login-error">{error}</div>}
-      <button className="login-btn" onClick={handleRegister}>
+
+      {/* CHANGED TO type="submit" */}
+      <button type="submit" className="login-btn">
         Register
       </button>
-      <button className="back-link" onClick={onBack}>
+      <button type="button" className="back-link" onClick={onBack}>
         ← Back
       </button>
-    </div>
+    </form>
   );
 }
+
 // ── Main Login component ──────────────────────────────────────────────────
 export default function Login({ onLogin }) {
-  // view: 'login' | 'pick-role' | 'register'
   const [view, setView] = useState("login");
   const [regRole, setRegRole] = useState(null);
   const [username, setUsername] = useState("");
@@ -382,27 +401,10 @@ export default function Login({ onLogin }) {
 
   const usernameInputRef = useRef(null);
 
-  // ── Focus recovery ──────────────────────────────────────────────────────
-  // Fixes: "after logging out and returning to this screen, clicking the
-  // username/password field does nothing — only Tab focuses it."
-  //
-  // Root cause: this is a known Electron/Chromium quirk. When this screen
-  // remounts (e.g. right after logout), the very first click a user makes
-  // can get consumed by Chromium as a "reactivate the window" click rather
-  // than also focusing the DOM element underneath the cursor. Tab always
-  // works because keyboard navigation only runs once the window already
-  // has focus. Relying on React's `autoFocus` (which calls .focus() the
-  // instant the input mounts) can race with that window-activation state
-  // and leave things half-focused.
-  //
-  // Fix: focus the field manually on a short delay after mount (letting
-  // the window settle first), and again whenever the OS window regains
-  // focus while nothing on the page is actually focused.
   useEffect(() => {
     if (view !== "login") return;
 
     const focusUsername = () => {
-      // Don't steal focus from a field the user is already using.
       if (
         document.activeElement &&
         document.activeElement !== document.body &&
@@ -422,9 +424,6 @@ export default function Login({ onLogin }) {
     };
   }, [view]);
 
-  // One-time backup for the Windows/Electron keyboard-focus-stuck bug
-  // (see App.jsx handleLogout for the primary fix). Only fires once when
-  // this screen first mounts, so it won't fight with normal typing.
   useEffect(() => {
     window.electronAPI?.forceRefocusWindow?.();
   }, []);
@@ -440,10 +439,6 @@ export default function Login({ onLogin }) {
     setLoading(true);
     setError("");
 
-    // ── Offline path ──────────────────────────────────────────────────
-    // No internet: skip Supabase entirely and check this device's local
-    // cache, which is only populated after a previous successful online
-    // login for this exact username.
     if (!navigator.onLine) {
       const cachedProfile = attemptOfflineLogin(username.trim(), password);
       setLoading(false);
@@ -468,29 +463,45 @@ export default function Login({ onLogin }) {
       return;
     }
 
-    // ── Online path ───────────────────────────────────────────────────
     try {
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("username", username.trim())
-        .single();
+      // Look up the email for this username via a secure RPC call.
+      // (Direct SELECTs against `profiles` are blocked for anonymous
+      // users by RLS, so this has to go through the function instead.)
+      const { data: email, error: lookupError } = await supabase.rpc(
+        "get_email_by_username",
+        { lookup_username: username.trim() },
+      );
 
-      if (profileError || !profile) {
+      if (lookupError || !email) {
         setLoading(false);
         setError("Invalid username or password.");
         return;
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: profile.email,
+        email,
         password,
       });
 
+      if (error) {
+        setLoading(false);
+        setError("Invalid username or password.");
+        return;
+      }
+
+      // Now that we're authenticated, RLS allows fetching the full profile.
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", data.user.id)
+        .single();
+
       setLoading(false);
 
-      if (error) {
-        setError("Invalid username or password.");
+      if (profileError || !profile) {
+        setError(
+          "Signed in, but couldn't load your profile. Please try again.",
+        );
         return;
       }
 
@@ -500,17 +511,14 @@ export default function Login({ onLogin }) {
       };
 
       saveSession(session);
-
-      // Cache these credentials so this same account can sign back in on
-      // this device even without internet next time.
       cacheOfflineCredentials(session, password);
-
       onLogin(session);
     } catch (err) {
       setLoading(false);
       setError(err.message);
     }
   }
+
   function handlePickRole(role) {
     if (!role) {
       setView("login");
@@ -523,7 +531,6 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-screen">
       <div className="login-card">
-        {/* Header — always visible */}
         <div className="login-header">
           <div className="login-logo">
             <img src={logo} alt="OK sa DepEd Logo" className="login-logo-img" />
@@ -532,7 +539,6 @@ export default function Login({ onLogin }) {
           <p className="login-sub">Nutritional Status System</p>
         </div>
 
-        {/* ── Login view ── */}
         {view === "login" && (
           <>
             <form className="login-form" onSubmit={handleLogin}>
@@ -548,6 +554,7 @@ export default function Login({ onLogin }) {
                     setUsername(e.target.value);
                     setError("");
                   }}
+                  required
                 />
               </div>
               <div className="login-field">
@@ -563,6 +570,7 @@ export default function Login({ onLogin }) {
                       setPassword(e.target.value);
                       setError("");
                     }}
+                    required
                   />
                   <button
                     type="button"
@@ -580,6 +588,7 @@ export default function Login({ onLogin }) {
               </button>
             </form>
             <button
+              type="button"
               className="register-link-btn"
               onClick={() => setView("pick-role")}
             >
@@ -614,10 +623,8 @@ export default function Login({ onLogin }) {
           </>
         )}
 
-        {/* ── Role picker view ── */}
         {view === "pick-role" && <RolePicker onPick={handlePickRole} />}
 
-        {/* ── Register form view ── */}
         {view === "register" && (
           <RegisterForm
             role={regRole}
@@ -625,6 +632,7 @@ export default function Login({ onLogin }) {
             onBack={() => setView("pick-role")}
           />
         )}
+
         {view === "forgot-password" && (
           <ForgotPassword onBack={() => setView("login")} />
         )}
