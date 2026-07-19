@@ -301,7 +301,8 @@ async function processPrintRequest(event, payload) {
         const previewWindow = new BrowserWindow({
           ...previewConfig,
           parent: BrowserWindow.fromWebContents(event.sender),
-          modal: true,
+          // 🔴 FIXED: Set to false so macOS displays standard traffic light close buttons instead of a modal sheet window trap
+          modal: false, 
           webPreferences: { plugins: true },
         });
         previewWindow.on("page-title-updated", (ev) => ev.preventDefault());
@@ -320,7 +321,6 @@ async function processPrintRequest(event, payload) {
 }
 
 export function setupPrintHandler() {
-  // Listen to both potential channel names to maintain safe integration
   ipcMain.on("generate-print-preview", processPrintRequest);
   ipcMain.on("generate-pdf-preview", processPrintRequest);
 }

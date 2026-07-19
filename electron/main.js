@@ -33,12 +33,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ==========================================
-// DISABLE HARDWARE ACCELERATION (Original Fix)
+// DISABLE HARDWARE ACCELERATION
 // ==========================================
 app.disableHardwareAcceleration();
 
 // ==========================================
-// AUTO UPDATER (Original Configuration)
+// AUTO UPDATER Configuration
 // ==========================================
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
@@ -185,7 +185,6 @@ ipcMain.handle("school:load", (_, userId) => {
   return loadSchool(userId);
 });
 
-// NEW IPC LOADING BRIDGE FOR OFF-LINE LOGO PARSING
 ipcMain.handle("school:loadWithLogo", (_, userId) => {
   const schoolData = loadSchool(userId);
   if (!schoolData || !schoolData.school_id) return null;
@@ -213,6 +212,16 @@ ipcMain.handle("school:loadLogo", (_, schoolId) => {
 ipcMain.handle("school:deleteLogo", (_, schoolId) => {
   deleteSchoolLogo(schoolId);
   return true;
+});
+
+// ==========================================
+// WINDOW INTERACTION ACTIONS (Cross-Platform Fix)
+// ==========================================
+ipcMain.on("close-current-window", (event) => {
+  const targetWindow = BrowserWindow.fromWebContents(event.sender);
+  if (targetWindow) {
+    targetWindow.close();
+  }
 });
 
 // ==========================================

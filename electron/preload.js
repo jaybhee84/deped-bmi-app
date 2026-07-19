@@ -104,6 +104,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   forceRefocusWindow: () => ipcRenderer.send("force-refocus-window"),
   
+  // WINDOW ACTIONS (New cross-platform window management addition)
+  closeWindow: () => ipcRenderer.send("close-current-window"),
+
   onUpdateMessage: (callback) => {
     const listener = (_, message) => callback(message);
     ipcRenderer.on("update-message", listener);

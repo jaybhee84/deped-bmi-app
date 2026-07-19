@@ -19,10 +19,13 @@ export default function SDODashboard({
 }) {
   // allSchoolsData: { [schoolName]: students[] }
 
-  // ── School registry now pulled from Supabase (source of truth) ─────────
+  // ── School registry pulled from Supabase (source of truth) ─────────
   const [schools, setSchools] = useState([]);
   const [schoolsLoading, setSchoolsLoading] = useState(true);
   const [schoolsError, setSchoolsError] = useState(null);
+
+  // Fallback map state for broken image logos
+  const [brokenLogos, setBrokenLogos] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -116,7 +119,6 @@ export default function SDODashboard({
     if (selectedSchool === "ALL SCHOOLS") {
       return Object.values(allSchoolsData).flat();
     }
-
     return allSchoolsData[selectedSchool] || [];
   }, [selectedSchool, allSchoolsData]);
 
@@ -188,14 +190,21 @@ export default function SDODashboard({
     return c;
   }, [syStudents, filterSY, filterPeriod]);
 
-  const incompleteLearners = students.filter((s) => {
-    const recs = s.records.filter(
-      (r) => r.sy === filterSY && r.q === filterPeriod,
-    );
-    if (!recs.length) return true;
-    const last = recs[recs.length - 1];
-    return !last.weight || !last.height;
-  });
+  // ── Division-wide reporting completion (schools with data vs without) ──
+  const schoolReportingStats = useMemo(() => {
+    const total = schoolNames.length;
+    let reporting = 0;
+    schoolNames.forEach((name) => {
+      const roster = allSchoolsData[name] || [];
+      const hasData = roster.some((s) =>
+        s.records.some((r) => r.sy === filterSY && r.q === filterPeriod),
+      );
+      if (hasData) reporting++;
+    });
+    const notReporting = total - reporting;
+    const pct = total ? (reporting / total) * 100 : 0;
+    return { total, reporting, notReporting, pct };
+  }, [schoolNames, allSchoolsData, filterSY, filterPeriod]);
 
   const gradeSummary = useMemo(() => {
     const summary = {};
@@ -335,12 +344,15 @@ export default function SDODashboard({
     s.records.some((r) => r.sy === filterSY && r.q === filterPeriod),
   ).length;
 
-  // Timeline Trends (Baseline/Midline/Endline) — ported from the
-  // school-level Dashboard so the division view shows the same period
-  // trend graphs.
   const timelineData = useMemo(() => {
     return ["Baseline", "Midline", "Endline"].map((period) => {
-      const counts = { Normal: 0, Wasted: 0, Overweight: 0 };
+      const counts = {
+        Normal: 0,
+        Wasted: 0,
+        "Severely Wasted": 0,
+        Overweight: 0,
+        Obese: 0,
+      };
       syStudents.forEach((s) => {
         const recs = s.records.filter(
           (r) => r.sy === filterSY && r.q === period,
@@ -350,9 +362,7 @@ export default function SDODashboard({
         const bmi = calcBMI(last.weight, last.height);
         if (!bmi) return;
         const lbl = getBMIStatus(bmi, s.sex, s.birthdate).label;
-        if (lbl === "Normal") counts.Normal++;
-        else if (lbl === "Wasted" || lbl === "Severely Wasted") counts.Wasted++;
-        else if (lbl === "Overweight" || lbl === "Obese") counts.Overweight++;
+        if (counts[lbl] !== undefined) counts[lbl]++;
       });
       return { period, ...counts };
     });
@@ -361,9 +371,9 @@ export default function SDODashboard({
   const hfaTimelineData = useMemo(() => {
     return ["Baseline", "Midline", "Endline"].map((period) => {
       const counts = {
-        NormalHeight: 0,
+        "Normal Height": 0,
         Stunted: 0,
-        SeverelyStunted: 0,
+        "Severely Stunted": 0,
         Tall: 0,
       };
       syStudents.forEach((s) => {
@@ -374,10 +384,10 @@ export default function SDODashboard({
         const last = recs[recs.length - 1];
         if (!last.height) return;
         const haz = getHAZStatus(last.height, s.sex, s.birthdate);
-        if (haz?.label === "Normal") counts.NormalHeight++;
-        else if (haz?.label === "Stunted") counts.Stunted++;
-        else if (haz?.label === "Severely Stunted") counts.SeverelyStunted++;
-        else if (haz?.label === "Tall") counts.Tall++;
+        if (haz?.label === "Normal" && counts["Normal Height"] !== undefined)
+          counts["Normal Height"]++;
+        else if (haz?.label && counts[haz.label] !== undefined)
+          counts[haz.label]++;
       });
       return { period, ...counts };
     });
@@ -408,11 +418,36 @@ export default function SDODashboard({
     "Grade 6": "#ECFEFF",
   };
 
+  // Pre-calculate line limits for combined graphs
+  const combinedMaxBMI = useMemo(() => {
+    return Math.max(
+      ...timelineData.flatMap((d) => [
+        d.Normal,
+        d.Wasted,
+        d["Severely Wasted"],
+        d.Overweight,
+        d.Obese,
+      ]),
+      5,
+    );
+  }, [timelineData]);
+
+  const combinedMaxHFA = useMemo(() => {
+    return Math.max(
+      ...hfaTimelineData.flatMap((d) => [
+        d["Normal Height"],
+        d.Stunted,
+        d["Severely Stunted"],
+        d.Tall,
+      ]),
+      5,
+    );
+  }, [hfaTimelineData]);
+
   return (
     <div className="page">
-      {/* ── Scoped CSS to isolate & correct layout behavior ── */}
+      {/* ── Scoped CSS ── */}
       <style>{`
-        /* Forces standard table rendering, over-riding global resets */
         .sdo-isolated-table {
           display: table !important;
           width: 100% !important;
@@ -448,14 +483,13 @@ export default function SDODashboard({
           font-size: 11px !important;
           text-transform: uppercase !important;
         }
-        /* Footer row backgrounds to distinguish them visually */
         .sdo-isolated-table tfoot tr {
           background-color: #F9FAFB !important;
         }
         .sdo-isolated-table tfoot tr.overall-grand-total {
           background-color: #E2E8F0 !important;
+          font-size: 13px !important;
         }
-        /* Strict sizing ratios for column alignment consistency */
         .sdo-isolated-table th:nth-child(1), .sdo-isolated-table td:nth-child(1) { width: 10% !important; text-align: left !important; }
         .sdo-isolated-table th:nth-child(2), .sdo-isolated-table td:nth-child(2) { width: 8% !important; }
         .sdo-isolated-table th:nth-child(3), .sdo-isolated-table td:nth-child(3) { width: 9% !important; }
@@ -469,7 +503,6 @@ export default function SDODashboard({
         .sdo-isolated-table th:nth-child(11), .sdo-isolated-table td:nth-child(11) { width: 6% !important; }
         .sdo-isolated-table th:nth-child(12), .sdo-isolated-table td:nth-child(12) { width: 8% !important; }
 
-        /* Custom Override styling for enlarging logo banner items */
         .sdo-school-banner {
           display: flex;
           align-items: center;
@@ -478,7 +511,6 @@ export default function SDODashboard({
           border-radius: 12px;
           box-shadow: 0 4px 12px rgba(0,0,0,0.06);
           margin-bottom: 24px;
-          /* Removed 'background: #ffffff' override to let original stylesheet (SDODashboard.css) dictate color */
         }
         .sdo-banner-logo {
           width: 120px !important;
@@ -514,7 +546,6 @@ export default function SDODashboard({
           <p className="page-sub">Division-wide nutritional status overview</p>
         </div>
         <div className="sdo-controls">
-          {/* School selector */}
           <div className="form-group">
             <label className="form-label">School</label>
             <select
@@ -523,7 +554,6 @@ export default function SDODashboard({
               onChange={(e) => setSelectedSchool(e.target.value)}
             >
               <option value="ALL SCHOOLS">ALL SCHOOLS</option>
-
               <optgroup label="ELEMENTARY SCHOOLS">
                 {schoolNames.map((name) => (
                   <option key={name} value={name}>
@@ -576,7 +606,7 @@ export default function SDODashboard({
         </div>
       )}
 
-      {/* ── No school / no data state ── */}
+      {/* ── Conditional Main Layout States ── */}
       {!selectedSchool ? (
         <div className="sdo-empty">
           <div className="sdo-empty-icon">🏫</div>
@@ -600,10 +630,8 @@ export default function SDODashboard({
             const foundSchool =
               !isAll && schools.find((s) => s.name === selectedSchool);
 
-            // 1. Grab a valid working URL from a known elementary school in your bucket
             const sampleUrl =
               getSchoolLogoUrl("Isabela East Central Elementary School") || "";
-            // 2. Dynamically replace the filename at the end of the URL with 'sdo.png'
             const sdoLogoUrl = sampleUrl
               ? `${sampleUrl.substring(0, sampleUrl.lastIndexOf("/"))}/sdo.png`
               : null;
@@ -612,7 +640,7 @@ export default function SDODashboard({
               ? {
                   name: "Division of Isabela City",
                   division: "Isabela City Schools Division Office",
-                  logo: sdoLogoUrl, // Exactly points to your Supabase 'school-logos/sdo.png'
+                  logo: sdoLogoUrl,
                 }
               : {
                   ...(foundSchool || {
@@ -622,26 +650,20 @@ export default function SDODashboard({
                   logo: getSchoolLogoUrl(selectedSchool),
                 };
 
+            const hasLogoFailing = brokenLogos[info.name || "default"];
+
             return (
               <div className="sdo-school-banner">
-                {info.logo ? (
+                {info.logo && !hasLogoFailing ? (
                   <img
                     src={info.logo}
                     alt={info.name}
                     className="sdo-banner-logo"
-                    onError={(e) => {
-                      // Fallback: If sdo.png is missing or fails to load, gracefully revert to the emoji
-                      e.target.style.display = "none";
-                      if (
-                        !e.target.parentNode.querySelector(
-                          ".sdo-banner-logo-placeholder",
-                        )
-                      ) {
-                        e.target.insertAdjacentHTML(
-                          "afterend",
-                          '<div class="sdo-banner-logo-placeholder">🏫</div>',
-                        );
-                      }
+                    onError={() => {
+                      setBrokenLogos((prev) => ({
+                        ...prev,
+                        [info.name]: true,
+                      }));
                     }}
                   />
                 ) : (
@@ -668,121 +690,265 @@ export default function SDODashboard({
             );
           })()}
 
-          {/* ── Stat cards (styled to match the school-level Dashboard) ── */}
+          {/* ── Stat cards + School Reporting pie chart ── */}
           <div
+            className="sdo-stats-row"
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: "16px",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "24px",
               marginBottom: "32px",
-              width: "100%",
+              alignItems: "stretch",
             }}
           >
-            {[
-              {
-                label: "Total Learners",
-                val: syStudents.length,
-                border: "#cbd5e1",
-                color: "#0f172a",
-              },
-              {
-                label: "With Records",
-                val: totalForPeriod,
-                border: "#10b981",
-                color: "#059669",
-              },
-              {
-                label: "Normal",
-                val: statusCounts["Normal"],
-                border: "#10b981",
-                color: "#059669",
-              },
-              {
-                label: "Wasted",
-                val: statusCounts["Wasted"],
-                border: "#f59e0b",
-                color: "#d97706",
-              },
-              {
-                label: "Severely Wasted",
-                val: statusCounts["Severely Wasted"],
-                border: "#ef4444",
-                color: "#dc2626",
-              },
-              {
-                label: "Overweight",
-                val: statusCounts["Overweight"],
-                border: "#6366f1",
-                color: "#4f46e5",
-              },
-              {
-                label: "Obese",
-                val: statusCounts["Obese"],
-                border: "#b91c1c",
-                color: "#991b1b",
-              },
-              {
-                label: "Normal Height",
-                val: hfaCounts["Normal Height"],
-                border: "#10b981",
-                color: "#059669",
-              },
-              {
-                label: "Stunted",
-                val: hfaCounts["Stunted"],
-                border: "#f59e0b",
-                color: "#d97706",
-              },
-              {
-                label: "Severely Stunted",
-                val: hfaCounts["Severely Stunted"],
-                border: "#ef4444",
-                color: "#dc2626",
-              },
-              {
-                label: "Tall",
-                val: hfaCounts["Tall"],
-                border: "#3b82f6",
-                color: "#2563eb",
-              },
-            ].map((s) => (
-              <div
-                key={s.label}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "16px",
+                width: "100%",
+                alignContent: "start",
+              }}
+            >
+              {[
+                {
+                  label: "Total Learners",
+                  val: syStudents.length,
+                  border: "#cbd5e1",
+                  color: "#0f172a",
+                },
+                {
+                  label: "Learners with Records",
+                  val: totalForPeriod,
+                  border: "#10b981",
+                  color: "#059669",
+                },
+                {
+                  label: "Normal",
+                  val: statusCounts["Normal"],
+                  border: "#10b981",
+                  color: "#059669",
+                },
+                {
+                  label: "Wasted",
+                  val: statusCounts["Wasted"],
+                  border: "#f59e0b",
+                  color: "#d97706",
+                },
+                {
+                  label: "Severely Wasted",
+                  val: statusCounts["Severely Wasted"],
+                  border: "#ef4444",
+                  color: "#dc2626",
+                },
+                {
+                  label: "Overweight",
+                  val: statusCounts["Overweight"],
+                  border: "#6366f1",
+                  color: "#4f46e5",
+                },
+                {
+                  label: "Obese",
+                  val: statusCounts["Obese"],
+                  border: "#b91c1c",
+                  color: "#991b1b",
+                },
+                {
+                  label: "Normal Height",
+                  val: hfaCounts["Normal Height"],
+                  border: "#10b981",
+                  color: "#059669",
+                },
+                {
+                  label: "Stunted",
+                  val: hfaCounts["Stunted"],
+                  border: "#f59e0b",
+                  color: "#d97706",
+                },
+                {
+                  label: "Severely Stunted",
+                  val: hfaCounts["Severely Stunted"],
+                  border: "#ef4444",
+                  color: "#dc2626",
+                },
+                {
+                  label: "Tall",
+                  val: hfaCounts["Tall"],
+                  border: "#3b82f6",
+                  color: "#2563eb",
+                },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    padding: "14px 16px",
+                    borderRadius: "12px",
+                    boxShadow:
+                      "0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.02)",
+                    borderTop: `4px solid ${s.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "26px",
+                      fontWeight: "800",
+                      color: s.color,
+                      lineHeight: "1",
+                      letterSpacing: "-1px",
+                    }}
+                  >
+                    {s.val}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12.5px",
+                      fontWeight: "600",
+                      color: "#64748b",
+                      marginTop: "6px",
+                    }}
+                  >
+                    {s.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── School Reporting donut chart ── */}
+            <div
+              className="card"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+              }}
+            >
+              <h3 className="card-title" style={{ marginBottom: 4 }}>
+                Schools Reporting
+              </h3>
+              <p
                 style={{
-                  backgroundColor: "#ffffff",
-                  padding: "20px 20px",
-                  borderRadius: "14px",
-                  boxShadow:
-                    "0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.02)",
-                  borderTop: `4px solid ${s.border}`,
+                  color: "#64748b",
+                  fontSize: "12px",
+                  marginBottom: "16px",
                 }}
               >
+                {filterSY} · {filterPeriod}
+              </p>
+
+              <div
+                style={{
+                  position: "relative",
+                  width: "min(300px, 100%)",
+                  aspectRatio: "1 / 1",
+                }}
+              >
+                <svg viewBox="0 0 42 42" width="100%" height="100%">
+                  <circle
+                    cx="21"
+                    cy="21"
+                    r="15.9155"
+                    fill="transparent"
+                    stroke="#e2e8f0"
+                    strokeWidth="5"
+                  />
+                  {schoolReportingStats.pct > 0 && (
+                    <circle
+                      cx="21"
+                      cy="21"
+                      r="15.9155"
+                      fill="transparent"
+                      stroke="#10b981"
+                      strokeWidth="5"
+                      strokeDasharray={`${schoolReportingStats.pct} ${
+                        100 - schoolReportingStats.pct
+                      }`}
+                      strokeDashoffset="25"
+                      strokeLinecap="round"
+                    />
+                  )}
+                </svg>
                 <div
                   style={{
-                    fontSize: "32px",
-                    fontWeight: "800",
-                    color: s.color,
-                    lineHeight: "1",
-                    letterSpacing: "-1px",
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
                   }}
                 >
-                  {s.val}
-                </div>
-                <div
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    color: "#64748b",
-                    marginTop: "10px",
-                  }}
-                >
-                  {s.label}
+                  <div
+                    style={{
+                      fontSize: "42px",
+                      fontWeight: 800,
+                      color: "#0f172a",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {schoolReportingStats.pct.toFixed(0)}%
+                  </div>
+                  <div
+                    style={{ fontSize: "13px", color: "#64748b", marginTop: 4 }}
+                  >
+                    reporting
+                  </div>
                 </div>
               </div>
-            ))}
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "20px",
+                  marginTop: "20px",
+                  fontSize: "12px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: "#10b981",
+                      display: "inline-block",
+                    }}
+                  />
+                  <span>
+                    <strong>{schoolReportingStats.reporting}</strong> with data
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: "#e2e8f0",
+                      display: "inline-block",
+                    }}
+                  />
+                  <span>
+                    <strong>{schoolReportingStats.notReporting}</strong> no data
+                    yet
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "#94a3b8",
+                  marginTop: "10px",
+                }}
+              >
+                {schoolReportingStats.reporting} out of{" "}
+                {schoolReportingStats.total} schools division-wide
+              </div>
+            </div>
           </div>
 
-          {/* ── Nutritional Status + HFA distribution, side by side ── */}
+          {/* ── Side-by-side distribution graphs ── */}
           <div
             style={{
               display: "grid",
@@ -844,7 +1010,7 @@ export default function SDODashboard({
             </div>
           </div>
 
-          {/* COMPREHENSIVE PERIODIC LINE GRAPHS SECTION */}
+          {/* ── Comprehensive line trends section ── */}
           <div
             style={{
               backgroundColor: "#fff",
@@ -875,7 +1041,6 @@ export default function SDODashboard({
               line profiles.
             </p>
 
-            {/* 1. NUTRITIONAL STATUS DISTRIBUTION SEGMENT */}
             <h4
               style={{
                 fontSize: "14px",
@@ -902,78 +1067,15 @@ export default function SDODashboard({
                 const rawData = timelineData[idx] || {
                   Normal: 0,
                   Wasted: 0,
+                  "Severely Wasted": 0,
                   Overweight: 0,
+                  Obese: 0,
                 };
-
                 const cNormal = rawData.Normal || 0;
-                const cWasted = syStudents.filter((s) => {
-                  const recs = s.records.filter(
-                    (r) =>
-                      r.sy === filterSY &&
-                      r.q === ["Baseline", "Midline", "Endline"][idx],
-                  );
-                  if (!recs.length) return false;
-                  const bmi = calcBMI(
-                    recs[recs.length - 1].weight,
-                    recs[recs.length - 1].height,
-                  );
-                  return (
-                    bmi &&
-                    getBMIStatus(bmi, s.sex, s.birthdate).label === "Wasted"
-                  );
-                }).length;
-
-                const cSevWasted = syStudents.filter((s) => {
-                  const recs = s.records.filter(
-                    (r) =>
-                      r.sy === filterSY &&
-                      r.q === ["Baseline", "Midline", "Endline"][idx],
-                  );
-                  if (!recs.length) return false;
-                  const bmi = calcBMI(
-                    recs[recs.length - 1].weight,
-                    recs[recs.length - 1].height,
-                  );
-                  return (
-                    bmi &&
-                    getBMIStatus(bmi, s.sex, s.birthdate).label ===
-                      "Severely Wasted"
-                  );
-                }).length;
-
-                const cOverweight = syStudents.filter((s) => {
-                  const recs = s.records.filter(
-                    (r) =>
-                      r.sy === filterSY &&
-                      r.q === ["Baseline", "Midline", "Endline"][idx],
-                  );
-                  if (!recs.length) return false;
-                  const bmi = calcBMI(
-                    recs[recs.length - 1].weight,
-                    recs[recs.length - 1].height,
-                  );
-                  return (
-                    bmi &&
-                    getBMIStatus(bmi, s.sex, s.birthdate).label === "Overweight"
-                  );
-                }).length;
-
-                const cObese = syStudents.filter((s) => {
-                  const recs = s.records.filter(
-                    (r) =>
-                      r.sy === filterSY &&
-                      r.q === ["Baseline", "Midline", "Endline"][idx],
-                  );
-                  if (!recs.length) return false;
-                  const bmi = calcBMI(
-                    recs[recs.length - 1].weight,
-                    recs[recs.length - 1].height,
-                  );
-                  return (
-                    bmi &&
-                    getBMIStatus(bmi, s.sex, s.birthdate).label === "Obese"
-                  );
-                }).length;
+                const cWasted = rawData.Wasted || 0;
+                const cSevWasted = rawData["Severely Wasted"] || 0;
+                const cOverweight = rawData.Overweight || 0;
+                const cObese = rawData.Obese || 0;
 
                 const subMax = Math.max(
                   cNormal,
@@ -983,7 +1085,6 @@ export default function SDODashboard({
                   cObese,
                   5,
                 );
-
                 const p1 = { x: 25, y: 100 - (cNormal / subMax) * 65 };
                 const p2 = { x: 70, y: 100 - (cWasted / subMax) * 65 };
                 const p3 = { x: 115, y: 100 - (cSevWasted / subMax) * 65 };
@@ -1055,7 +1156,6 @@ export default function SDODashboard({
                         d={`M ${p1.x} 100 L ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} L ${p5.x} ${p5.y} L ${p5.x} 100 Z`}
                         fill="rgba(30, 58, 138, 0.04)"
                       />
-
                       <path
                         d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} L ${p5.x} ${p5.y}`}
                         fill="none"
@@ -1303,23 +1403,84 @@ export default function SDODashboard({
                 >
                   <line
                     x1="20"
-                    y1="90"
+                    y1="25"
                     x2="165"
-                    y2="90"
+                    y2="25"
+                    stroke="#f1f5f9"
+                    strokeDasharray="2,2"
+                  />
+                  <line
+                    x1="20"
+                    y1="55"
+                    x2="165"
+                    y2="55"
+                    stroke="#f1f5f9"
+                    strokeDasharray="2,2"
+                  />
+                  <line
+                    x1="20"
+                    y1="85"
+                    x2="165"
+                    y2="85"
                     stroke="#cbd5e1"
                     strokeWidth="1.5"
                   />
                   <line
                     x1="20"
-                    y1="15"
+                    y1="10"
                     x2="20"
-                    y2="90"
+                    y2="85"
                     stroke="#e2e8f0"
                     strokeWidth="1"
                   />
+
+                  {/* Dynamic Trend Curves */}
+                  {[
+                    "Normal",
+                    "Wasted",
+                    "Severely Wasted",
+                    "Overweight",
+                    "Obese",
+                  ].map((lbl, idx) => {
+                    const colors = [
+                      "#10b981",
+                      "#f59e0b",
+                      "#ef4444",
+                      "#6366f1",
+                      "#b91c1c",
+                    ];
+                    const pts = timelineData.map((d, dIdx) => {
+                      const x = 40 + dIdx * 55;
+                      const val = d[lbl] || 0;
+                      const y = 85 - (val / combinedMaxBMI) * 65;
+                      return { x, y };
+                    });
+                    const dStr = `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y} L ${pts[2].x} ${pts[2].y}`;
+                    return (
+                      <g key={lbl}>
+                        <path
+                          d={dStr}
+                          fill="none"
+                          stroke={colors[idx]}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                        {pts.map((pt, pIdx) => (
+                          <circle
+                            key={pIdx}
+                            cx={pt.x}
+                            cy={pt.y}
+                            r="2.5"
+                            fill={colors[idx]}
+                          />
+                        ))}
+                      </g>
+                    );
+                  })}
+
                   <text
                     x="40"
-                    y="104"
+                    y="98"
                     fontSize="9"
                     fontWeight="700"
                     fill="#475569"
@@ -1329,7 +1490,7 @@ export default function SDODashboard({
                   </text>
                   <text
                     x="95"
-                    y="104"
+                    y="98"
                     fontSize="9"
                     fontWeight="700"
                     fill="#475569"
@@ -1339,7 +1500,7 @@ export default function SDODashboard({
                   </text>
                   <text
                     x="150"
-                    y="104"
+                    y="98"
                     fontSize="9"
                     fontWeight="700"
                     fill="#475569"
@@ -1351,7 +1512,6 @@ export default function SDODashboard({
               </div>
             </div>
 
-            {/* 2. HEIGHT-FOR-AGE DISTRIBUTION SEGMENT */}
             <h4
               style={{
                 fontSize: "14px",
@@ -1375,27 +1535,27 @@ export default function SDODashboard({
             >
               {["Baseline", "Midline", "Endline"].map((pId, idx) => {
                 const counts = hfaTimelineData[idx] || {
-                  NormalHeight: 0,
+                  "Normal Height": 0,
                   Stunted: 0,
-                  SeverelyStunted: 0,
+                  "Severely Stunted": 0,
                   Tall: 0,
                 };
                 const subMax = Math.max(
-                  counts.NormalHeight,
+                  counts["Normal Height"],
                   counts.Stunted,
-                  counts.SeverelyStunted,
+                  counts["Severely Stunted"],
                   counts.Tall,
                   5,
                 );
 
                 const p1 = {
                   x: 35,
-                  y: 100 - (counts.NormalHeight / subMax) * 65,
+                  y: 100 - (counts["Normal Height"] / subMax) * 65,
                 };
                 const p2 = { x: 90, y: 100 - (counts.Stunted / subMax) * 65 };
                 const p3 = {
                   x: 145,
-                  y: 100 - (counts.SeverelyStunted / subMax) * 65,
+                  y: 100 - (counts["Severely Stunted"] / subMax) * 65,
                 };
                 const p4 = { x: 200, y: 100 - (counts.Tall / subMax) * 65 };
 
@@ -1464,7 +1624,6 @@ export default function SDODashboard({
                         d={`M ${p1.x} 100 L ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} L ${p4.x} 100 Z`}
                         fill="rgba(30, 58, 138, 0.04)"
                       />
-
                       <path
                         d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y}`}
                         fill="none"
@@ -1490,7 +1649,7 @@ export default function SDODashboard({
                         fill="#059669"
                         textAnchor="middle"
                       >
-                        {counts.NormalHeight}
+                        {counts["Normal Height"]}
                       </text>
 
                       <circle
@@ -1528,7 +1687,7 @@ export default function SDODashboard({
                         fill="#dc2626"
                         textAnchor="middle"
                       >
-                        {counts.SeverelyStunted}
+                        {counts["Severely Stunted"]}
                       </text>
 
                       <circle
@@ -1678,23 +1837,79 @@ export default function SDODashboard({
                 >
                   <line
                     x1="20"
-                    y1="90"
+                    y1="25"
                     x2="165"
-                    y2="90"
+                    y2="25"
+                    stroke="#f1f5f9"
+                    strokeDasharray="2,2"
+                  />
+                  <line
+                    x1="20"
+                    y1="55"
+                    x2="165"
+                    y2="55"
+                    stroke="#f1f5f9"
+                    strokeDasharray="2,2"
+                  />
+                  <line
+                    x1="20"
+                    y1="85"
+                    x2="165"
+                    y2="85"
                     stroke="#cbd5e1"
                     strokeWidth="1.5"
                   />
                   <line
                     x1="20"
-                    y1="15"
+                    y1="10"
                     x2="20"
-                    y2="90"
+                    y2="85"
                     stroke="#e2e8f0"
                     strokeWidth="1"
                   />
+
+                  {/* Dynamic HFA Trend Curves */}
+                  {["Normal Height", "Stunted", "Severely Stunted", "Tall"].map(
+                    (lbl, idx) => {
+                      const colors = [
+                        "#10b981",
+                        "#f59e0b",
+                        "#ef4444",
+                        "#3b82f6",
+                      ];
+                      const pts = hfaTimelineData.map((d, dIdx) => {
+                        const x = 40 + dIdx * 55;
+                        const val = d[lbl] || 0;
+                        const y = 85 - (val / combinedMaxHFA) * 65;
+                        return { x, y };
+                      });
+                      const dStr = `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y} L ${pts[2].x} ${pts[2].y}`;
+                      return (
+                        <g key={lbl}>
+                          <path
+                            d={dStr}
+                            fill="none"
+                            stroke={colors[idx]}
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          {pts.map((pt, pIdx) => (
+                            <circle
+                              key={pIdx}
+                              cx={pt.x}
+                              cy={pt.y}
+                              r="2.5"
+                              fill={colors[idx]}
+                            />
+                          ))}
+                        </g>
+                      );
+                    },
+                  )}
+
                   <text
                     x="40"
-                    y="104"
+                    y="98"
                     fontSize="9"
                     fontWeight="700"
                     fill="#475569"
@@ -1704,7 +1919,7 @@ export default function SDODashboard({
                   </text>
                   <text
                     x="95"
-                    y="104"
+                    y="98"
                     fontSize="9"
                     fontWeight="700"
                     fill="#475569"
@@ -1714,7 +1929,7 @@ export default function SDODashboard({
                   </text>
                   <text
                     x="150"
-                    y="104"
+                    y="98"
                     fontSize="9"
                     fontWeight="700"
                     fill="#475569"
@@ -1752,12 +1967,10 @@ export default function SDODashboard({
                   {GRADE_LEVELS.map((grade) => (
                     <React.Fragment key={grade}>
                       <tr>
-                        {/* Grade cell on Male Row */}
                         <td
                           style={{
                             background: gradeBg[grade],
                             fontWeight: 700,
-                            borderBottom: "none !important",
                           }}
                         >
                           {grade}
@@ -1777,15 +1990,7 @@ export default function SDODashboard({
                         </td>
                       </tr>
                       <tr>
-                        {/* Duplicate Grade cell placeholder on Female Row to avoid cell-shifting layout bugs */}
-                        <td
-                          style={{
-                            background: gradeBg[grade],
-                            borderTop: "none !important",
-                          }}
-                        >
-                          {/* Blank cell to simulate unified rowspan look natively */}
-                        </td>
+                        <td style={{ background: gradeBg[grade] }}></td>
                         <td>Female</td>
                         <td>{gradeSummary[grade].Female.Normal}</td>
                         <td>{gradeSummary[grade].Female.Wasted}</td>
@@ -1806,17 +2011,9 @@ export default function SDODashboard({
                   ))}
                 </tbody>
 
-                {/* ── Table Footer for Summary & Grand Totals ── */}
                 <tfoot>
                   <tr>
-                    <td
-                      style={{
-                        fontWeight: "bold",
-                        borderBottom: "none !important",
-                      }}
-                    >
-                      TOTALS
-                    </td>
+                    <td>TOTALS</td>
                     <td>Male</td>
                     <td>{grandTotals.Male.Normal}</td>
                     <td>{grandTotals.Male.Wasted}</td>
@@ -1830,12 +2027,7 @@ export default function SDODashboard({
                     <td>{grandTotals.Male.Total}</td>
                   </tr>
                   <tr>
-                    <td
-                      style={{
-                        borderTop: "none !important",
-                        borderBottom: "none !important",
-                      }}
-                    ></td>
+                    <td></td>
                     <td>Female</td>
                     <td>{grandTotals.Female.Normal}</td>
                     <td>{grandTotals.Female.Wasted}</td>
@@ -1848,16 +2040,8 @@ export default function SDODashboard({
                     <td>{grandTotals.Female.Tall}</td>
                     <td>{grandTotals.Female.Total}</td>
                   </tr>
-                  <tr
-                    className="overall-grand-total"
-                    style={{ fontSize: "13px" }}
-                  >
-                    <td
-                      style={{
-                        borderTop: "none !important",
-                        fontWeight: "900",
-                      }}
-                    ></td>
+                  <tr className="overall-grand-total">
+                    <td></td>
                     <td style={{ fontWeight: "900" }}>Combined</td>
                     <td>
                       <strong>{grandTotals.Combined.Normal}</strong>
@@ -1895,6 +2079,7 @@ export default function SDODashboard({
                 </tfoot>
               </table>
             </div>
+
             <div
               style={{
                 marginTop: 12,
