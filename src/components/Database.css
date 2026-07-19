@@ -17,27 +17,56 @@
 }
 
 /* ── SCROLLABLE CONTAINER CARD ── */
+.students-page-container {
+  /* Defensive stop against ancestor flex/grid containers that would
+     otherwise shrink this page below its content's natural width
+     (the classic "flex item ignores min-width:0" issue). If App.css's
+     .main-content/.app-shell is a flex container without min-width: 0
+     on its children, this alone won't fully fix it — but it removes
+     one link in that chain that we do control. */
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .students-page-container .card.scrollable-table-container {
   width: 100% !important;
   max-width: 100% !important;
+  min-width: 0;
   background: #ffffff;
   border-radius: 8px;
   border: 1px solid var(--gray-200);
   padding: 0 !important;
-  /* Smooth table borders and edges */
   margin-bottom: 1.5rem;
-  overflow-x: auto !important;
-  /* Forces native horizontal scrollbar */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  /* The card itself no longer scrolls directly — the inner
+     .table-scroll-track does. This keeps the card's own box model
+     (border-radius, shadow) intact regardless of scroll position,
+     and gives us one clean, dedicated overflow boundary. */
+  overflow: hidden;
+}
+
+/* Dedicated scroll boundary — this is the ONLY element that scrolls
+   horizontally. Isolating it from the card avoids fighting whatever
+   overflow/flex behavior the card's own ancestors impose. */
+.students-page-container .table-scroll-track {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* ── DATA TABLE SYSTEM ── */
 .students-page-container .data-table {
-  width: 1500px !important;
-  /* Forces the table to stay exactly 1500px wide */
-  min-width: 1500px !important;
+  /* No hardcoded width here on purpose. The <colgroup> in Database.jsx
+     is now the single source of truth for column widths — the table's
+     overall width falls out naturally as their sum. This removes the
+     need to keep a manually-typed total (e.g. "1620px") in sync with
+     the column widths every time a column changes; mismatches there
+     were the direct cause of the squeezed/ballooned columns seen
+     earlier. */
   table-layout: fixed !important;
-  /* Strictly enforces your inline column styles */
   border-collapse: collapse !important;
   margin: 0 !important;
 }
@@ -58,6 +87,13 @@
   box-sizing: border-box !important;
   vertical-align: middle;
   text-align: left;
+}
+
+.students-page-container .data-table th {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Header Design */

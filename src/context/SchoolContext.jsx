@@ -22,11 +22,28 @@ export const SchoolProvider = ({ children, initialUser }) => {
           let details = null;
 
           // Check if running inside the native desktop Electron shell environment
-          if (window.electron && window.electron.ipcRenderer) {
-            details = await window.electron.ipcRenderer.invoke(
-              "get-school-by-id",
-              user.school_id,
-            );
+          if (window.sqlite && window.sqlite.loadSchoolWithLogo) {
+            // FIXED: This used to call window.electron.ipcRenderer.invoke(
+            // "get-school-by-id", user.school_id), which reads the
+            // `global_schools` table — that's the master school directory
+            // used only for offline autocomplete during onboarding
+            // (district/address auto-fill), NOT the actual device/user
+            // binding. A device that never had that specific school
+            // selected from the onboarding dropdown locally (e.g. a
+            // second device logging into an already-bound account) would
+            // always get `null` back from that table, even though the
+            // binding itself was valid — producing the
+            // "Tunnel blocked: Missing an active School ID configuration
+            // profile mapping" false negative.
+            //
+            // The correct source of truth is the `schools` table, keyed
+            // by `bound_user_id`, resolved via loadSchool(userId) /
+            // loadSchoolWithLogo(userId) — already bridged in preload.js
+            // as window.sqlite.loadSchool / window.sqlite.loadSchoolWithLogo.
+            details = await window.sqlite.loadSchoolWithLogo(user.id);
+          } else if (window.sqlite && window.sqlite.loadSchool) {
+            // Fallback if loadSchoolWithLogo isn't available in this build
+            details = await window.sqlite.loadSchool(user.id);
           } else {
             // WEB BROWSER FALLBACK:
             // Intercepts crash and maps structural parameters safely from the user profile session data
@@ -37,6 +54,19 @@ export const SchoolProvider = ({ children, initialUser }) => {
               school_id: user.school_id,
               school_name: user.school_name || "Web Preview School",
               name: user.school_name || "Web Preview School",
+            };
+          }
+
+          // Local SQLite has no row bound to this user yet (e.g. fresh
+          // device) but the session already carries a school_id (from
+          // Supabase or a prior "school-bound" event). Fall back to
+          // constructing details from the session itself rather than
+          // leaving the context unresolved.
+          if (!details || (!details.school_id && !details.id)) {
+            details = {
+              school_id: user.school_id,
+              school_name: user.school_name || "",
+              name: user.school_name || "",
             };
           }
 

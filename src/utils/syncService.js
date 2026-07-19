@@ -63,7 +63,6 @@ export function loadSupabaseConfig() {
 export async function saveSchoolInfo(school) {
   const cfg = loadSupabaseConfig();
 
-  // FIXED: Changed payload key from school_name to name to match the schools table schema
   const payload = {
     school_id: school.id,
     name: school.name,
@@ -156,7 +155,6 @@ export async function fetchSchoolForUser(userId) {
 
   if (!row) return null;
 
-  // FIXED: Map row.name to the expected frontend contract property
   return {
     id: row.school_id,
     name: row.name || row.school_name,
@@ -193,7 +191,6 @@ export async function fetchSchoolById(schoolId) {
 
   if (!row) return null;
 
-  // FIXED: Map row.name safely to support components reading this lookup payload
   return {
     id: row.school_id,
     name: row.name || row.school_name,
@@ -257,7 +254,6 @@ export function isSupabaseConfigured() {
 export async function fetchAllSchools() {
   const cfg = loadSupabaseConfig();
 
-  // FIXED: order changed from school_name.asc to name.asc to prevent 400 Bad Request anomalies
   const res = await fetch(`${cfg.url}/rest/v1/schools?select=*&order=name.asc`, {
     headers: {
       apikey: cfg.key,
@@ -343,7 +339,6 @@ export async function fetchSchoolLogo(schoolId) {
 export async function getSchoolByName(name) {
   const cfg = loadSupabaseConfig();
 
-  // FIXED: Query parameter filter changed from school_name=eq to name=eq
   const res = await fetch(
     `${cfg.url}/rest/v1/schools?name=eq.${encodeURIComponent(name)}&select=*`,
     {
@@ -404,10 +399,11 @@ export function isOnline() {
 // ── Supabase API Calls ────────────────────────────────────────────────────
 
 async function supabaseUpsert(cfg, students) {
+  // FIX: Removed the non-existent 'photo' column property mapping to stop database error PGRST204
   const payload = students.map(s => ({
     id: String(s.id),
     school_id: s.school_id || s.schoolId || "",
-    school_name: s.school_name || s.schoolName || "", // Retains school_name column structure inside student records schema
+    school_name: s.school_name || s.schoolName || "", 
     lrn: s.lrn,
     registry_no: s.registryNo || null,
     name: s.name,
@@ -487,6 +483,7 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
     }
   }
 
+  // FIX: Removed the photo extractor key so it aligns seamlessly with the remote database structure
   return rows.map(r => ({
     id: String(r.id),
     schoolId: r.school_id || schoolId || "",
@@ -538,13 +535,24 @@ export async function syncToServer(students, schoolId) {
 
     saveLastSync(new Date());
     const freshData = await supabaseFetchAll(cfg, schoolId, activeSchoolName);
-    await localSaveStudents(freshData);
+    
+    // Merge remote data with existing local photos so offline values aren't completely wiped out
+    const localData = await localLoadStudents();
+    const mergedData = freshData.map(remoteStudent => {
+      const localMatch = localData.find(l => String(l.id) === String(remoteStudent.id));
+      return {
+        ...remoteStudent,
+        photo: localMatch ? localMatch.photo : null
+      };
+    });
+
+    await localSaveStudents(mergedData);
 
     return {
       success: true,
       synced: toSync.length,
       deleted: deleteQueue.length,
-      students: freshData,
+      students: mergedData,
     };
   } catch (e) {
     console.error('[Sync] Upload failed:', e);
@@ -575,12 +583,21 @@ export async function syncFromServer(schoolId) {
       });
     }
 
-    await localSaveStudents(serverStudents);
+    const localData = await localLoadStudents();
+    const mergedData = serverStudents.map(remoteStudent => {
+      const localMatch = localData.find(l => String(l.id) === String(remoteStudent.id));
+      return {
+        ...remoteStudent,
+        photo: localMatch ? localMatch.photo : null
+      };
+    });
+
+    await localSaveStudents(mergedData);
     saveLastSync(new Date()); 
 
     return {
       success: true,
-      students: serverStudents,
+      students: mergedData,
     };
   } catch (e) {
     console.error("[Sync] Download failed:", e);

@@ -20,6 +20,7 @@ import OnboardingModal from "./components/OnboardingModal";
 import { SchoolProvider } from "./context/SchoolContext";
 import { RELEASE_NOTES } from "./data/releaseNotes";
 import { getSession, logout, canEdit, ROLES } from "./utils/auth";
+import { supabase } from "./utils/supabaseClient"; // 🌟 ADDED SECURE CLIENT IMPORT
 import {
   localLoadStudents,
   localSaveStudents,
@@ -162,14 +163,13 @@ function AppContent({
             setStudents={readOnly ? undefined : updateStudents}
             onBack={() => setPage("database")}
             readOnly={readOnly}
+            supabase={supabase} // 🌟 BIND SUPABASE PIPELINE INTO CANVAS PROPS
           />
         )}
 
         {page === "batch" &&
           !readOnly &&
           (() => {
-            // Trust the session first — profile.school_id/school_name are
-            // set the moment onboarding completes, no extra fetch needed.
             const schoolConfigured =
               String(session?.school_id || "").trim() || schoolName?.trim();
 
@@ -265,7 +265,6 @@ function AppContent({
         onClose={() => setShowReleaseNotes(false)}
       />
 
-      {/* FLOATING OVERLAY GATEWAY: Onboarding renders seamlessly over the active dashboard view */}
       {showOnboarding && (
         <div
           style={{
@@ -378,6 +377,24 @@ export default function App() {
         }
 
         if (localSchool && (localSchool.school_id || localSchool.id)) {
+          const resolvedSchoolId = localSchool.school_id || localSchool.id;
+          const resolvedSchoolName =
+            localSchool.school_name || localSchool.name || schoolName;
+
+          setSession((prev) => {
+            if (!prev) return prev;
+            const updated = {
+              ...prev,
+              school_id: resolvedSchoolId,
+              school_name: resolvedSchoolName,
+            };
+            sessionStorage.setItem(
+              "sb_current_session",
+              JSON.stringify(updated),
+            );
+            return updated;
+          });
+
           setShowOnboarding(false);
           setCheckingSchoolBinding(false);
           return;
@@ -386,6 +403,24 @@ export default function App() {
         if (isOnline()) {
           const onlineSchool = await fetchSchoolForUser(session.id);
           if (onlineSchool && (onlineSchool.id || onlineSchool.school_id)) {
+            const resolvedSchoolId = onlineSchool.school_id || onlineSchool.id;
+            const resolvedSchoolName =
+              onlineSchool.school_name || onlineSchool.name || schoolName;
+
+            setSession((prev) => {
+              if (!prev) return prev;
+              const updated = {
+                ...prev,
+                school_id: resolvedSchoolId,
+                school_name: resolvedSchoolName,
+              };
+              sessionStorage.setItem(
+                "sb_current_session",
+                JSON.stringify(updated),
+              );
+              return updated;
+            });
+
             setShowOnboarding(false);
             setCheckingSchoolBinding(false);
             return;
@@ -411,8 +446,6 @@ export default function App() {
         return;
       }
 
-      // Session already has the answer post-onboarding — use it directly
-      // and skip the network round-trip entirely.
       if (session.school_name) {
         setSchoolName(session.school_name);
         setSelectedSchool(session.school_name);
@@ -585,11 +618,24 @@ export default function App() {
 
   useEffect(() => {
     async function handleSchoolBound(event) {
-      const { schoolId, schoolName } = event.detail;
-      setSchoolName(schoolName || "");
-      if (schoolName) {
-        setSelectedSchool(schoolName);
+      const { schoolId, schoolName: boundSchoolName } = event.detail;
+      setSchoolName(boundSchoolName || "");
+      if (boundSchoolName) {
+        setSelectedSchool(boundSchoolName);
       }
+
+      setSession((prev) => {
+        if (!prev) return prev;
+        if (prev.school_id === schoolId && !boundSchoolName) return prev;
+        const updated = {
+          ...prev,
+          school_id: schoolId || prev.school_id,
+          school_name: boundSchoolName || prev.school_name,
+        };
+        sessionStorage.setItem("sb_current_session", JSON.stringify(updated));
+        return updated;
+      });
+
       if (!schoolId) {
         setStudents([]);
         await localSaveStudents([]);

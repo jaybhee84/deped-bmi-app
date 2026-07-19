@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import "./Database.css";
 import {
   calcBMI,
   getBMIStatus,
@@ -54,7 +55,6 @@ export default function Database({
     const filteredStudents = students.filter((student) => {
       const matchSy =
         filterSy === "All" || student.records?.some((r) => r.sy === filterSy);
-      // Fetched correctly mapping filterPeriod to r.q as per batch data context
       const matchPeriod =
         filterPeriod === "All" ||
         student.records?.some((r) => r.q === filterPeriod);
@@ -83,7 +83,6 @@ export default function Database({
       const matchSy =
         filterSy === "All" || s.records?.some((r) => r.sy === filterSy);
 
-      // Scans using the proper schema tunnel identifier r.q
       const matchPeriod =
         filterPeriod === "All" || s.records?.some((r) => r.q === filterPeriod);
 
@@ -271,7 +270,6 @@ export default function Database({
             ))}
           </select>
 
-          {/* Corrected Period Dropdown */}
           <select
             className="form-select"
             style={{
@@ -343,214 +341,245 @@ export default function Database({
           </div>
         )}
 
-        {/* Enhanced Table Container Card */}
-        <div className="card scrollable-table-container">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th style={{ width: "150px" }}>LRN</th>
-                <th style={{ width: "240px" }}>Name</th>
-                <th style={{ width: "80px", textAlign: "center" }}>Age</th>
-                <th style={{ width: "80px", textAlign: "center" }}>Sex</th>
-                <th style={{ width: "180px" }}>Section</th>
-                <th style={{ width: "110px", textAlign: "center" }}>
-                  Latest BMI
-                </th>
-                <th style={{ width: "180px", textAlign: "center" }}>
-                  Nutritional Status
-                </th>
-                <th style={{ width: "140px", textAlign: "center" }}>
-                  HFA Status
-                </th>
-                <th style={{ width: "100px", textAlign: "center" }}>Consent</th>
-                <th style={{ width: "100px", textAlign: "center" }}>4Ps</th>
-                <th style={{ width: "90px", textAlign: "center" }}>
-                  Prev SBFP
-                </th>
-                <th style={{ width: "100px", textAlign: "center" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
+        {/* Enhanced Table Container Card - Fixed Scrollbar Location */}
+        <div
+          className="card scrollable-table-container"
+          style={{ width: "100%", overflowX: "auto", marginBottom: "20px" }}
+        >
+          <div
+            className="table-scroll-track"
+            style={{ minWidth: "max-content" }}
+          >
+            <table
+              className="data-table"
+              style={{ width: "100%", tableLayout: "fixed" }}
+            >
+              <colgroup>
+                <col style={{ width: "190px" }} />
+                <col style={{ width: "230px" }} />
+                <col style={{ width: "70px" }} />
+                <col style={{ width: "70px" }} />
+                <col style={{ width: "240px" }} />
+                <col style={{ width: "110px" }} />
+                <col style={{ width: "170px" }} />
+                <col style={{ width: "150px" }} />
+                <col style={{ width: "90px" }} />
+                <col style={{ width: "90px" }} />
+                <col style={{ width: "100px" }} />
+                <col style={{ width: "110px" }} />
+              </colgroup>
+              <thead>
                 <tr>
-                  <td
-                    colSpan={12}
-                    className="muted"
-                    style={{ textAlign: "center", padding: "2rem" }}
-                  >
-                    No students found.
-                  </td>
+                  <th>LRN</th>
+                  <th>Name</th>
+                  <th>Age</th>
+                  <th>Sex</th>
+                  <th>Section</th>
+                  <th>Latest BMI</th>
+                  <th>Nutritional Status</th>
+                  <th>HFA Status</th>
+                  <th>Consent</th>
+                  <th>4Ps</th>
+                  <th>Prev SBFP</th>
+                  <th>Actions</th>
                 </tr>
-              ) : (
-                filtered.map((s) => {
-                  // Looks up specific metrics dynamically using r.q to evaluate selections
-                  const rec =
-                    s.records.find(
-                      (r) =>
-                        (filterSy === "All" || r.sy === filterSy) &&
-                        (filterPeriod === "All" || r.q === filterPeriod),
-                    ) ||
-                    (s.records.length ? s.records[s.records.length - 1] : null);
-
-                  const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
-                  const status = bmi
-                    ? getBMIStatus(bmi, s.sex, s.birthdate)
-                    : null;
-                  const hfa = rec
-                    ? getHAZStatus(rec.height, s.sex, s.birthdate)
-                    : null;
-                  const previousSbfp = hasPreviousYearData(
-                    s,
-                    filterSy === "All" ? "2026–2027" : filterSy,
-                  );
-
-                  return (
-                    <tr
-                      key={s.id}
-                      onClick={() => onViewProfile(s)}
-                      className="clickable-row"
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={12}
+                      className="muted"
+                      style={{ textAlign: "center", padding: "2rem" }}
                     >
-                      <td>
-                        <div className="cell-truncate">
-                          {s.lrn && s.lrn !== "—" ? (
-                            s.lrn
+                      No students found.
+                    </td>
+                  </tr>
+                ) : (
+                  filtered.map((s) => {
+                    const rec =
+                      s.records.find(
+                        (r) =>
+                          (filterSy === "All" || r.sy === filterSy) &&
+                          (filterPeriod === "All" || r.q === filterPeriod),
+                      ) ||
+                      (s.records.length
+                        ? s.records[s.records.length - 1]
+                        : null);
+
+                    const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
+                    const status = bmi
+                      ? getBMIStatus(bmi, s.sex, s.birthdate)
+                      : null;
+                    const hfa = rec
+                      ? getHAZStatus(rec.height, s.sex, s.birthdate)
+                      : null;
+                    const previousSbfp = hasPreviousYearData(
+                      s,
+                      filterSy === "All" ? "2026–2027" : filterSy,
+                    );
+
+                    return (
+                      <tr
+                        key={s.id}
+                        onClick={() => onViewProfile(s)}
+                        className="clickable-row"
+                      >
+                        <td>
+                          <div className="cell-truncate">
+                            {s.lrn && s.lrn !== "—" ? (
+                              s.lrn
+                            ) : (
+                              <span className="muted">—</span>
+                            )}
+                          </div>
+                          {s.registryNo && (
+                            <div
+                              className="registry-number-sub"
+                              title={s.registryNo}
+                            >
+                              🔖 {s.registryNo}
+                            </div>
+                          )}
+                        </td>
+                        <td className="name-cell">
+                          <div className="cell-truncate" title={s.name}>
+                            {s.name}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: "center" }}>{s.age}</td>
+                        <td style={{ textAlign: "center" }}>{s.sex}</td>
+                        <td style={{ textAlign: "center" }}>
+                          <div className="cell-truncate" title={s.section}>
+                            {s.section}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          {bmi ? (
+                            bmi.toFixed(1)
                           ) : (
                             <span className="muted">—</span>
                           )}
-                        </div>
-                        {s.registryNo && (
-                          <div className="registry-number-sub">
-                            🔖 {s.registryNo}
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {status ? (
+                              <Badge
+                                label={status.label}
+                                color={status.color}
+                                bg={status.bg}
+                              />
+                            ) : (
+                              <span className="no-data-tag">No data</span>
+                            )}
                           </div>
-                        )}
-                      </td>
-                      <td className="name-cell">
-                        <div className="cell-truncate">{s.name}</div>
-                      </td>
-                      <td style={{ textAlign: "center" }}>{s.age}</td>
-                      <td style={{ textAlign: "center" }}>{s.sex}</td>
-                      <td>
-                        <div className="cell-truncate">{s.section}</div>
-                      </td>
-                      <td style={{ textAlign: "center" }}>
-                        {bmi ? (
-                          bmi.toFixed(1)
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                      <td>
-                        <div
-                          style={{ display: "flex", justifyContent: "center" }}
-                        >
-                          {status ? (
-                            <Badge
-                              label={status.label}
-                              color={status.color}
-                              bg={status.bg}
-                            />
-                          ) : (
-                            <span className="no-data-tag">No data</span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <div
-                          style={{ display: "flex", justifyContent: "center" }}
-                        >
-                          {hfa ? (
-                            <Badge
-                              label={hfa.label}
-                              color={hfa.color}
-                              bg={hfa.bg}
-                            />
-                          ) : (
-                            <span className="no-data-tag">No data</span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <select
-                          value={s.parentConsent || "N"}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) =>
-                            updateStudentField(
-                              s.id,
-                              "parentConsent",
-                              e.target.value,
-                            )
-                          }
-                          style={{
-                            maxWidth: "60px",
-                            margin: "0 auto",
-                            display: "block",
-                          }}
-                        >
-                          <option value="Y">Y</option>
-                          <option value="N">N</option>
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          value={s.member4ps || "N"}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) =>
-                            updateStudentField(
-                              s.id,
-                              "member4ps",
-                              e.target.value,
-                            )
-                          }
-                          style={{
-                            maxWidth: "60px",
-                            margin: "0 auto",
-                            display: "block",
-                          }}
-                        >
-                          <option value="Y">Y</option>
-                          <option value="N">N</option>
-                        </select>
-                      </td>
-                      <td style={{ textAlign: "center" }}>
-                        <span
-                          style={{
-                            color: previousSbfp ? "#16a34a" : "#dc2626",
-                            fontWeight: "bold",
-                          }}
-                        >
-                          {previousSbfp ? "Y" : "N"}
-                        </span>
-                      </td>
-                      <td>
-                        {!readOnly &&
-                          (s.hasUnsavedChanges ? (
-                            <button
-                              className="btn-save"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                saveStudentChanges(s);
-                              }}
-                            >
-                              Save
-                            </button>
-                          ) : (
-                            <button
-                              className="btn-delete"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteStudent(s);
-                              }}
-                            >
-                              Delete
-                            </button>
-                          ))}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {hfa ? (
+                              <Badge
+                                label={hfa.label}
+                                color={hfa.color}
+                                bg={hfa.bg}
+                              />
+                            ) : (
+                              <span className="no-data-tag">No data</span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <select
+                            value={s.parentConsent || "N"}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) =>
+                              updateStudentField(
+                                s.id,
+                                "parentConsent",
+                                e.target.value,
+                              )
+                            }
+                            style={{
+                              maxWidth: "60px",
+                              margin: "0 auto",
+                              display: "block",
+                            }}
+                          >
+                            <option value="Y">Y</option>
+                            <option value="N">N</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select
+                            value={s.member4ps || "N"}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) =>
+                              updateStudentField(
+                                s.id,
+                                "member4ps",
+                                e.target.value,
+                              )
+                            }
+                            style={{
+                              maxWidth: "60px",
+                              margin: "0 auto",
+                              display: "block",
+                            }}
+                          >
+                            <option value="Y">Y</option>
+                            <option value="N">N</option>
+                          </select>
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <span
+                            style={{
+                              color: previousSbfp ? "#16a34a" : "#dc2626",
+                              fontWeight: "bold",
+                            }}
+                          >
+                            {previousSbfp ? "Y" : "N"}
+                          </span>
+                        </td>
+                        <td>
+                          {!readOnly &&
+                            (s.hasUnsavedChanges ? (
+                              <button
+                                className="btn-save"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  saveStudentChanges(s);
+                                }}
+                              >
+                                Save
+                              </button>
+                            ) : (
+                              <button
+                                className="btn-delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteStudent(s);
+                                }}
+                              >
+                                Delete
+                              </button>
+                            ))}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </>
 

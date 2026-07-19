@@ -81,7 +81,7 @@ export default function Profile({
   const [showPhotoDeleteConfirm, setShowPhotoDeleteConfirm] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [saveStatusMessage, setSaveStatusMessage] = useState(null);
-  const [isInlineSaving, setIsInlineSaving] = useState(false); // Controls loading indicators during execution
+  const [isInlineSaving, setIsInlineSaving] = useState(false);
   const fileInputRef = useRef(null);
   const [rec, setRec] = useState({
     sy: "2025–2026",
@@ -100,7 +100,6 @@ export default function Profile({
     ? student.registryNo.replace(/[^a-zA-Z0-9-_]/g, "_")
     : `student_${student.id}`;
 
-  // 1. Core local state addition for a new health card measurement
   function saveRecord() {
     if (!rec.date || !rec.weight || !rec.height) return;
     const newRec = {
@@ -126,7 +125,6 @@ export default function Profile({
     }, 4000);
   }
 
-  // 2. Hybrid SQLite + Supabase Storage workflow for Manual Uploads
   async function handleManualPhotoUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -160,7 +158,10 @@ export default function Profile({
 
           const { error: uploadError } = await supabase.storage
             .from("profiles")
-            .upload(filePath, file, { upsert: true });
+            .upload(filePath, file, {
+              upsert: true,
+              contentType: `image/${fileExt}`,
+            });
 
           if (uploadError) throw uploadError;
 
@@ -193,11 +194,10 @@ export default function Profile({
     reader.readAsDataURL(file);
   }
 
-  // 3. Combined Local Registry Persistence & Remote Database Sync (NO NATIVE ALERTS)
   async function handlePersistRegistryChanges() {
     try {
       setIsInlineSaving(true);
-      setShowConfirmModal(false); // Close operational safety confirmation box immediately
+      setShowConfirmModal(false);
 
       if (window.electronAPI?.saveStudentRecords) {
         await window.electronAPI.saveStudentRecords(
@@ -208,10 +208,10 @@ export default function Profile({
       }
 
       if (supabase && navigator.onLine) {
+        // FIXED: Removed the non-existent 'photo' key column to match remote table structural layout
         const { error } = await supabase
           .from("students")
           .update({
-            photo: student.photo,
             records: student.records,
           })
           .eq("id", student.id);
@@ -282,7 +282,6 @@ export default function Profile({
       </div>
 
       <div className="profile-grid">
-        {/* Info Card (Left) */}
         <div className="card profile-info-card">
           <div
             className={`avatar avatar-clickable ${isUploading ? "loading-shimmer" : ""}`}
@@ -347,7 +346,6 @@ export default function Profile({
           </div>
         </div>
 
-        {/* Records Container (Right) */}
         <div className="profile-right">
           <div className="records-header">
             <h2 className="section-title">Health Records</h2>
@@ -424,7 +422,6 @@ export default function Profile({
                 {isInlineSaving ? "Saving..." : "Save Changes"}
               </button>
 
-              {/* Dynamic inline notification below the Save Button */}
               {saveStatusMessage && (
                 <div
                   className="save-status-inline-message"
@@ -476,7 +473,6 @@ export default function Profile({
         </div>
       </div>
 
-      {/* Manual Input Addition Modal */}
       {addOpen && (
         <Modal title="Add Health Record" onClose={() => setAddOpen(false)}>
           <div className="form-grid-2">
@@ -564,7 +560,6 @@ export default function Profile({
         </Modal>
       )}
 
-      {/* Mobile QR Core Capture Hook */}
       {mobileSyncOpen && (
         <MobileCaptureModal
           student={student}
@@ -590,7 +585,6 @@ export default function Profile({
         />
       )}
 
-      {/* Confirmation Modals */}
       {showConfirmModal && (
         <Modal
           title="Confirm Save Operation"
