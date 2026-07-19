@@ -207,16 +207,17 @@ export default function OnboardingModal({ user, onComplete }) {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
         }
         .onboard-card {
-          background: #ccefe9 !important; 
-          padding: 40px !important;
-          border-radius: 24px !important;
+          background: #115e59 !important; /* Slightly brighter, vibrant deep teal */
+          padding: 32px !important;
+          border-radius: 20px !important;
           width: 100% !important;
-          max-width: 480px !important;
+          max-width: 460px !important;
           display: flex !important;
           flex-direction: column !important;
           gap: 20px !important;
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.3) !important;
-          border: 1px solid rgba(255, 255, 255, 0.5) !important;
+          color: #f8fafc !important;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
+          border: 1px solid rgba(255, 255, 255, 0.15) !important;
         }
         .onboard-header {
           text-align: center !important;
@@ -224,16 +225,16 @@ export default function OnboardingModal({ user, onComplete }) {
         }
         .onboard-title {
           margin: 0 0 6px 0 !important;
-          color: #0f2d30 !important; /* Maximum contrast dark teal header */
-          font-size: 28px !important;
+          color: #ffffff !important;
+          font-size: 26px !important;
           font-weight: 700 !important;
-          letter-spacing: -0.01em !important;
+          letter-spacing: -0.02em !important;
         }
         .onboard-subtitle {
           margin: 0 !important;
-          color: #2e4d50 !important; /* Bold, high contrast description */
+          color: #ccfbf1 !important; /* Highly visible pale mint */
           font-size: 14px !important;
-          font-weight: 600 !important;
+          font-weight: 500 !important;
         }
         .onboard-group {
           display: flex !important;
@@ -242,50 +243,69 @@ export default function OnboardingModal({ user, onComplete }) {
           position: relative !important;
         }
         .onboard-label {
-          font-size: 14px !important;
-          font-weight: 700 !important;
-          color: #173b3e !important; /* Clear dark text */
+          font-size: 13px !important;
+          font-weight: 600 !important;
+          color: #e2e8f0 !important;
         }
         .onboard-asterisk {
-          color: #c92a2a !important;
+          color: #f87171 !important;
           margin-left: 2px !important;
         }
-        /* inputs and dropdown wrappers using distinct contrast styles */
-        .onboard-input, .onboard-trigger {
+        /* Crisp white background inputs for perfect contrast */
+        .onboard-input {
           padding: 12px 14px !important;
-          border: 1.5px solid #7ea3a6 !important;
-          border-radius: 8px !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 10px !important;
           font-size: 14px !important;
           background: #ffffff !important;
-          color: #0f2d30 !important;
+          color: #0f172a !important;
           outline: none !important;
-          box-sizing: border-box !important;
           transition: all 0.2s ease !important;
         }
+        .onboard-input::placeholder {
+          color: #94a3b8 !important;
+        }
+        .onboard-input:focus {
+          border-color: #2dd4bf !important;
+          box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.4) !important;
+        }
+        .onboard-input:disabled {
+          background: #f1f5f9 !important;
+          color: #64748b !important;
+          border-color: #cbd5e1 !important;
+          cursor: not-allowed !important;
+        }
         .onboard-trigger {
+          padding: 12px 14px !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 10px !important;
+          font-size: 14px !important;
+          background: #ffffff !important;
+          color: #0f172a !important;
           cursor: pointer !important;
           display: flex !important;
           justify-content: space-between !important;
           align-items: center !important;
           user-select: none !important;
+          transition: all 0.2s ease !important;
         }
-        .onboard-input::placeholder, .onboard-trigger.placeholder span {
-          color: #688689 !important;
+        .onboard-trigger:hover:not(.disabled) {
+          border-color: #94a3b8 !important;
+          background: #f8fafc !important;
         }
-        .onboard-input:focus, .onboard-trigger.active {
-          border-color: #173b3e !important;
-          box-shadow: 0 0 0 3px rgba(23, 59, 62, 0.15) !important;
+        .onboard-trigger.active {
+          border-color: #2dd4bf !important;
+          box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.4) !important;
         }
-        .onboard-input:disabled, .onboard-trigger.disabled {
-          background: #e1edea !important;
-          color: #5c7577 !important;
-          border-color: #a4bebf !important;
+        .onboard-trigger.disabled {
+          background: #f1f5f9 !important;
+          color: #64748b !important;
+          border-color: #cbd5e1 !important;
           cursor: not-allowed !important;
         }
         .onboard-arrow {
           font-size: 10px !important;
-          color: #2e4d50 !important;
-          font-weight: bold !important;
+          color: #64748b !important;
           transition: transform 0.2s ease !important;
         }
         .onboard-trigger.active .onboard-arrow {
@@ -293,17 +313,17 @@ export default function OnboardingModal({ user, onComplete }) {
         }
         .onboard-menu {
           position: absolute !important;
-          top: calc(100% + 4px) !important;
+          top: calc(100% + 6px) !important;
           left: 0 !important;
           right: 0 !important;
           background: #ffffff !important;
-          border: 1.5px solid #173b3e !important;
-          border-radius: 8px !important;
-          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
-          max-height: 180px !important;
+          border: 1px solid #e2e8f0 !important;
+          border-radius: 10px !important;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3) !important;
+          max-height: 200px !important;
           overflow-y: auto !important;
           margin: 0 !important;
-          padding: 4px !important;
+          padding: 6px !important;
           list-style: none !important;
           z-index: 100000 !important;
         }
@@ -311,50 +331,52 @@ export default function OnboardingModal({ user, onComplete }) {
           padding: 10px 12px !important;
           cursor: pointer !important;
           font-size: 14px !important;
-          border-radius: 6px !important;
-          color: #173b3e !important;
+          border-radius: 8px !important;
+          color: #334155 !important;
           transition: all 0.15s ease !important;
         }
         .onboard-item:hover {
-          background: #eef9f7 !important;
-          color: #0f2d30 !important;
+          background: #f1f5f9 !important;
+          color: #0f172a !important;
         }
         .onboard-item.selected {
-          background: #b2e7dd !important;
-          color: #0f2d30 !important;
-          font-weight: 700 !important;
-        }
-        .onboard-error {
-          color: #ffffff !important;
-          background: #c92a2a !important;
-          padding: 12px 14px !important;
-          border-radius: 8px !important;
-          font-size: 13px !important;
+          background: #ccfbf1 !important;
+          color: #115e59 !important;
           font-weight: 600 !important;
         }
-        /* Deep slate button for clear contrast and dynamic action visual weight */
+        .onboard-error {
+          color: #fca5a5 !important;
+          background: rgba(220, 38, 38, 0.25) !important;
+          padding: 12px 14px !important;
+          border-radius: 10px !important;
+          font-size: 13px !important;
+          border: 1px solid rgba(239, 68, 68, 0.4) !important;
+        }
+        /* Bright vibrant action call button */
         .onboard-btn {
           padding: 14px !important;
-          background: #173b3e !important;
-          color: #ffffff !important;
+          background: #2dd4bf !important;
+          color: #042f2e !important;
           border: none !important;
-          border-radius: 8px !important;
+          border-radius: 10px !important;
           cursor: pointer !important;
           font-weight: 700 !important;
           font-size: 15px !important;
-          margin-top: 12px !important;
+          margin-top: 10px !important;
           transition: all 0.2s ease !important;
-          box-shadow: 0 4px 12px rgba(23, 59, 62, 0.2) !important;
+          box-shadow: 0 4px 14px rgba(45, 212, 191, 0.3) !important;
         }
         .onboard-btn:hover:not(:disabled) {
-          background: #0f2d30 !important;
-          box-shadow: 0 6px 16px rgba(23, 59, 62, 0.3) !important;
+          background: #14b8a6 !important;
+          transform: translateY(-1px) !important;
+          box-shadow: 0 6px 20px rgba(45, 212, 191, 0.4) !important;
         }
         .onboard-btn:disabled {
-          background: #9ebbbf !important;
-          color: #ffffff !important;
+          background: rgba(255, 255, 255, 0.2) !important;
+          color: rgba(255, 255, 255, 0.4) !important;
           cursor: not-allowed !important;
           box-shadow: none !important;
+          transform: none !important;
         }
       `}</style>
 
@@ -372,10 +394,12 @@ export default function OnboardingModal({ user, onComplete }) {
             School <span className="onboard-asterisk">*</span>
           </label>
           <div
-            className={`onboard-trigger ${!name ? "placeholder" : ""} ${isSchoolOpen ? "active" : ""}`}
+            className={`onboard-trigger ${isSchoolOpen ? "active" : ""}`}
             onClick={() => setIsSchoolOpen(!isSchoolOpen)}
           >
-            <span>{name || "Select School"}</span>
+            <span style={{ color: name ? "#0f172a" : "#94a3b8" }}>
+              {name || "Select School"}
+            </span>
             <span className="onboard-arrow">▼</span>
           </div>
 
@@ -419,10 +443,12 @@ export default function OnboardingModal({ user, onComplete }) {
         <div className="onboard-group" ref={districtRef}>
           <label className="onboard-label">District</label>
           <div
-            className={`onboard-trigger ${!district ? "placeholder" : ""} ${isDistrictOpen ? "active" : ""} ${isPreExisting ? "disabled" : ""}`}
+            className={`onboard-trigger ${isDistrictOpen ? "active" : ""} ${isPreExisting ? "disabled" : ""}`}
             onClick={() => !isPreExisting && setIsDistrictOpen(!isDistrictOpen)}
           >
-            <span>{district || "Select District"}</span>
+            <span style={{ color: district ? "#0f172a" : "#94a3b8" }}>
+              {district || "Select District"}
+            </span>
             <span className="onboard-arrow">▼</span>
           </div>
 
