@@ -261,7 +261,7 @@ function AppContent({
       <ReleaseNotesModal
         open={showReleaseNotes}
         version={releaseData?.title}
-        notes={releaseData?.notes || []}
+        sections={releaseData?.sections || []}
         onClose={() => setShowReleaseNotes(false)}
       />
 

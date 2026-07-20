@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
 import { fetchSchoolForUser } from "../utils/syncService";
+import { RELEASE_NOTES } from "../data/releaseNotes";
 import "./Information.css";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 
@@ -22,18 +23,9 @@ export default function Information({
   const [schoolLogo, setSchoolLogo] = useState(null);
   const [appVersion, setAppVersion] = useState("");
 
-  // Hardcoded Release Notes Mock Data (Can be updated dynamically or pulled from an API layer)
-  const releaseNotes = {
-    version: "v1.2.4-stable",
-    author: "DepEd SDO Systems Management Team",
-    date: "July 2026",
-    notes: [
-      "Optimized workspace layout architectures for streamlined institution dashboard views.",
-      "Integrated live learner registry telemetry aggregates inside the operational profile parameters.",
-      "Synchronized automated onboarding schema variables directly into local database components.",
-      "Removed legacy operational bypass configuration buttons to protect database lifecycle continuity.",
-    ],
-  };
+  // Pull the real release notes for whatever version is actually running,
+  // instead of hardcoded mock content.
+  const releaseNotes = RELEASE_NOTES[appVersion] || null;
 
   // Dynamic calculations monitoring real-time total student profiles tracking context
   const totalLearnersEnrolled = useMemo(() => {
@@ -362,52 +354,78 @@ export default function Information({
             <h3 className="card-title" style={{ margin: 0 }}>
               System Release Notes
             </h3>
-            <span
-              style={{
-                fontSize: "12px",
-                background: "#e0f2fe",
-                color: "#0369a1",
-                padding: "2px 8px",
-                borderRadius: "12px",
-                fontWeight: "600",
-              }}
-            >
-              {releaseNotes.version}
-            </span>
+            {releaseNotes && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  background: "#e0f2fe",
+                  color: "#0369a1",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  fontWeight: "600",
+                }}
+              >
+                {releaseNotes.title}
+              </span>
+            )}
           </div>
 
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-          >
-            <div style={{ fontSize: "13px", color: "#64748b" }}>
-              <strong>Author/Publisher:</strong> {releaseNotes.author}{" "}
-              <span style={{ margin: "0 6px" }}>•</span>{" "}
-              <strong>Released:</strong> {releaseNotes.date}
-            </div>
-
-            <ul
+          {releaseNotes ? (
+            <div
               style={{
-                margin: 0,
-                paddingLeft: "20px",
                 display: "flex",
                 flexDirection: "column",
-                gap: "8px",
+                gap: "16px",
               }}
             >
-              {releaseNotes.notes.map((note, index) => (
-                <li
-                  key={index}
-                  style={{
-                    fontSize: "13px",
-                    color: "#334155",
-                    lineHeight: "1.5",
-                  }}
-                >
-                  {note}
-                </li>
+              {(releaseNotes.sections || []).map((section, sIndex) => (
+                <div key={sIndex}>
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "#1e293b",
+                      marginBottom: "6px",
+                    }}
+                  >
+                    {section.heading}
+                  </div>
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: "20px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    {(section.items || []).map((item, iIndex) => (
+                      <li
+                        key={iIndex}
+                        style={{
+                          fontSize: "13px",
+                          color: "#334155",
+                          lineHeight: "1.5",
+                        }}
+                      >
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ))}
-            </ul>
-          </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#94a3b8",
+                fontStyle: "italic",
+              }}
+            >
+              No release notes available for this version yet.
+            </div>
+          )}
         </div>
       </div>
     </div>

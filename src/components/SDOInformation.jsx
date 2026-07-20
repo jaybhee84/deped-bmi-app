@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
-import "./Information.css"; // Fixed: Aligned CSS import to shared styles
+import "./Information.css";
 import { RELEASE_NOTES } from "../data/releaseNotes";
 
 export default function SDOInformation() {
@@ -8,7 +8,9 @@ export default function SDOInformation() {
   const latestRelease = RELEASE_NOTES[version];
 
   useEffect(() => {
-    window.electronAPI.getAppVersion().then(setVersion);
+    if (window.electronAPI?.getAppVersion) {
+      window.electronAPI.getAppVersion().then(setVersion);
+    }
   }, []);
 
   return (
@@ -19,6 +21,7 @@ export default function SDOInformation() {
       </p>
 
       <div className="settings-grid">
+        {/* Card 1: Reference Charts */}
         <div className="card">
           <h3 className="card-title">BMI-for-Age Classification</h3>
           <p className="settings-ref-sub">
@@ -93,41 +96,20 @@ export default function SDOInformation() {
           </div>
         </div>
 
-        <div className="card">
-          <h3 className="card-title">About This System</h3>
-          <div className="about-info">
-            <div className="about-row">
-              <span>System Name</span>
-              <span>DepEd BMI System</span>
-            </div>
-            <div className="about-row">
-              <span>Version</span>
-              <span>{version || "—"}</span>
-            </div>
-            <div className="about-row">
-              <span>Standard</span>
-              <span>WHO / DepEd</span>
-            </div>
-            <div className="about-row">
-              <span>Access Level</span>
-              <span>SDO / Division</span>
-            </div>
-          </div>
-
+        <div className="settings-column">
+          {/* Card 2: Release Notes Card */}
           {latestRelease && (
-            <>
-              <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
-                📋 Release Notes
-              </h3>
-
+            <div className="card" style={{ marginBottom: "1.5rem" }}>
+              <h3 className="card-title">📋 Release Notes</h3>
               <div
                 style={{
                   background: "#F8FAFC",
                   border: "1px solid #E5E7EB",
                   borderRadius: 10,
                   padding: 16,
-                  maxHeight: 260,
+                  maxHeight: 280,
                   overflowY: "auto",
+                  marginTop: 12,
                 }}
               >
                 <div
@@ -140,79 +122,122 @@ export default function SDOInformation() {
                 >
                   {latestRelease.title}
                 </div>
-                <ul
-                  style={{
-                    margin: 0,
-                    paddingLeft: 20,
-                    color: "#374151",
-                    lineHeight: 1.7,
-                  }}
-                >
-                  {latestRelease.notes.map((note, index) => (
-                    <li key={index}>{note}</li>
-                  ))}
-                </ul>
+                {(latestRelease.sections || []).map((section, sIndex) => (
+                  <div key={sIndex} style={{ marginBottom: 12 }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        color: "#374151",
+                        fontSize: "13px",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {section.heading}
+                    </div>
+                    <ul
+                      style={{
+                        margin: 0,
+                        paddingLeft: 20,
+                        color: "#374151",
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {(section.items || []).map((item, iIndex) => (
+                        <li key={iIndex}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
-            </>
+            </div>
           )}
 
-          <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
-            Nutritional Status Indicators
-          </h3>
-          <p className="settings-ref-sub">
-            Two indicators are used to assess learners:
-          </p>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              marginTop: 8,
-            }}
-          >
-            <div
-              style={{
-                background: "#EFF6FF",
-                borderRadius: 8,
-                padding: "12px 14px",
-              }}
-            >
-              <div style={{ fontWeight: 700, color: "#1E3A5F", fontSize: 13 }}>
-                📊 BMI-for-Age (BAZ)
+          {/* Card 3: About System Card */}
+          <div className="card">
+            <h3 className="card-title">About This System</h3>
+            <div className="about-info">
+              <div className="about-row">
+                <span>System Name</span>
+                <span>DepEd BMI System</span>
               </div>
-              <div style={{ fontSize: 12, color: "#374151", marginTop: 4 }}>
-                Measures weight relative to height and age. Used to classify
-                wasting and obesity.
+              <div className="about-row">
+                <span>Version</span>
+                <span>{version || "—"}</span>
+              </div>
+              <div className="about-row">
+                <span>Standard</span>
+                <span>WHO / DepEd</span>
+              </div>
+              <div className="about-row">
+                <span>Access Level</span>
+                <span>SDO / Division</span>
               </div>
             </div>
+
+            <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
+              Nutritional Status Indicators
+            </h3>
+            <p className="settings-ref-sub">
+              Two indicators are used to assess learners:
+            </p>
             <div
               style={{
-                background: "#EAF3DE",
-                borderRadius: 8,
-                padding: "12px 14px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                marginTop: 8,
               }}
             >
-              <div style={{ fontWeight: 700, color: "#3B6D11", fontSize: 13 }}>
-                📏 Height-for-Age (HFA)
+              <div
+                style={{
+                  background: "#EFF6FF",
+                  borderRadius: 8,
+                  padding: "12px 14px",
+                }}
+              >
+                <div
+                  style={{ fontWeight: 700, color: "#1E3A5F", fontSize: 13 }}
+                >
+                  📊 BMI-for-Age (BAZ)
+                </div>
+                <div style={{ fontSize: 12, color: "#374151", marginTop: 4 }}>
+                  Measures weight relative to height and age. Used to classify
+                  wasting and obesity.
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: "#374151", marginTop: 4 }}>
-                Measures height relative to age. Used to classify stunting — a
-                sign of chronic malnutrition.
+              <div
+                style={{
+                  background: "#EAF3DE",
+                  borderRadius: 8,
+                  padding: "12px 14px",
+                }}
+              >
+                <div
+                  style={{ fontWeight: 700, color: "#3B6D11", fontSize: 13 }}
+                >
+                  📏 Height-for-Age (HFA)
+                </div>
+                <div style={{ fontSize: 12, color: "#374151", marginTop: 4 }}>
+                  Measures height relative to age. Used to classify stunting — a
+                  sign of chronic malnutrition.
+                </div>
               </div>
-            </div>
-            <div
-              style={{
-                background: "#FAEEDA",
-                borderRadius: 8,
-                padding: "12px 14px",
-              }}
-            >
-              <div style={{ fontWeight: 700, color: "#BA7517", fontSize: 13 }}>
-                🍱 SBFP Beneficiaries
-              </div>
-              <div style={{ fontSize: 12, color: "#374151", marginTop: 4 }}>
-                School-Based Feeding Program targets Severely Wasted, Wasted,
-                Stunted, and Severely Stunted learners.
+              <div
+                style={{
+                  background: "#FAEEDA",
+                  borderRadius: 8,
+                  padding: "12px 14px",
+                }}
+              >
+                <div
+                  style={{ fontWeight: 700, color: "#BA7517", fontSize: 13 }}
+                >
+                  🍱 SBFP Beneficiaries
+                </div>
+                <div style={{ fontSize: 12, color: "#374151", marginTop: 4 }}>
+                  School-Based Feeding Program targets Severely Wasted, Wasted,
+                  Stunted, and Severely Stunted learners.
+                </div>
               </div>
             </div>
           </div>

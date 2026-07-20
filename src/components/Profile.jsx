@@ -11,6 +11,29 @@ import Modal from "./Modal";
 import MobileCaptureModal from "./MobileCaptureModal";
 import "./Profile.css";
 
+// Helper function to convert YYYY-MM-DD or standard dates to MM/DD/YYYY
+function formatDateMMDDYYYY(dateStr) {
+  if (!dateStr) return "—";
+
+  // Handle ISO string or YYYY-MM-DD directly without timezone offset shifts
+  const parts = dateStr.split("T")[0].split("-");
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    if (year.length === 4) {
+      return `${month.padStart(2, "0")}/${day.padStart(2, "0")}/${year}`;
+    }
+  }
+
+  const dateObj = new Date(dateStr);
+  if (isNaN(dateObj.getTime())) return dateStr;
+
+  const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+  const day = String(dateObj.getDate()).padStart(2, "0");
+  const year = dateObj.getFullYear();
+
+  return `${month}/${day}/${year}`;
+}
+
 function MetricRow({ label, value }) {
   return (
     <div className="metric-item-row">
@@ -36,7 +59,11 @@ function HealthRecordCard({ record, student }) {
 
       <div className="card-body-modern">
         <MetricRow label="School Year" value={record.sy} />
-        <MetricRow label="Date Measured" value={record.date} />
+        {/* Updated Date Measured to display in MM/DD/YYYY format */}
+        <MetricRow
+          label="Date Measured"
+          value={formatDateMMDDYYYY(record.date)}
+        />
         <MetricRow label="Weight" value={`${record.weight} kg`} />
         <MetricRow label="Height" value={`${record.height} cm`} />
         <MetricRow label="BMI" value={bmi ? bmi.toFixed(2) : "—"} />
@@ -149,11 +176,6 @@ export default function Profile({
         });
       }
 
-      // NOTE: previously gated on `navigator.onLine`, which can report
-      // `true` in Electron even with no real connection (same issue we
-      // hit in Login.jsx). Attempt the upload regardless and let the
-      // try/catch below handle genuine failures — that's more reliable
-      // than trusting the flag.
       if (supabase) {
         try {
           setIsUploading(true);
@@ -190,9 +212,6 @@ export default function Profile({
             });
           }
 
-          // Persist the URL to the students row too — otherwise it only
-          // lives in the storage bucket and this device's SQLite, and
-          // other machines pulling from Supabase will never see it.
           const { error: photoColError } = await supabase
             .from("students")
             .update({ photo_url: publicUrl })
@@ -234,10 +253,6 @@ export default function Profile({
       }
 
       if (supabase && navigator.onLine) {
-        // NOTE: the remote `students` table uses `photo_url`, not `photo` —
-        // adjust this key to match whatever column actually exists in
-        // Supabase. Without this, the photo only ever lives in this
-        // device's local SQLite and never reaches other machines.
         const { error } = await supabase
           .from("students")
           .update({
