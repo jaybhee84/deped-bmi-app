@@ -439,51 +439,48 @@ export default function Login({ onLogin }) {
     setLoading(true);
     setError("");
 
-    if (!navigator.onLine) {
-      const cachedProfile = attemptOfflineLogin(username.trim(), password);
+    // Try to reach Supabase, and fall back to the local offline cache on
+    // any NETWORK-shaped failure (offline, DNS, timeout, connection
+    // refused). If Supabase is reached but rejects the credentials, we
+    // report that directly instead of silently falling back to
+    // possibly-stale offline creds.
+    let email, lookupError;
+    try {
+      ({ data: email, error: lookupError } = await supabase.rpc(
+        "get_email_by_username",
+        { lookup_username: username.trim() },
+      ));
+    } catch (networkErr) {
+      return attemptOfflineFallback(networkErr);
+    }
+
+    if (lookupError) {
+      if (isNetworkish(lookupError)) return attemptOfflineFallback(lookupError);
       setLoading(false);
+      setError("Invalid username or password.");
+      return;
+    }
 
-      if (cachedProfile) {
-        const session = {
-          ...cachedProfile,
-          loginTime: new Date().toISOString(),
-        };
-        saveSession(session);
-        onLogin(session);
-        return;
-      }
-
+    if (!email) {
+      // No such username online. Still check the offline cache in case
+      // this is really a connectivity edge case, but otherwise it's just
+      // a bad username.
       if (hasOfflineCredentials(username.trim())) {
-        setError("Incorrect password.");
-      } else {
-        setError(
-          "You're offline, and this account hasn't signed in on this device before. Connect to the internet to sign in for the first time.",
-        );
+        return attemptOfflineFallback(new Error("username not found online"));
       }
+      setLoading(false);
+      setError("Invalid username or password.");
       return;
     }
 
     try {
-      // Look up the email for this username via a secure RPC call.
-      // (Direct SELECTs against `profiles` are blocked for anonymous
-      // users by RLS, so this has to go through the function instead.)
-      const { data: email, error: lookupError } = await supabase.rpc(
-        "get_email_by_username",
-        { lookup_username: username.trim() },
-      );
-
-      if (lookupError || !email) {
-        setLoading(false);
-        setError("Invalid username or password.");
-        return;
-      }
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        if (isNetworkish(error)) return attemptOfflineFallback(error);
         setLoading(false);
         setError("Invalid username or password.");
         return;
@@ -514,8 +511,49 @@ export default function Login({ onLogin }) {
       cacheOfflineCredentials(session, password);
       onLogin(session);
     } catch (err) {
+      return attemptOfflineFallback(err);
+    }
+
+    // Does this error look like a network/connectivity problem, as opposed
+    // to Supabase actively rejecting the credentials?
+    function isNetworkish(err) {
+      const msg = (err?.message || "").toLowerCase();
+      return (
+        err?.name === "TypeError" || // fetch throws TypeError on network failure
+        msg.includes("fetch") ||
+        msg.includes("network") ||
+        msg.includes("timeout") ||
+        msg.includes("failed to fetch") ||
+        msg.includes("load failed")
+      );
+    }
+
+    function attemptOfflineFallback(originalErr) {
+      const cachedProfile = attemptOfflineLogin(username.trim(), password);
       setLoading(false);
-      setError(err.message);
+
+      if (cachedProfile) {
+        const session = {
+          ...cachedProfile,
+          loginTime: new Date().toISOString(),
+        };
+        saveSession(session);
+        onLogin(session);
+        return;
+      }
+
+      if (hasOfflineCredentials(username.trim())) {
+        setError("Incorrect password.");
+      } else if (navigator.onLine === false) {
+        setError(
+          "You're offline, and this account hasn't signed in on this device before. Connect to the internet to sign in for the first time.",
+        );
+      } else {
+        setError(
+          "Couldn't reach the server, and this account hasn't signed in on this device before. Check your connection and try again.",
+        );
+      }
+      console.warn("Falling back to offline login due to:", originalErr);
     }
   }
 

@@ -149,7 +149,12 @@ export default function Profile({
         });
       }
 
-      if (supabase && navigator.onLine) {
+      // NOTE: previously gated on `navigator.onLine`, which can report
+      // `true` in Electron even with no real connection (same issue we
+      // hit in Login.jsx). Attempt the upload regardless and let the
+      // try/catch below handle genuine failures — that's more reliable
+      // than trusting the flag.
+      if (supabase) {
         try {
           setIsUploading(true);
           const fileExt = file.name.split(".").pop() || "jpg";
@@ -184,8 +189,29 @@ export default function Profile({
               sync_status: "synced",
             });
           }
+
+          // Persist the URL to the students row too — otherwise it only
+          // lives in the storage bucket and this device's SQLite, and
+          // other machines pulling from Supabase will never see it.
+          const { error: photoColError } = await supabase
+            .from("students")
+            .update({ photo_url: publicUrl })
+            .eq("id", student.id);
+
+          if (photoColError) {
+            console.error(
+              "Photo uploaded to storage but failed to save URL to students table:",
+              photoColError,
+            );
+            triggerStatusFeedback(
+              "⚠ Photo uploaded but couldn't link it to the student record.",
+            );
+          }
         } catch (err) {
-          console.warn("Supabase bucket unreachable. Kept local base64.", err);
+          console.error("Photo upload to Supabase failed:", err);
+          triggerStatusFeedback(
+            "⚠ Couldn't upload photo to the cloud. Saved locally — will retry when synced.",
+          );
         } finally {
           setIsUploading(false);
         }
@@ -208,11 +234,15 @@ export default function Profile({
       }
 
       if (supabase && navigator.onLine) {
-        // FIXED: Removed the non-existent 'photo' key column to match remote table structural layout
+        // NOTE: the remote `students` table uses `photo_url`, not `photo` —
+        // adjust this key to match whatever column actually exists in
+        // Supabase. Without this, the photo only ever lives in this
+        // device's local SQLite and never reaches other machines.
         const { error } = await supabase
           .from("students")
           .update({
             records: student.records,
+            photo_url: student.photo || null,
           })
           .eq("id", student.id);
 
