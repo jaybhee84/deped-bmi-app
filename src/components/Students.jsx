@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   calcBMI,
   getBMIStatus,
@@ -36,6 +36,10 @@ export default function Students({
   const [searchQ, setSearchQ] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
+
+  // Custom non-blocking delete confirmation state
+  const [studentToDelete, setStudentToDelete] = useState(null);
+
   const [saveMessage, setSaveMessage] = useState({
     visible: false,
     name: "",
@@ -92,8 +96,8 @@ export default function Students({
   }, [students, filterSy, filterGrade, filterSection, searchQ]);
 
   function updateStudentField(id, field, value) {
-    setStudents((prev) =>
-      prev.map((student) =>
+    setStudents((prev) => {
+      const updated = prev.map((student) =>
         student.id === id
           ? {
               ...student,
@@ -101,22 +105,24 @@ export default function Students({
               hasUnsavedChanges: true,
             }
           : student,
-      ),
-    );
+      );
+      return [...updated];
+    });
   }
 
   async function saveStudentChanges(student) {
     try {
-      setStudents((prev) =>
-        prev.map((s) =>
+      setStudents((prev) => {
+        const updated = prev.map((s) =>
           s.id === student.id
             ? {
                 ...s,
                 hasUnsavedChanges: false,
               }
             : s,
-        ),
-      );
+        );
+        return [...updated];
+      });
 
       setSaveMessage({
         name: student.name,
@@ -135,19 +141,31 @@ export default function Students({
     }
   }
 
-  function deleteStudent(student) {
-    const confirmed = window.confirm(
-      `Delete ${student.name}?\n\nThis will remove the learner and all health records.`,
-    );
+  // Triggers the custom React dialog safely
+  function initiateDelete(student) {
+    setStudentToDelete(student);
+  }
 
-    if (!confirmed) return;
+  // Executes the actual deletion entirely asynchronously
+  function executeDelete() {
+    if (!studentToDelete) return;
 
-    queueStudentForDelete(student.id);
-    setStudents((prev) => prev.filter((s) => s.id !== student.id));
+    // Queue for Sync Service delete tracking
+    queueStudentForDelete(studentToDelete.id);
+
+    // Immutably update state
+    setStudents((prev) => {
+      const updatedList = prev.filter((s) => s.id !== studentToDelete.id);
+      return [...updatedList];
+    });
+
+    // Close the custom modal state
+    setStudentToDelete(null);
   }
 
   function handleAdd() {
     if (!form.name.trim()) return;
+
     setStudents((prev) => [
       ...prev,
       {
@@ -856,7 +874,7 @@ export default function Students({
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  deleteStudent(s);
+                                  initiateDelete(s); // Triggers React Confirmation Dialog safely
                                 }}
                                 style={{
                                   background: "#dc2626",
@@ -956,6 +974,79 @@ export default function Students({
             </button>
             <button className="btn btn-primary" onClick={handleAdd}>
               Add Student
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* --- ASYNCHRONOUS REACT DELETE MODAL --- */}
+      {studentToDelete && (
+        <Modal
+          title="Delete Learner Profile"
+          onClose={() => setStudentToDelete(null)}
+        >
+          <div style={{ padding: "10px 0" }}>
+            <p
+              style={{
+                margin: "0 0 12px 0",
+                fontSize: "15px",
+                color: "#1e293b",
+                lineHeight: "1.5",
+              }}
+            >
+              Are you sure you want to delete{" "}
+              <strong>{studentToDelete.name}</strong>?
+            </p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "13px",
+                color: "#ef4444",
+                fontWeight: "500",
+              }}
+            >
+              ⚠️ This operation is permanent and will completely remove this
+              learner along with all associated nutritional and health records.
+            </p>
+          </div>
+          <div
+            className="modal-footer"
+            style={{
+              marginTop: "24px",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "10px",
+            }}
+          >
+            <button
+              className="btn btn-secondary"
+              onClick={() => setStudentToDelete(null)}
+              style={{
+                background: "#f1f5f9",
+                color: "#475569",
+                border: "1px solid #cbd5e1",
+                padding: "8px 16px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: "500",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-danger"
+              onClick={executeDelete}
+              style={{
+                background: "#dc2626",
+                color: "#fff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: "500",
+              }}
+            >
+              Yes, Delete Student
             </button>
           </div>
         </Modal>

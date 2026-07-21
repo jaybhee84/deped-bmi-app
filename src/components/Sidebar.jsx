@@ -2,13 +2,14 @@ import React, { useEffect, useState } from "react";
 import { ROLES } from "../utils/auth";
 import "./Sidebar.css";
 
+// Updated: Changed "Settings" label to "Information" to match workspace flow requirements
 const SCHOOL_NAV = [
   { id: "dashboard", icon: "📊", label: "Dashboard" },
   { id: "database", icon: "🎒", label: "Database" },
-  { id: "batch", icon: "📋", label: "Batch Entry" },
+  { id: "batch", icon: "📋", label: "Baseline Entry" },
   { id: "sbfp", icon: "🍱", label: "SBFP Beneficiaries" },
   { id: "reports", icon: "📄", label: "Reports" },
-  { id: "settings", icon: "⚙️", label: "Settings" },
+  { id: "settings", icon: "⚙️", label: "Information" }, // <-- Changed here
 ];
 
 const SDO_NAV = [
@@ -29,18 +30,26 @@ export default function Sidebar({
   const [version, setVersion] = useState("");
 
   useEffect(() => {
-    window.electronAPI.getAppVersion().then(setVersion);
+    if (window.electronAPI?.getAppVersion) {
+      window.electronAPI.getAppVersion().then(setVersion);
+    }
   }, []);
 
   useEffect(() => {
-    const unsubscribe = window.electronAPI.onUpdateMessage((message) => {
-      alert(message);
-      window.electronAPI.forceRefocusWindow();
-    });
-    return unsubscribe;
+    if (window.electronAPI?.onUpdateMessage) {
+      const unsubscribe = window.electronAPI.onUpdateMessage((message) => {
+        alert(message);
+        window.electronAPI?.forceRefocusWindow?.();
+      });
+      return unsubscribe;
+    }
   }, []);
+
   const isSDO = session?.role === ROLES.DIVISION;
   const navItems = isSDO ? SDO_NAV : SCHOOL_NAV;
+
+  // Safe fallback to resolve school name text from state or new sync profile cache layer
+  const activeSchoolName = schoolName || session?.school_name || "";
 
   return (
     <aside className="sidebar no-print">
@@ -48,13 +57,19 @@ export default function Sidebar({
         <div className="sidebar-logo">School-Based Feeding Program</div>
         <div className="sidebar-sub">Nutritional Status System</div>
         {isSDO ? (
-          <div className="sidebar-sdo-tag">
+          <div className="sidebar-school">
             {session?.divisionName || "Isabela City Schools Division Office"}
           </div>
         ) : (
-          schoolName && <div className="sidebar-school">{schoolName}</div>
+          activeSchoolName && (
+            <div className="sidebar-school">{activeSchoolName}</div>
+          )
         )}
-        {isSDO && <div className="sidebar-sdo-tag">SDO / Division View</div>}
+        {isSDO && (
+          <div className="sidebar-view-tag">
+            <span aria-hidden="true">🏛️</span> SDO / Division View
+          </div>
+        )}
       </div>
 
       <nav className="sidebar-nav">
@@ -77,26 +92,30 @@ export default function Sidebar({
       <div className="sidebar-footer">
         <div className="user-card">
           <div className="user-name">
-            {session?.username || session?.fullName || "User"}
+            {(session?.username || session?.fullName || "User").toUpperCase()}
           </div>
-          <div className="user-position">{session?.position}</div>
-          <div className={`user-role-tag ${session?.role}`}>
+          <div className="user-position">{session?.position || "Operator"}</div>
+          <div className={`user-role-tag ${session?.role || "School-Based"}`}>
             {isSDO ? "🏥 Division" : "🏫 School"}
           </div>
-          <div
-            style={{
-              fontSize: "12px",
-              color: "#cbd5e1",
-              marginBottom: "10px",
-              textAlign: "center",
-            }}
-          >
-            Version {version}
-          </div>
+          {version && (
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#cbd5e1",
+                marginBottom: "10px",
+                textAlign: "center",
+              }}
+            >
+              Version {version}
+            </div>
+          )}
+
           <button
             className="update-btn"
             onClick={async () => {
               try {
+                if (!window.electronAPI?.checkForUpdates) return;
                 const result = await window.electronAPI.checkForUpdates();
 
                 if (!result?.success) {
@@ -107,7 +126,7 @@ export default function Sidebar({
               } catch (err) {
                 alert(`Error checking updates:\n${err.message}`);
               } finally {
-                window.electronAPI.forceRefocusWindow();
+                window.electronAPI?.forceRefocusWindow?.();
               }
             }}
           >
@@ -118,7 +137,7 @@ export default function Sidebar({
             className="logout-btn"
             onClick={() => {
               const ok = window.confirm("Are you sure you want to sign out?");
-              window.electronAPI.forceRefocusWindow();
+              window.electronAPI?.forceRefocusWindow?.();
               if (ok) onLogout();
             }}
           >

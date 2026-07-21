@@ -13,6 +13,133 @@
     overflow: visible !important;
 }
 
+/* ── Filter Row Layout ────────── */
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    background: #F0F5FF;
+    border: 1px solid #C7D8F8;
+    border-radius: 8px;
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+}
+
+.filter-row .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 150px;
+}
+
+.filter-row .form-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #1a365d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.filter-row .form-select {
+    height: 38px;
+    padding: 6px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-size: 13px;
+    background: #fff;
+    color: #1a202c;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.filter-row .form-select:focus {
+    border-color: #1a365d;
+    box-shadow: 0 0 0 2px rgba(26, 54, 93, 0.1);
+}
+
+/* ── Summary & Actions Bar (Perfect Alignment) ────────── */
+.report-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+    padding: 4px 1.25rem;
+    /* Left/right padding explicitly matches the filter card padding above */
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.summary-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 9999px;
+    padding: 8px 16px;
+    font-size: 13px;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.summary-count {
+    font-weight: 800;
+    font-size: 14px;
+    color: #1a365d;
+}
+
+.summary-label {
+    color: #64748b;
+    font-weight: 500;
+}
+
+/* Unified Action Button Rules */
+.btn {
+    border: none;
+    border-radius: 6px;
+    padding: 0 20px;
+    height: 38px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background-color 0.2s, transform 0.1s;
+}
+
+.btn-primary {
+    background: #1a365d;
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: #14294a;
+}
+
+.btn-primary:active {
+    transform: scale(0.98);
+}
+
+/* ── Print Header ── */
+.print-header {
+    display: none;
+}
+
+@media print {
+    .print-header {
+        display: block;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+}
+
 /* Scroll Container Card */
 .sdo-reports-card {
     background: #fff;
@@ -65,7 +192,6 @@
     min-width: 1750px;
     border-collapse: collapse;
     table-layout: fixed;
-    /* Essential for keeping columns strictly locked to defined widths */
 }
 
 /* Tightened Cell Styles */
@@ -87,16 +213,13 @@
     text-transform: uppercase;
     letter-spacing: 0.3px;
     white-space: normal;
-    /* Allows text to wrap nicely if needed */
     word-wrap: break-word;
 }
 
-/* Prevent percentages and numbers in body cells from wrapping */
 .sdo-reports-table td {
     white-space: nowrap;
 }
 
-/* Let the Grade level label wrap if needed */
 .sdo-reports-table td.cell-grade {
     white-space: normal;
     word-wrap: break-word;

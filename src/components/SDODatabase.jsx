@@ -5,11 +5,10 @@ import {
   getHAZStatus,
   SECTIONS,
   GRADE_LEVELS,
-  SCHOOL_YEARS,
 } from "../utils/bmi";
 import Badge from "./Badge";
 import Modal from "./Modal";
-import "./SDOStudents.css";
+import "./SDODatabase.css";
 import { queueStudentForDelete } from "../utils/syncService";
 import { SCHOOL_OPTIONS } from "../constants/schools";
 
@@ -34,7 +33,15 @@ export default function SDOStudents({
   onViewProfile,
   readOnly,
 }) {
-  const [filterSy, setFilterSy] = useState(SCHOOL_YEARS[0] || "2026-2027");
+  // FIXED: Removed old dynamic utility dependency and added 2026–2027 through 2029–2030 manually[cite: 3]
+  const FUTURE_SCHOOL_YEARS = [
+    "2026–2027",
+    "2027–2028",
+    "2028–2029",
+    "2029–2030",
+  ];
+
+  const [filterSy, setFilterSy] = useState("2026–2027");
   const [filterSchool, setFilterSchool] = useState("ALL SCHOOLS");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
@@ -169,7 +176,8 @@ export default function SDOStudents({
     <div className="sdo-page">
       <div className="sdo-page-header">
         <div>
-          <h1 className="sdo-page-title">Database</h1>
+          {/* FIXED: Changed title from SDO Students to SDODatabase */}
+          <h1 className="sdo-page-title">SDO Database</h1>
           <p className="sdo-page-sub">
             Manage student profiles and health records
           </p>
@@ -223,7 +231,8 @@ export default function SDOStudents({
           }}
         >
           <option value="All">All Years</option>
-          {SCHOOL_YEARS.map((sy) => (
+          {/* FIXED: Replaced SCHOOL_YEARS with FUTURE_SCHOOL_YEARS loop[cite: 3] */}
+          {FUTURE_SCHOOL_YEARS.map((sy) => (
             <option key={sy} value={sy}>
               {sy}
             </option>
@@ -331,11 +340,10 @@ export default function SDOStudents({
                     }
                   }
 
+                  // FIXED: Modified fallback query mapping parameter to point to FUTURE_SCHOOL_YEARS[0]
                   const previousSbfp = hasPreviousYearData(
                     s,
-                    filterSy === "All"
-                      ? SCHOOL_YEARS[0] || "2026-2027"
-                      : filterSy,
+                    filterSy === "All" ? "2026–2027" : filterSy,
                   );
 
                   return (

@@ -78,19 +78,21 @@ export async function saveSbfpConfig(config) {
  * based on the SDO-configured criteria.
  */
 export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
-  if (!config) return false;
+  if (!config || typeof config.then === "function") return false;
 
   const grade = student.section?.split(" - ")[0] || "";
 
+  const configGrades = config.grades || [];
+  const configCriteria = config.criteria || [];
+  const restrictions = config.criterionGradeRestrictions || {};
+
   // Automatic grade inclusion
-  if (config.grades.includes(grade)) {
+  if (configGrades.includes(grade)) {
     return true;
   }
 
-  const restrictions = config.criterionGradeRestrictions || {};
-
   // BMI
-  if (bmiStatus?.label && config.criteria.includes(bmiStatus.label)) {
+  if (bmiStatus?.label && configCriteria.includes(bmiStatus.label)) {
     const allowedGrades = restrictions[bmiStatus.label];
 
     if (!allowedGrades || allowedGrades.length === 0) {
@@ -103,7 +105,7 @@ export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
   }
 
   // HAZ
-  if (hazStatus?.label && config.criteria.includes(hazStatus.label)) {
+  if (hazStatus?.label && configCriteria.includes(hazStatus.label)) {
     const allowedGrades = restrictions[hazStatus.label];
 
     if (!allowedGrades || allowedGrades.length === 0) {
@@ -119,13 +121,25 @@ export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
 }
 
 /**
- * Load manual enrolment numbers for a given school + school year from
- * Supabase. School-scoped so every user bound to the same school (see
- * profiles.school_id) sees and edits the same shared enrolment numbers.
+ * Load manual enrolment numbers for a given school + school year.
+ * Offline-first: reads local SQLite immediately (works with no internet),
+ * then — if online — refreshes from Supabase (the shared source of truth
+ * other devices write to) and re-caches that locally.
  * Returns {} if nothing is set yet, if schoolId is missing, or on error.
  */
 export async function loadSbfpEnrolment(schoolId, sy) {
   if (!schoolId || !sy) return {};
+
+  let localResult = null;
+  try {
+    localResult = await window.sqlite?.loadEnrolment?.(schoolId, sy);
+  } catch (e) {
+    console.error("[SQLite] loadEnrolment failed:", e);
+  }
+
+  if (!navigator.onLine) {
+    return localResult?.data || {};
+  }
 
   try {
     const { data, error } = await supabase
@@ -137,34 +151,71 @@ export async function loadSbfpEnrolment(schoolId, sy) {
 
     if (error) {
       console.error("loadSbfpEnrolment error:", error);
-      return {};
+      return localResult?.data || {};
     }
 
-    return data?.data || {};
+    if (!data) return localResult?.data || {};
+
+    // Re-cache the server copy locally so it's available next time offline.
+    try {
+      const total =
+        data.total ??
+        Object.values(data.data || {}).reduce(
+          (acc, val) => acc + (Number(val) || 0),
+          0,
+        );
+      await window.sqlite?.saveEnrolment?.(schoolId, sy, data.data || {}, total);
+      await window.sqlite?.markEnrolmentClean?.(schoolId, sy);
+    } catch (e) {
+      console.error("[SQLite] Failed to cache enrolment locally:", e);
+    }
+
+    return data.data || {};
   } catch (err) {
     console.error("loadSbfpEnrolment exception:", err);
-    return {};
+    return localResult?.data || {};
   }
 }
 
 /**
- * Save manual enrolment numbers for a given school + school year to
- * Supabase. Upserts on the (school_id, sy) composite key, so any other
- * user bound to the same school will see these numbers next time they
- * load this page.
+ * Save manual enrolment numbers for a given school + school year.
+ * Offline-first: always writes to local SQLite first, then pushes to Supabase
+ * when online. Also computes and stores the grand `total` in both local SQLite 
+ * and Supabase.
  */
-export async function saveSbfpEnrolment(schoolId, sy, enrolmentData) {
+export async function saveSbfpEnrolment(schoolId, sy, enrolmentData, total) {
   if (!schoolId) {
     console.error("saveSbfpEnrolment error: missing schoolId");
     return false;
   }
 
+  const grandTotal =
+    total ??
+    Object.values(enrolmentData || {}).reduce(
+      (sum, val) => sum + (Number(val) || 0),
+      0,
+    );
+
+  // 1. Local-first save — must succeed even with no internet.
+  try {
+    await window.sqlite?.saveEnrolment?.(schoolId, sy, enrolmentData, grandTotal);
+  } catch (e) {
+    console.error("[SQLite] Failed to save enrolment locally:", e);
+    return false;
+  }
+
+  // 2. If offline, stop here — dirty row will flush next time online.
+  if (!navigator.onLine) {
+    return true;
+  }
+
   try {
     const { error } = await supabase.from("sbfp_enrolment").upsert(
       {
-        school_id: schoolId,
+        school_id: String(schoolId).trim(),
         sy,
         data: enrolmentData,
+        total: grandTotal, // Includes the total in Supabase write
         updated_at: new Date().toISOString(),
       },
       { onConflict: "school_id,sy" },
@@ -172,12 +223,60 @@ export async function saveSbfpEnrolment(schoolId, sy, enrolmentData) {
 
     if (error) {
       console.error("saveSbfpEnrolment error:", error);
-      return false;
+      return true;
+    }
+
+    try {
+      await window.sqlite?.markEnrolmentClean?.(schoolId, sy);
+    } catch (e) {
+      console.error("[SQLite] Failed to mark enrolment clean:", e);
     }
 
     return true;
   } catch (err) {
     console.error("saveSbfpEnrolment exception:", err);
-    return false;
+    return true;
   }
+}
+
+/**
+ * Push any enrolment rows saved locally while offline up to Supabase.
+ */
+export async function flushDirtyEnrolment() {
+  if (!navigator.onLine) return { synced: 0 };
+
+  let dirtyRows = [];
+  try {
+    dirtyRows = (await window.sqlite?.getDirtyEnrolment?.()) || [];
+  } catch (e) {
+    console.error("[SQLite] Failed to read dirty enrolment rows:", e);
+    return { synced: 0 };
+  }
+
+  let synced = 0;
+  for (const row of dirtyRows) {
+    try {
+      const { error } = await supabase.from("sbfp_enrolment").upsert(
+        {
+          school_id: String(row.schoolId).trim(),
+          sy: row.sy,
+          data: row.data,
+          total: row.total ?? row.grandTotal, // Includes the total in sync payload
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "school_id,sy" },
+      );
+
+      if (!error) {
+        await window.sqlite?.markEnrolmentClean?.(row.schoolId, row.sy);
+        synced++;
+      } else {
+        console.error("flushDirtyEnrolment upsert error:", error);
+      }
+    } catch (e) {
+      console.error("flushDirtyEnrolment exception:", e);
+    }
+  }
+
+  return { synced };
 }
