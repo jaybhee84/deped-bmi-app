@@ -3,9 +3,6 @@ import path from "path";
 import os from "os";
 import fs from "fs";
 
-// ---------------------------------------------------------
-// HELPER 1: Landscape Summary Report Builder (DepEd Format)
-// ---------------------------------------------------------
 const BMI_LABELS = ["Severely Wasted", "Wasted", "Normal", "Overweight", "Obese"];
 const HFA_LABELS = ["Severely Stunted", "Stunted", "Normal", "Tall"];
 
@@ -77,67 +74,40 @@ function buildDepedReportHtml(payload) {
   const noPctHeaders = (count) => Array.from({ length: count }, () => `<th>No.</th><th>%</th>`).join("");
 
   return `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          @page { size: legal landscape; margin: 10mm; }
-          body { font-family: Arial, Helvetica, sans-serif; color: #000; margin: 0; padding: 0; }
-          .header { text-align: center; margin-bottom: 10px; }
-          .header p { margin: 0; font-size: 11px; line-height: 1.3; }
-          .header h2 { margin: 4px 0 0; font-size: 15px; font-weight: bold; text-transform: uppercase; }
-          .header .period { font-style: italic; font-weight: bold; margin-top: 2px; }
-          table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: auto; }
-          .grade-col { width: 80px; min-width: 80px; white-space: normal !important; word-break: break-word; text-align: center; }
-          th, td { border: 1px solid #333; padding: 2px 4px; text-align: center; }
-          thead th { background: #EFF6FF; font-weight: bold; }
-          td.row-label { font-weight: 600; }
-          td.grade-col { text-align: center !important; vertical-align: middle !important; font-weight: 700; }
-          tr.row-total { background: #F3F4F6; font-weight: bold; }
-          td.pct { color: #444; }
-          td.grand-total-label { white-space: normal; word-break: break-word; text-align: center; vertical-align: middle; font-size: 8px; line-height: 1.15; padding: 2px; }
-          .footer { margin-top: 10px; font-size: 10px; text-align: right; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <p>Department of Education</p>
-          <p>Bureau of Learner Support Services</p>
-          <p>School Health Division</p>
-          <h2>NUTRITIONAL STATUS REPORT OF ${(meta.schoolName || "").toUpperCase()}</h2>
-          <p class="period">${(meta.period || "").toUpperCase()} SY ${meta.sy || ""}</p>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th rowspan="3" class="grade-col">Grade Levels</th>
-              <th rowspan="3">Sex</th>
-              <th rowspan="3">Enrolment</th>
-              <th colspan="2" rowspan="2">Pupils Weighed</th>
-              <th colspan="10">Body Mass Index (BMI)</th>
-              <th colspan="8">Height-for-Age (HFA)</th>
-              <th colspan="2" rowspan="2">Pupils Taken Height</th>
-            </tr>
-            <tr>${bmiSubHeaders}${hfaSubHeaders}</tr>
-            <tr>
-              <th>No.</th><th>%</th>
-              ${noPctHeaders(BMI_LABELS.length)}
-              ${noPctHeaders(HFA_LABELS.length)}
-              <th>No.</th><th>%</th>
-            </tr>
-          </thead>
-          <tbody>${bodyRows}${grandRows}</tbody>
-        </table>
-        <p class="footer">Date Printed: ${meta.date || ""}</p>
-      </body>
-    </html>
+    <div class="report-page-block">
+      <div class="header">
+        <p>Department of Education</p>
+        <p>Bureau of Learner Support Services</p>
+        <p>School Health Division</p>
+        <h2>NUTRITIONAL STATUS REPORT OF ${(meta.schoolName || "").toUpperCase()}</h2>
+        <p class="period">${(meta.period || "").toUpperCase()} SY ${meta.sy || ""}</p>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="3" class="grade-col">Grade Levels</th>
+            <th rowspan="3">Sex</th>
+            <th rowspan="3">Enrolment</th>
+            <th colspan="2" rowspan="2">Pupils Weighed</th>
+            <th colspan="10">Body Mass Index (BMI)</th>
+            <th colspan="8">Height-for-Age (HFA)</th>
+            <th colspan="2" rowspan="2">Pupils Taken Height</th>
+          </tr>
+          <tr>${bmiSubHeaders}${hfaSubHeaders}</tr>
+          <tr>
+            <th>No.</th><th>%</th>
+            ${noPctHeaders(BMI_LABELS.length)}
+            ${noPctHeaders(HFA_LABELS.length)}
+            <th>No.</th><th>%</th>
+          </tr>
+        </thead>
+        <tbody>${bodyRows}${grandRows}</tbody>
+      </table>
+      <p class="footer">Date Printed: ${meta.date || ""}</p>
+    </div>
   `;
 }
 
-// ---------------------------------------------------------
-// HELPER 2: Portrait List Builder (8.5x13 Format)
-// ---------------------------------------------------------
 function buildPortraitHtml(payload) {
   const groupedSections = {};
   payload.learners.forEach((learner) => {
@@ -183,9 +153,9 @@ function buildPortraitHtml(payload) {
           </tr>
         </thead>
         <tbody>
-          ${learners.map((l, index) => `
+          ${learners.map((l, idx) => `
             <tr>
-              <td class="center">${index + 1}</td>
+              <td class="center">${idx + 1}</td>
               <td class="name-cell">${l.name}</td>
               <td class="center">${l.sex}</td>
               <td class="center">${l.age}</td>
@@ -227,66 +197,130 @@ function buildPortraitHtml(payload) {
   `;
 }
 
-// ---------------------------------------------------------
-// UNIFIED IPC LISTENER EXPORT
-// ---------------------------------------------------------
-export function setupPrintHandler() {
-  ipcMain.on("generate-pdf-preview", async (event, payload) => {
-    try {
-      let workerWindow = new BrowserWindow({
-        show: false,
-        webPreferences: {
-          nodeIntegration: false,
-          contextIsolation: true,
-        },
-      });
-      workerWindow.on("page-title-updated", (event) => event.preventDefault()); // ← ADD THIS LINE
+async function processPrintRequest(event, payload) {
+  try {
+    if (!payload) {
+      console.error("🚨 [IPC Main Error]: Received a null/undefined print payload.");
+      return; 
+    }
 
-      let htmlContent = "";
-      let printOptions = {
-        printBackground: true,
-        pageSize: "Legal",
-        margins: { marginType: "none" },
-      };
-      let previewConfig = { width: 850, height: 950, title: "Report Preview" };
+    let workerWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+      },
+    });
+    workerWindow.on("page-title-updated", (ev) => ev.preventDefault());
 
-      // Switch layout based on the reportType flag
-      if (payload.reportType === "landscape") {
-        htmlContent = buildDepedReportHtml(payload);
-        printOptions.landscape = true;
-        previewConfig = { width: 1100, height: 800, title: "DepEd SBFP Nutritional Status Report Preview" };
+    let htmlContent = "";
+    let printOptions = {
+      printBackground: true,
+      pageSize: "Legal",
+      margins: { marginType: "none" },
+    };
+    let previewConfig = { width: 850, height: 950, title: "Report Preview" };
+
+    const isMultiPage = Array.isArray(payload);
+
+    if (isMultiPage && payload.length === 0) {
+      console.error("No pages generated for preview.");
+      if (workerWindow) workerWindow.destroy();
+      return;
+    }
+
+    const targetType = isMultiPage
+      ? payload[0]?.reportType
+      : payload.reportType;
+
+    if (targetType === "landscape") {
+      printOptions.landscape = true;
+      previewConfig = { width: 1100, height: 800, title: "DepEd SBFP Nutritional Status Report Preview" };
+
+      let sheets = "";
+      if (isMultiPage) {
+        sheets = payload
+          .map(
+            (page, idx) => `
+          <div style="
+            page-break-before:${idx === 0 ? "auto" : "always"};
+            break-before:page;
+            width:100%;
+          ">
+            ${buildDepedReportHtml(page)}
+          </div>
+          `
+          )
+          .join("");
       } else {
-        htmlContent = buildPortraitHtml(payload);
-        printOptions.landscape = false;
-        previewConfig = { width: 850, height: 950, title: "DepEd SBFP 8.5x13 Report Preview" };
+        sheets = `<div>${buildDepedReportHtml(payload)}</div>`;
       }
 
-      workerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
-
-      workerWindow.webContents.on("did-finish-load", async () => {
-        try {
-          const pdfBuffer = await workerWindow.webContents.printToPDF(printOptions);
-          const previewPath = path.join(os.tmpdir(), "sbfp_report_preview.pdf");
-          fs.writeFileSync(previewPath, pdfBuffer);
-
-         const previewWindow = new BrowserWindow({
-            ...previewConfig,
-            parent: BrowserWindow.fromWebContents(event.sender),
-            modal: true,
-            webPreferences: { plugins: true },
-          });
-          previewWindow.on("page-title-updated", (event) => event.preventDefault()); // ← ADD THIS LINE
-          previewWindow.setTitle(previewConfig.title);                                // ← AND THIS LINE
-
-          previewWindow.loadURL(`file://${previewPath}`);
-          workerWindow.destroy();
-        } catch (err) {
-          console.error("[Print Preview Core Error]:", err);
-          if (workerWindow) workerWindow.destroy();
-        }
-      });
-    } catch (globalErr) {
-      console.error("[IPC Main Runtime Error]:", globalErr);
+      htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              @page { size: legal landscape; margin: 10mm; }
+              body { font-family: Arial, Helvetica, sans-serif; color: #000; margin: 0; padding: 0; width: 100%; }
+              .report-page-block { page-break-inside: avoid; break-inside: avoid; width: 100%; display: block; margin-bottom: 20px; }
+              .header { text-align: center; margin-bottom: 10px; }
+              .header p { margin: 0; font-size: 11px; line-height: 1.3; }
+              .header h2 { margin: 4px 0 0; font-size: 15px; font-weight: bold; text-transform: uppercase; }
+              .header .period { font-style: italic; font-weight: bold; margin-top: 2px; }
+              table { width: 100%; border-collapse: collapse; font-size: 9px; table-layout: auto; margin-bottom: 5px; }
+              .grade-col { width: 80px; min-width: 80px; white-space: normal !important; word-break: break-word; text-align: center; }
+              th, td { border: 1px solid #333; padding: 2px 4px; text-align: center; }
+              thead th { background: #EFF6FF; font-weight: bold; }
+              td.row-label { font-weight: 600; }
+              td.grade-col { text-align: center !important; vertical-align: middle !important; font-weight: 700; }
+              tr.row-total { background: #F3F4F6; font-weight: bold; }
+              td.pct { color: #444; }
+              td.grand-total-label { white-space: normal; word-break: break-word; text-align: center; vertical-align: middle; font-size: 8px; line-height: 1.15; padding: 2px; }
+              .footer { margin-top: 5px; font-size: 10px; text-align: right; }
+            </style>
+          </head>
+          <body>${sheets}</body>
+        </html>
+      `;
+    } else {
+      htmlContent = buildPortraitHtml(payload);
+      printOptions.landscape = false;
+      previewConfig = { width: 850, height: 950, title: "DepEd SBFP 8.5x13 Report Preview" };
     }
-  });
+
+    workerWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
+
+    workerWindow.webContents.on("did-finish-load", async () => {
+      try {
+        const pdfBuffer = await workerWindow.webContents.printToPDF(printOptions);
+        const previewPath = path.join(os.tmpdir(), "sbfp_report_preview.pdf");
+        fs.writeFileSync(previewPath, pdfBuffer);
+
+        const previewWindow = new BrowserWindow({
+          ...previewConfig,
+          parent: BrowserWindow.fromWebContents(event.sender),
+          // 🔴 FIXED: Set to false so macOS displays standard traffic light close buttons instead of a modal sheet window trap
+          modal: false, 
+          webPreferences: { plugins: true },
+        });
+        previewWindow.on("page-title-updated", (ev) => ev.preventDefault());
+        previewWindow.setTitle(previewConfig.title);
+
+        previewWindow.loadURL(`file://${previewPath}`);
+        workerWindow.destroy();
+      } catch (err) {
+        console.error("[Print Preview Core Error]:", err);
+        if (workerWindow) workerWindow.destroy();
+      }
+    });
+  } catch (globalErr) {
+    console.error("[IPC Main Runtime Error]:", globalErr);
+  }
+}
+
+export function setupPrintHandler() {
+  ipcMain.on("generate-print-preview", processPrintRequest);
+  ipcMain.on("generate-pdf-preview", processPrintRequest);
 }

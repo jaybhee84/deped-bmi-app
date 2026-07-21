@@ -1,8 +1,37 @@
 import React, { useRef, useState, useMemo } from "react";
-import { QUARTERS, SCHOOL_YEARS, GRADE_LEVELS } from "../utils/bmi";
+import {
+  QUARTERS,
+  SCHOOL_YEARS,
+  GRADE_LEVELS,
+  calcBMI,
+  getBMIStatus,
+  getHAZStatus,
+} from "../utils/bmi";
 import { getStudentIdentifier, gradeFromSection } from "../utils/registry";
 import "./CSVUpload.css";
 import Papa from "papaparse";
+
+// Simple Badge component mirroring the one used in BatchEntry layout
+function LocalBadge({ label, color, bg }) {
+  if (!label) return "—";
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "2px 8px",
+        borderRadius: "4px",
+        fontSize: "11px",
+        fontWeight: "600",
+        color: color || "#334155",
+        backgroundColor: bg || "#f1f5f9",
+        textAlign: "center",
+        textTransform: "uppercase",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
 
 export default function CSVUpload({ students, setStudents, open, setOpen }) {
   const fileRef = useRef();
@@ -49,10 +78,9 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
   function downloadTemplate() {
     const sectionLabel = filterSection || filterGrade || "Class";
     const rows = [
-      ["registry_no", "lrn", "name", "weight", "height"],
+      ["registry_no", "name", "weight", "height"],
       ...classStudents.map((s) => [
         s.registryNo || "—",
-        s.lrn || "—",
         s.name,
         "", // blank for user to fill
         "", // blank for user to fill
@@ -75,43 +103,58 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
     a.click();
     URL.revokeObjectURL(url);
   }
-  console.log("CLASS STUDENTS", classStudents);
 
-  // ── Parse uploaded CSV ────────────────────────────────────
+  // ── Robust CSV Processing with PapaParse ────────────────────
   function parseCSV(text) {
-    const lines = text.trim().split("\n").filter(Boolean);
-    if (!lines.length) return { rows: [], errors: ["File is empty."] };
-    const headers = lines[0]
-      .split(",")
-      .map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+    const parsed = Papa.parse(text, {
+      header: true,
+      skipEmptyLines: "greedy",
+    });
+
+    if (!parsed.data || !parsed.data.length) {
+      return { rows: [], errors: ["File is empty."] };
+    }
+
+    const standardKeys = Object.keys(parsed.data[0]).map((h) =>
+      h.trim().toLowerCase(),
+    );
     const errs = [];
 
-    const hasRegistry = headers.includes("registry_no");
-    const hasLRN = headers.includes("lrn");
-    if (!hasRegistry && !hasLRN) {
+    const hasRegistry = standardKeys.includes("registry_no");
+
+    if (!hasRegistry) {
       return {
         rows: [],
-        errors: [
-          "CSV must have a registry_no or lrn column. Download the template.",
-        ],
+        errors: ["CSV must have a registry_no column. Download the template."],
       };
     }
-    if (!headers.includes("weight") || !headers.includes("height")) {
+    if (!standardKeys.includes("weight") || !standardKeys.includes("height")) {
       return { rows: [], errors: ["CSV must have weight and height columns."] };
     }
 
-    const idx = (h) => headers.indexOf(h);
     const rows = [];
 
-    lines.slice(1).forEach((line, i) => {
-      const cols = line.split(",").map((c) => c.trim().replace(/"/g, ""));
-      const registryNo = hasRegistry ? cols[idx("registry_no")]?.trim() : null;
-      const lrn = hasLRN ? cols[idx("lrn")]?.trim() : null;
-      const weight = parseFloat(cols[idx("weight")]);
-      const height = parseFloat(cols[idx("height")]);
+    parsed.data.forEach((row, i) => {
+      const regKey = Object.keys(row).find(
+        (k) => k.trim().toLowerCase() === "registry_no",
+      );
+      const weightKey = Object.keys(row).find(
+        (k) => k.trim().toLowerCase() === "weight",
+      );
+      const heightKey = Object.keys(row).find(
+        (k) => k.trim().toLowerCase() === "height",
+      );
+      const nameKey = Object.keys(row).find(
+        (k) => k.trim().toLowerCase() === "name",
+      );
 
-      if (!registryNo && !lrn) {
-        errs.push(`Row ${i + 2}: No registry_no or lrn.`);
+      const registryNo = row[regKey] ? String(row[regKey]).trim() : null;
+
+      const weight = parseFloat(String(row[weightKey] || "").trim());
+      const height = parseFloat(String(row[heightKey] || "").trim());
+
+      if (!registryNo) {
+        errs.push(`Row ${i + 2}: No registry_no found.`);
         return;
       }
       if (isNaN(weight) || weight <= 0) {
@@ -123,19 +166,36 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         return;
       }
 
-      // Match student — try registryNo first, then LRN
       const match = students.find(
-        (s) =>
-          (registryNo && registryNo !== "—" && s.registryNo === registryNo) ||
-          (lrn && lrn !== "—" && s.lrn === lrn),
+        (s) => registryNo && registryNo !== "—" && s.registryNo === registryNo,
       );
+
+      // Extract metadata from match
+      const birthdate = match?.birthdate || "—";
+      const sex = match?.sex || "—";
+      const age =
+        match?.age !== undefined && match?.age !== "" ? match.age : "—";
+
+      // Dynamically map statuses for preview display
+      const bmi = weight && height ? calcBMI(weight, height) : null;
+      const bmiStatus = bmi
+        ? getBMIStatus(bmi, match?.sex, match?.birthdate)
+        : null;
+      const hazStatus = height
+        ? getHAZStatus(height, match?.sex, match?.birthdate)
+        : null;
 
       rows.push({
         registryNo: registryNo || "—",
-        lrn: lrn || "—",
-        name: cols[headers.indexOf("name")] || match?.name || "—",
+        name: row[nameKey] || match?.name || "—",
         weight,
         height,
+        birthdate,
+        sex,
+        age,
+        bmi,
+        bmiStatus,
+        hazStatus,
         matched: !!match,
         studentId: match?.id,
         studentName: match?.name || "—",
@@ -188,6 +248,18 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         };
       }),
     );
+
+    if (window.electronAPI?.upsertSQLiteRecords) {
+      const payloads = matched.map((r) => ({
+        registry_no: r.registryNo,
+        school_year: sy,
+        period_stage: period,
+        date_measured: date,
+        weight_kg: r.weight,
+        height_cm: r.height,
+      }));
+      window.electronAPI.upsertSQLiteRecords(payloads);
+    }
 
     setSaved(true);
     setPreview([]);
@@ -274,11 +346,18 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         </div>
       </div>
 
-      {/* Class selector */}
-      <div className="csv-class-selector">
+      {/* Class selector controls bar */}
+      <div
+        className="csv-class-selector"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "flex-end",
+          gap: "12px",
+        }}
+      >
         <div className="form-group">
           <label className="form-label">Grade Level</label>
-
           <select
             className="form-select"
             value={filterGrade}
@@ -288,7 +367,6 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
             }}
           >
             <option value="">Select Grade Level</option>
-
             {GRADE_LEVELS.map((g) => (
               <option key={g} value={g}>
                 {g}
@@ -299,7 +377,6 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
 
         <div className="form-group">
           <label className="form-label">Section / Class</label>
-
           <select
             className="form-select"
             value={filterSection}
@@ -307,7 +384,6 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
             disabled={!filterGrade}
           >
             <option value="">Select Section</option>
-
             {availableSections.map((section) => (
               <option key={section} value={section}>
                 {section}
@@ -318,7 +394,6 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
 
         <div className="csv-class-count">
           <span className="csv-count-num">{classStudents.length}</span>
-
           <span className="csv-count-label">learners in class</span>
         </div>
 
@@ -331,6 +406,23 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         >
           ⬇ Download Template for This Class
         </button>
+
+        <button
+          className="btn btn-primary"
+          onClick={() => fileRef.current.click()}
+          disabled={
+            !filterGrade || !filterSection || classStudents.length === 0
+          }
+        >
+          📤 Upload Completed CSV
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv"
+          style={{ display: "none" }}
+          onChange={handleFile}
+        />
       </div>
 
       {(!filterGrade || !filterSection) && (
@@ -347,53 +439,333 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         </div>
       )}
 
-      {filterGrade && filterSection && classStudents.length > 0 && (
-        <div className="csv-class-roster" style={{ marginTop: "16px" }}>
-          <h4>Learners in Selected Class ({classStudents.length})</h4>
+      {/* Roster list table - Hidden if staging preview is active */}
+      {filterGrade &&
+        filterSection &&
+        classStudents.length > 0 &&
+        preview.length === 0 && (
+          <div className="csv-class-roster" style={{ marginTop: "16px" }}>
+            <h4 style={{ marginBottom: "10px", color: "#334155" }}>
+              Learners in Selected Class ({classStudents.length})
+            </h4>
+            <div
+              style={{
+                maxHeight: "450px",
+                overflow: "auto",
+                border: "1px solid #cbd5e1",
+                borderRadius: "8px",
+                background: "#fff",
+              }}
+            >
+              <table
+                className="data-table"
+                style={{
+                  display: "table",
+                  borderCollapse: "collapse",
+                  tableLayout: "fixed",
+                  width: "1450px",
+                  minWidth: "1450px",
+                  margin: 0,
+                }}
+              >
+                <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
+                  <tr style={{ background: "#5D9C32" }}>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "40px",
+                        color: "#fff",
+                        padding: "10px 4px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      #
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "180px",
+                        color: "#fff",
+                        padding: "10px 8px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      REGISTRY NO.
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "300px",
+                        color: "#fff",
+                        padding: "10px 8px",
+                        fontSize: "12px",
+                        textAlign: "left",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      NAME
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "120px",
+                        color: "#fff",
+                        padding: "10px 8px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      BIRTHDATE
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "70px",
+                        color: "#fff",
+                        padding: "10px 4px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      AGE
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "70px",
+                        color: "#fff",
+                        padding: "10px 4px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      SEX
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "70px",
+                        color: "#fff",
+                        padding: "10px 4px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      WEIGHT
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "70px",
+                        color: "#fff",
+                        padding: "10px 4px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      HEIGHT
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "70px",
+                        color: "#fff",
+                        padding: "10px 4px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      BMI
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "300px",
+                        color: "#fff",
+                        padding: "10px 8px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      NUTRITIONAL STATUS
+                    </th>
+                    <th
+                      style={{
+                        display: "table-cell",
+                        width: "160px",
+                        color: "#fff",
+                        padding: "10px 8px",
+                        fontSize: "12px",
+                        textAlign: "center",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      HFA STATUS
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {classStudents.map((student, index) => {
+                    const bdate = student.birthdate || "—";
+                    const sex = student.sex || "—";
+                    const age =
+                      student.age !== undefined && student.age !== ""
+                        ? student.age
+                        : "—";
+                    const periodRec = student.records?.find(
+                      (r) => r.sy === sy && r.q === period,
+                    );
+                    const weight = periodRec ? periodRec.weight : "";
+                    const height = periodRec ? periodRec.height : "";
+                    const bmi =
+                      weight && height ? calcBMI(weight, height) : null;
+                    const bmiStatus = bmi
+                      ? getBMIStatus(bmi, student.sex, student.birthdate)
+                      : null;
+                    const hazStatus = height
+                      ? getHAZStatus(height, student.sex, student.birthdate)
+                      : null;
 
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Registry No.</th>
-                <th>LRN</th>
-                <th>Name</th>
-              </tr>
-            </thead>
+                    return (
+                      <tr
+                        key={student.id}
+                        style={{
+                          borderBottom: "1px solid #f1f5f9",
+                          background: index % 2 === 0 ? "#ffffff" : "#f8fafc",
+                        }}
+                      >
+                        <td
+                          style={{
+                            display: "table-cell",
+                            padding: "8px 4px",
+                            textAlign: "center",
+                            fontSize: "13px",
+                            color: "#64748b",
+                          }}
+                        >
+                          {index + 1}
+                        </td>
+                        <td
+                          style={{
+                            display: "table-cell",
+                            padding: "8px",
+                            textAlign: "center",
+                            fontSize: "13px",
+                            fontFamily: "monospace",
+                          }}
+                        >
+                          {student.registryNo || "—"}
+                        </td>
+                        <td
+                          style={{
+                            display: "table-cell",
+                            padding: "8px",
+                            textAlign: "left",
+                            fontSize: "13px",
+                            fontWeight: "600",
+                            color: "#1e293b",
+                          }}
+                        >
+                          {student.name}
+                        </td>
+                        <td
+                          style={{
+                            display: "table-cell",
+                            padding: "8px",
+                            textAlign: "center",
+                            fontSize: "13px",
+                          }}
+                        >
+                          {bdate}
+                        </td>
+                        <td
+                          style={{
+                            display: "table-cell",
+                            padding: "8px 4px",
+                            textAlign: "center",
+                            fontSize: "13px",
+                          }}
+                        >
+                          {age}
+                        </td>
+                        <td
+                          style={{
+                            display: "table-cell",
+                            padding: "8px 4px",
+                            textAlign: "center",
+                            fontSize: "13px",
+                          }}
+                        >
+                          {sex}
+                        </td>
+                        <td
+                          style={{
+                            display: "table-cell",
+                            padding: "8px 4px",
+                            textAlign: "center",
+                            fontSize: "13px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {weight ? `${weight} kg` : "—"}
+                        </td>
+                        <td
+                          style={{
+                            display: "table-cell",
+                            padding: "8px 4px",
+                            textAlign: "center",
+                            fontSize: "13px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {height ? `${height} cm` : "—"}
+                        </td>
+                        <td
+                          style={{
+                            display: "table-cell",
+                            padding: "8px 4px",
+                            textAlign: "center",
+                            fontSize: "13px",
+                          }}
+                        >
+                          {bmi ? bmi.toFixed(2) : "—"}
+                        </td>
+                        <td style={{ display: "table-cell", padding: "8px" }}>
+                          <LocalBadge
+                            label={bmiStatus?.label}
+                            color={bmiStatus?.color}
+                            bg={bmiStatus?.bg}
+                          />
+                        </td>
+                        <td style={{ display: "table-cell", padding: "8px" }}>
+                          <LocalBadge
+                            label={hazStatus?.label}
+                            color={hazStatus?.color}
+                            bg={hazStatus?.bg}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
-            <tbody>
-              {classStudents.map((student, index) => (
-                <tr key={student.id}>
-                  <td>{index + 1}</td>
-                  <td>{student.registryNo || "—"}</td>
-                  <td>{student.lrn || "—"}</td>
-                  <td>{student.name}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Upload area */}
-      <div className="csv-drop-zone" onClick={() => fileRef.current.click()}>
-        <div className="csv-drop-icon">📄</div>
-        <div className="csv-drop-text">Click to upload completed CSV</div>
-        <div className="csv-drop-sub">
-          Matches learners by Registry Number or LRN
-        </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".csv"
-          style={{ display: "none" }}
-          onChange={handleFile}
-        />
-      </div>
-
-      {/* Errors */}
       {errors.length > 0 && (
-        <div className="csv-errors">
+        <div className="csv-errors" style={{ marginTop: "12px" }}>
           {errors.map((e, i) => (
             <div key={i} className="csv-error-row">
               ⚠ {e}
@@ -402,54 +774,356 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         </div>
       )}
 
-      {/* Preview table */}
+      {/* Preview table - Structure perfectly preserved identical to layout before upload */}
       {preview.length > 0 && (
-        <div className="csv-preview">
-          <div className="csv-preview-header">
-            <span className="csv-match-count matched">
+        <div className="csv-preview" style={{ marginTop: "16px" }}>
+          <div className="csv-preview-header" style={{ marginBottom: "10px" }}>
+            <span
+              className="csv-match-count matched"
+              style={{
+                marginRight: "10px",
+                fontWeight: "bold",
+                color: "#5D9C32",
+              }}
+            >
               ✓ {matchedCount} matched
             </span>
             {unmatchedCount > 0 && (
-              <span className="csv-match-count unmatched">
+              <span
+                className="csv-match-count unmatched"
+                style={{ fontWeight: "bold", color: "#ef4444" }}
+              >
                 ⚠ {unmatchedCount} unmatched (skipped)
               </span>
             )}
           </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Registry No.</th>
-                <th>LRN</th>
-                <th>Name</th>
-                <th>Weight</th>
-                <th>Height</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {preview.map((row, i) => (
-                <tr key={i} style={{ opacity: row.matched ? 1 : 0.45 }}>
-                  <td>
-                    <code style={{ fontSize: 11 }}>{row.registryNo}</code>
-                  </td>
-                  <td>{row.lrn}</td>
-                  <td>{row.studentName}</td>
-                  <td>{row.weight} kg</td>
-                  <td>{row.height} cm</td>
-                  <td>
-                    {row.matched ? (
-                      <span className="csv-status-ok">
-                        ✓ Will save as {period}
-                      </span>
-                    ) : (
-                      <span className="csv-status-skip">⚠ Not found</span>
-                    )}
-                  </td>
+
+          <div
+            style={{
+              maxHeight: "400px",
+              overflow: "auto",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              background: "#fff",
+            }}
+          >
+            <table
+              className="data-table"
+              style={{
+                display: "table",
+                borderCollapse: "collapse",
+                tableLayout: "fixed",
+                width: "1630px",
+                minWidth: "1630px",
+                margin: 0,
+              }}
+            >
+              <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
+                <tr style={{ background: "#5D9C32" }}>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "40px",
+                      color: "#fff",
+                      padding: "10px 4px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    #
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "180px",
+                      color: "#fff",
+                      padding: "10px 8px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    REGISTRY NO.
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "300px",
+                      color: "#fff",
+                      padding: "10px 8px",
+                      fontSize: "12px",
+                      textAlign: "left",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    NAME
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "120px",
+                      color: "#fff",
+                      padding: "10px 8px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    BIRTHDATE
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "70px",
+                      color: "#fff",
+                      padding: "10px 4px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    AGE
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "70px",
+                      color: "#fff",
+                      padding: "10px 4px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    SEX
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "70px",
+                      color: "#fff",
+                      padding: "10px 4px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    WEIGHT
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "70px",
+                      color: "#fff",
+                      padding: "10px 4px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    HEIGHT
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "70px",
+                      color: "#fff",
+                      padding: "10px 4px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    BMI
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "300px",
+                      color: "#fff",
+                      padding: "10px 8px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    NUTRITIONAL STATUS
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "160px",
+                      color: "#fff",
+                      padding: "10px 8px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    HFA STATUS
+                  </th>
+                  <th
+                    style={{
+                      display: "table-cell",
+                      width: "180px",
+                      color: "#fff",
+                      padding: "10px 8px",
+                      fontSize: "12px",
+                      textAlign: "center",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    ACTION
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="csv-save-row">
+              </thead>
+              <tbody>
+                {preview.map((row, i) => (
+                  <tr
+                    key={i}
+                    style={{
+                      borderBottom: "1px solid #f1f5f9",
+                      background: i % 2 === 0 ? "#ffffff" : "#f8fafc",
+                      opacity: row.matched ? 1 : 0.45,
+                    }}
+                  >
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px 4px",
+                        textAlign: "center",
+                        fontSize: "13px",
+                        color: "#64748b",
+                      }}
+                    >
+                      {i + 1}
+                    </td>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px",
+                        textAlign: "center",
+                        fontSize: "13px",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {row.registryNo}
+                    </td>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px",
+                        textAlign: "left",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        color: "#1e293b",
+                      }}
+                    >
+                      {row.studentName}
+                    </td>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px",
+                        textAlign: "center",
+                        fontSize: "13px",
+                      }}
+                    >
+                      {row.birthdate}
+                    </td>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px 4px",
+                        textAlign: "center",
+                        fontSize: "13px",
+                      }}
+                    >
+                      {row.age}
+                    </td>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px 4px",
+                        textAlign: "center",
+                        fontSize: "13px",
+                      }}
+                    >
+                      {row.sex}
+                    </td>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px 4px",
+                        textAlign: "center",
+                        fontSize: "13px",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {row.weight} kg
+                    </td>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px 4px",
+                        textAlign: "center",
+                        fontSize: "13px",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {row.height} cm
+                    </td>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px 4px",
+                        textAlign: "center",
+                        fontSize: "13px",
+                      }}
+                    >
+                      {row.bmi ? row.bmi.toFixed(2) : "—"}
+                    </td>
+                    <td style={{ display: "table-cell", padding: "8px" }}>
+                      <LocalBadge
+                        label={row.bmiStatus?.label}
+                        color={row.bmiStatus?.color}
+                        bg={row.bmiStatus?.bg}
+                      />
+                    </td>
+                    <td style={{ display: "table-cell", padding: "8px" }}>
+                      <LocalBadge
+                        label={row.hazStatus?.label}
+                        color={row.hazStatus?.color}
+                        bg={row.hazStatus?.bg}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        display: "table-cell",
+                        padding: "8px",
+                        textAlign: "center",
+                        fontSize: "12px",
+                      }}
+                    >
+                      {row.matched ? (
+                        <span style={{ color: "#5D9C32", fontWeight: "600" }}>
+                          ✓ Will save as {period}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#ef4444", fontWeight: "600" }}>
+                          ⚠ Not found
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Action Row */}
+          <div className="csv-save-row" style={{ marginTop: "12px" }}>
             <button
               className="btn btn-primary"
               onClick={handleSave}
@@ -458,8 +1132,18 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
               Save {matchedCount} Record{matchedCount !== 1 ? "s" : ""} as{" "}
               {period}
             </button>
-            {saved && <span className="save-confirm">✓ Records saved!</span>}
           </div>
+        </div>
+      )}
+
+      {saved && (
+        <div style={{ marginTop: "12px" }}>
+          <span
+            className="save-confirm"
+            style={{ color: "#5D9C32", fontWeight: "600" }}
+          >
+            ✓ Records saved successfully!
+          </span>
         </div>
       )}
     </div>

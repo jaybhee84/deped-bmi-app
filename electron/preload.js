@@ -2,13 +2,13 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 console.log("PRELOAD LOADED");
 
+// =========================
+// SQLITE DATA INTERACTION LAYER
+// =========================
 contextBridge.exposeInMainWorld("sqlite", {
   test: () => "SQLite Ready",
 
-  // =========================
   // STUDENTS
-  // =========================
-
   saveStudents: (students) =>
     ipcRenderer.invoke(
       "students:save",
@@ -20,12 +20,7 @@ contextBridge.exposeInMainWorld("sqlite", {
       "students:load"
     ),
 
-  // =========================
   // SCHOOLS
-  // =========================
-
-  // `userId` scopes this device's cached school to whichever account set
-  // it up, so a second account on the same device doesn't inherit it.
   saveSchool: (school, userId) =>
     ipcRenderer.invoke(
       "school:save",
@@ -38,10 +33,18 @@ contextBridge.exposeInMainWorld("sqlite", {
       userId
     ),
 
-    // =========================
-  // SBFP CONFIG
-  // =========================
+  loadSchoolWithLogo: (userId) =>
+    ipcRenderer.invoke(
+      "school:loadWithLogo",
+      userId
+    ),
+  
+  clearSchool: () =>
+    ipcRenderer.invoke(
+      "school:clear"
+    ),
 
+  // SBFP CONFIG
   loadSbfpConfig: () =>
     ipcRenderer.invoke(
       "sbfpConfig:load"
@@ -52,16 +55,8 @@ contextBridge.exposeInMainWorld("sqlite", {
       "sbfpConfig:save",
       config
     ),
-  
-  clearSchool: () =>
-    ipcRenderer.invoke(
-      "school:clear"
-    ),
 
-  // =========================
-  // SCHOOL LOGO (separate from school info)
-  // =========================
-
+  // SCHOOL LOGO
   saveSchoolLogo: (payload) =>
     ipcRenderer.invoke(
       "school:saveLogo",
@@ -79,38 +74,83 @@ contextBridge.exposeInMainWorld("sqlite", {
       "school:deleteLogo",
       schoolId
     ),
+
+  // SBFP ENROLMENT (offline-first local SQLite — mirrors sbfp_enrolment in
+  // Supabase). These back the window.sqlite.saveEnrolment / loadEnrolment /
+  // markEnrolmentClean / getDirtyEnrolment calls already made throughout
+  // sbfpConfig.js; without them those calls silently resolved to undefined.
+  saveEnrolment: (schoolId, sy, data, total) =>
+    ipcRenderer.invoke(
+      "sbfp-enrolment:save",
+      schoolId,
+      sy,
+      data,
+      total
+    ),
+
+  loadEnrolment: (schoolId, sy) =>
+    ipcRenderer.invoke(
+      "sbfp-enrolment:load",
+      schoolId,
+      sy
+    ),
+
+  markEnrolmentClean: (schoolId, sy) =>
+    ipcRenderer.invoke(
+      "sbfp-enrolment:markClean",
+      schoolId,
+      sy
+    ),
+
+  getDirtyEnrolment: () =>
+    ipcRenderer.invoke(
+      "sbfp-enrolment:dirty"
+    ),
+
+  getEnrolmentTotals: (sy) =>
+    ipcRenderer.invoke(
+      "sbfp-enrolment:totals",
+      sy
+    ),
 });
 
 // =========================
-// PRINT & PREVIEW
+// GENERIC IPC BRIDGE
 // =========================
+contextBridge.exposeInMainWorld("electron", {
+  ipcRenderer: {
+    invoke: (channel, payload) => ipcRenderer.invoke(channel, payload),
+  },
+});
 
+// =========================
+// PRINT, PREVIEW & SYSTEM APIS
+// =========================
 contextBridge.exposeInMainWorld("electronAPI", {
-  // Unified secure channel to send data for both portrait and landscape previews
+  // Generates print preview using single or multi-page formats
   generatePrintPreview: (payload) => ipcRenderer.send("generate-pdf-preview", payload),
+  
+  // Triggers final printed hardcopies from the native dialogue engine
+  printReport: () => ipcRenderer.invoke("print-report"),
 
+  // Application Details & Updater Callbacks
   getAppVersion: () =>
     ipcRenderer.invoke("app:getVersion"),
   
   checkForUpdates: () =>
-  ipcRenderer.invoke("app:checkForUpdates"),
+    ipcRenderer.invoke("app:checkForUpdates"),
 
-  // Forces the OS window to properly re-acquire keyboard focus.
-  // Works around a known Windows/Electron bug where the window appears
-  // active but Chromium keeps routing keyboard input to a stale window
-  // state — symptom: clicking an input does nothing, and even Tab alone
-  // doesn't fully fix it until the user switches away and back. Call this
-  // right after any screen transition where that's been observed (e.g.
-  // logout back to the Login screen).
   forceRefocusWindow: () => ipcRenderer.send("force-refocus-window"),
-onUpdateMessage: (callback) => {
-  const listener = (_, message) => callback(message);
-  ipcRenderer.on("update-message", listener);
-  return () => ipcRenderer.removeListener("update-message", listener);
-},
+  
+  // WINDOW ACTIONS (New cross-platform window management addition)
+  closeWindow: () => ipcRenderer.send("close-current-window"),
 
-  // NEW: auto-update
+  onUpdateMessage: (callback) => {
+    const listener = (_, message) => callback(message);
+    ipcRenderer.on("update-message", listener);
+    return () => ipcRenderer.removeListener("update-message", listener);
+  },
+
   onUpdateReady: (callback) => ipcRenderer.on("update-ready", callback),
   restartForUpdate: () => ipcRenderer.send("restart-app-for-update"),
 });
-
