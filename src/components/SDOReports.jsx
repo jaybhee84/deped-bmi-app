@@ -697,9 +697,32 @@ export default function SDOReports({
     })
     .filter(Boolean);
 
+<<<<<<< HEAD
   const reportData = useMemo(() => {
     return computeGradeSummary(students, sy, period, officialEnrolmentMap);
   }, [students, sy, period, officialEnrolmentMap]);
+=======
+  const gradeOrder = {
+    Kinder: 0,
+    "Grade 1": 1,
+    "Grade 2": 2,
+    "Grade 3": 3,
+    "Grade 4": 4,
+    "Grade 5": 5,
+    "Grade 6": 6,
+  };
+
+  rows.sort((a, b) => {
+    const gradeDiff =
+      (gradeOrder[a.grade] ?? 999) - (gradeOrder[b.grade] ?? 999);
+    if (gradeDiff !== 0) return gradeDiff;
+    return a.name.localeCompare(b.name);
+  });
+
+  const reportData = useMemo(() => {
+    return computeGradeSummary(students, sy, period);
+  }, [students, sy, period]);
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 
   const counts = {
     Normal: 0,
@@ -714,6 +737,7 @@ export default function SDOReports({
     else counts["No Data"]++;
   });
 
+<<<<<<< HEAD
   async function handlePrintReport() {
     const extractEnrolmentDict = (res) => {
       if (!res) return {};
@@ -722,6 +746,11 @@ export default function SDOReports({
       if (res.data) return res.data;
       return res;
     };
+=======
+  function handlePrintReport() {
+    console.log("=== PRINT PREVIEW DIAGNOSTICS ===");
+    console.log("Selected Value Context:", selectedSchool);
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 
     if (selectedSchool === "ALL SCHOOLS") {
       const schools = SCHOOL_OPTIONS.filter((school) => {
@@ -734,6 +763,7 @@ export default function SDOReports({
         );
       }).sort((a, b) => a.localeCompare(b));
 
+<<<<<<< HEAD
       const multiPagePayloads = await Promise.all(
         schools.map(async (schoolKey) => {
           const schoolStudents = allSchoolsData[schoolKey] || [];
@@ -781,6 +811,24 @@ export default function SDOReports({
           };
         }),
       );
+=======
+      const multiPagePayloads = schools.map((schoolKey) => {
+        const schoolStudents = allSchoolsData[schoolKey] || [];
+        const summary = computeGradeSummary(schoolStudents, sy, period);
+
+        return {
+          reportType: "landscape",
+          meta: {
+            schoolName: schoolKey,
+            sy,
+            period,
+            date: new Date().toLocaleDateString("en-PH"),
+          },
+          rows: summary.rows,
+          grand: summary.grand,
+        };
+      });
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 
       if (multiPagePayloads.length === 0) {
         alert("No school data found for printing.");
@@ -1182,6 +1230,7 @@ export default function SDOReports({
           </select>
         </div>
 
+<<<<<<< HEAD
         <div
           style={{
             display: "flex",
@@ -1222,6 +1271,21 @@ export default function SDOReports({
             🖨️ Print Report
           </button>
         </div>
+=======
+        <button
+          className="btn btn-primary"
+          onClick={handlePrintReport}
+          style={{
+            height: "38px",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            alignSelf: "flex-end",
+          }}
+        >
+          🖨️ Print Report
+        </button>
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
       </div>
 
       <div className="print-header">
@@ -1299,14 +1363,19 @@ export default function SDOReports({
             width: "100%",
           }}
         >
+<<<<<<< HEAD
           <table
             className="sdo-reports-table"
             style={{ zoom: zoomScale, minWidth: "1600px" }}
           >
+=======
+          <table className="sdo-reports-table" style={{ zoom: zoomScale }}>
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
             <colgroup>
               <col style={{ width: "110px" }} />
               <col style={{ width: "55px" }} />
               <col style={{ width: "90px" }} />
+<<<<<<< HEAD
               <col style={{ width: "70px" }} />
               <col style={{ width: "70px" }} />
               <col style={{ width: "70px" }} />
@@ -1329,6 +1398,30 @@ export default function SDOReports({
               <col style={{ width: "70px" }} />
               <col style={{ width: "70px" }} />
               <col style={{ width: "70px" }} />
+=======
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+              <col style={{ width: "65px" }} />
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
             </colgroup>
             <thead>
               <tr>
@@ -1392,7 +1485,35 @@ export default function SDOReports({
                       {row.grade}
                     </td>
                     <td>M</td>
+<<<<<<< HEAD
                     <StatCells stats={row.M} />
+=======
+                    <td>{row.M.enrolment}</td>
+                    <td>{row.M.weighed}</td>
+                    <td>{pct(row.M.weighed, row.M.enrolment)}</td>
+                    <td>{row.M.bmi["Severely Wasted"]}</td>
+                    <td>{pct(row.M.bmi["Severely Wasted"], row.M.weighed)}</td>
+                    <td>{row.M.bmi["Wasted"]}</td>
+                    <td>{pct(row.M.bmi["Wasted"], row.M.weighed)}</td>
+                    <td>{row.M.bmi["Normal"]}</td>
+                    <td>{pct(row.M.bmi["Normal"], row.M.weighed)}</td>
+                    <td>{row.M.bmi["Overweight"]}</td>
+                    <td>{pct(row.M.bmi["Overweight"], row.M.weighed)}</td>
+                    <td>{row.M.bmi["Obese"]}</td>
+                    <td>{pct(row.M.bmi["Obese"], row.M.weighed)}</td>
+                    <td>{row.M.hfa["Severely Stunted"]}</td>
+                    <td>
+                      {pct(row.M.hfa["Severely Stunted"], row.M.takenHeight)}
+                    </td>
+                    <td>{row.M.hfa["Stunted"]}</td>
+                    <td>{pct(row.M.hfa["Stunted"], row.M.takenHeight)}</td>
+                    <td>{row.M.hfa["Normal"]}</td>
+                    <td>{pct(row.M.hfa["Normal"], row.M.takenHeight)}</td>
+                    <td>{row.M.hfa["Tall"]}</td>
+                    <td>{pct(row.F.hfa["Tall"], row.M.takenHeight)}</td>
+                    <td>{row.M.takenHeight}</td>
+                    <td>{pct(row.M.takenHeight, row.M.enrolment)}</td>
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
                   </tr>
                   <tr style={{ backgroundColor: getGradeColor(row.grade) }}>
                     <td>F</td>

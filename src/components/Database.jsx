@@ -43,12 +43,15 @@ export default function Database({
     visible: false,
     name: "",
   });
+<<<<<<< HEAD
   const [deleteClassOpen, setDeleteClassOpen] = useState(false);
   const [classDeleteMessage, setClassDeleteMessage] = useState({
     visible: false,
     section: "",
     count: 0,
   });
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   const [form, setForm] = useState({
     lrn: "",
     name: "",
@@ -78,6 +81,7 @@ export default function Database({
       list = list.filter((section) => section.startsWith(filterGrade));
     }
 
+<<<<<<< HEAD
     // Order sections by grade level (Kinder → Grade 6), not by whatever
     // order they happened to be entered in during batch entry. Sections
     // sharing the same grade fall back to alphabetical order.
@@ -96,6 +100,12 @@ export default function Database({
         name: sectionName,
         count: counts[sectionName] || 0,
       }));
+=======
+    return list.sort().map((sectionName) => ({
+      name: sectionName,
+      count: counts[sectionName] || 0,
+    }));
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   }, [students, filterSy, filterPeriod, filterGrade]);
 
   const filtered = useMemo(() => {
@@ -120,6 +130,7 @@ export default function Database({
     });
   }, [students, filterSy, filterPeriod, filterGrade, filterSection, searchQ]);
 
+<<<<<<< HEAD
   // Always show Male learners first, then Female, alphabetical by name
   // within each — regardless of which filters are active.
   const sortedFiltered = useMemo(() => {
@@ -136,6 +147,8 @@ export default function Database({
     return students.filter((s) => s.section === filterSection).length;
   }, [students, filterSection]);
 
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   function updateStudentField(id, field, value) {
     setStudents((prev) =>
       prev.map((student) =>
@@ -200,6 +213,7 @@ export default function Database({
 
     queueStudentForDelete(student.id, currentUser?.id);
     setStudents((prev) => prev.filter((s) => s.id !== student.id));
+<<<<<<< HEAD
 
     // Electron sometimes leaves dropdowns/selects unresponsive after a
     // dialog closes and a row is removed from underneath the pointer.
@@ -237,6 +251,8 @@ export default function Database({
     if (window.electronAPI?.forceRefocusWindow) {
       window.electronAPI.forceRefocusWindow();
     }
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   }
 
   function handleAdd() {
@@ -394,10 +410,13 @@ export default function Database({
             }}
             value={filterSection}
             onChange={(e) => setFilterSection(e.target.value)}
+<<<<<<< HEAD
             disabled={filterGrade === "All"}
             title={
               filterGrade === "All" ? "Select a grade level first" : undefined
             }
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
           >
             <option value="All">All Sections</option>
             {availableSections.map((sec) => (
@@ -406,6 +425,7 @@ export default function Database({
               </option>
             ))}
           </select>
+<<<<<<< HEAD
 
           {!readOnly && filterGrade !== "All" && filterSection !== "All" && (
             <button
@@ -416,6 +436,8 @@ export default function Database({
               🗑 Delete Entire Class
             </button>
           )}
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
         </div>
 
         {saveMessage.visible && (
@@ -428,6 +450,7 @@ export default function Database({
           </div>
         )}
 
+<<<<<<< HEAD
         {classDeleteMessage.visible && (
           <div className="success-toast">
             <div className="toast-icon">✓</div>
@@ -446,6 +469,12 @@ export default function Database({
         <div
           className="card scrollable-table-container"
           style={{ width: "100%", marginBottom: "20px" }}
+=======
+        {/* Enhanced Table Container Card - Fixed Scrollbar Location */}
+        <div
+          className="card scrollable-table-container"
+          style={{ width: "100%", overflowX: "auto", marginBottom: "20px" }}
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
         >
           <div
             className="table-scroll-track"
@@ -486,7 +515,11 @@ export default function Database({
                 </tr>
               </thead>
               <tbody>
+<<<<<<< HEAD
                 {sortedFiltered.length === 0 ? (
+=======
+                {filtered.length === 0 ? (
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
                   <tr>
                     <td
                       colSpan={12}
@@ -497,7 +530,11 @@ export default function Database({
                     </td>
                   </tr>
                 ) : (
+<<<<<<< HEAD
                   sortedFiltered.map((s) => {
+=======
+                  filtered.map((s) => {
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
                     const rec =
                       s.records.find(
                         (r) =>
@@ -684,6 +721,7 @@ export default function Database({
         </div>
       </>
 
+<<<<<<< HEAD
       {deleteClassOpen && (
         <Modal
           title="Delete Entire Class"
@@ -713,6 +751,8 @@ export default function Database({
         </Modal>
       )}
 
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
       {addOpen && (
         <Modal title="Add New Student" onClose={() => setAddOpen(false)}>
           <div className="form-grid-2">

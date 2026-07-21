@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 import { execSync, spawnSync } from "child_process";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 
 const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url)));
 const tag = `v${pkg.version}`;
+
+// Look for release-notes-vX.Y.Z.md next to this script's parent (repo root),
+// e.g. release-notes-v1.0.6.md. Falls back to a generic placeholder if the
+// file isn't there, so a missing notes file never blocks a release.
+const notesPath = new URL(`../release-notes-${tag}.md`, import.meta.url);
+const hasNotesFile = existsSync(notesPath);
 
 function run(cmd) {
   return execSync(cmd, { stdio: ["pipe", "pipe", "pipe"] }).toString().trim();
@@ -36,10 +42,22 @@ if (exists) {
   console.log(`Release ${tag} already exists — skipping pre-create.`);
 } else {
   console.log(`Creating draft release ${tag}...`);
-  execSync(
-    `gh release create ${tag} --draft --title "${tag}" --notes "Release ${tag}"`,
-    { stdio: "inherit" }
-  );
+  if (hasNotesFile) {
+    console.log(`Using release notes from release-notes-${tag}.md`);
+    execSync(
+      `gh release create ${tag} --draft --title "${tag}" --notes-file "${notesPath.pathname}"`,
+      { stdio: "inherit" }
+    );
+  } else {
+    console.warn(
+      `No release-notes-${tag}.md found — falling back to placeholder notes. ` +
+      `Add release-notes-${tag}.md at the repo root next time to include real notes.`
+    );
+    execSync(
+      `gh release create ${tag} --draft --title "${tag}" --notes "Release ${tag}"`,
+      { stdio: "inherit" }
+    );
+  }
 }
 
 console.log("Publishing with electron-builder...");

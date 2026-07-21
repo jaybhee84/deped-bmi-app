@@ -399,6 +399,7 @@ export function isOnline() {
 // ── Supabase API Calls ────────────────────────────────────────────────────
 
 async function supabaseUpsert(cfg, students) {
+<<<<<<< HEAD
   // 1. Deduplicate by unique student ID to prevent PostgreSQL "ON CONFLICT DO UPDATE" 500 error
   const uniqueMap = new Map();
   students.forEach((student) => {
@@ -410,6 +411,10 @@ async function supabaseUpsert(cfg, students) {
 
   // 2. Build payload from deduplicated student records
   const payload = deduplicatedStudents.map(s => ({
+=======
+  // FIX: Removed the non-existent 'photo' column property mapping to stop database error PGRST204
+  const payload = students.map(s => ({
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
     id: String(s.id),
     school_id: s.school_id || s.schoolId || "",
     school_name: s.school_name || s.schoolName || "", 
@@ -480,6 +485,7 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
   let res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`Supabase fetch error: ${res.status}`);
   let rows = await res.json();
+<<<<<<< HEAD
 
   if (rows.length === 0 && schoolName) {
     const fallbackUrl = `${cfg.url}/rest/v1/students?select=*&school_name=eq.${encodeURIComponent(schoolName)}&order=name.asc`;
@@ -492,6 +498,21 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
     }
   }
 
+=======
+
+  if (rows.length === 0 && schoolName) {
+    const fallbackUrl = `${cfg.url}/rest/v1/students?select=*&school_name=eq.${encodeURIComponent(schoolName)}&order=name.asc`;
+    const fallbackRes = await fetch(fallbackUrl, { headers });
+    if (fallbackRes.ok) {
+      const fallbackRows = await fallbackRes.json();
+      if (fallbackRows.length > 0) {
+        rows = fallbackRows;
+      }
+    }
+  }
+
+  // FIX: Removed the photo extractor key so it aligns seamlessly with the remote database structure
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   return rows.map(r => ({
     id: String(r.id),
     schoolId: r.school_id || schoolId || "",
@@ -506,7 +527,10 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
     parentConsent: r.parent_consent || 'N',
     member4ps: r.member_4ps || 'N',
     records: Array.isArray(r.records) ? r.records : [],
+<<<<<<< HEAD
     photo: r.photo_url || null,
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   }));
 }
 
@@ -545,15 +569,23 @@ export async function syncToServer(students, schoolId) {
     saveLastSync(new Date());
     const freshData = await supabaseFetchAll(cfg, schoolId, activeSchoolName);
     
+<<<<<<< HEAD
     // Prefer the cloud's photo_url — that's the source of truth other
     // devices write to. Only fall back to this device's local SQLite photo
     // if the cloud genuinely has nothing yet.
+=======
+    // Merge remote data with existing local photos so offline values aren't completely wiped out
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
     const localData = await localLoadStudents();
     const mergedData = freshData.map(remoteStudent => {
       const localMatch = localData.find(l => String(l.id) === String(remoteStudent.id));
       return {
         ...remoteStudent,
+<<<<<<< HEAD
         photo: remoteStudent.photo || (localMatch ? localMatch.photo : null)
+=======
+        photo: localMatch ? localMatch.photo : null
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
       };
     });
 
@@ -599,7 +631,11 @@ export async function syncFromServer(schoolId) {
       const localMatch = localData.find(l => String(l.id) === String(remoteStudent.id));
       return {
         ...remoteStudent,
+<<<<<<< HEAD
         photo: remoteStudent.photo || (localMatch ? localMatch.photo : null)
+=======
+        photo: localMatch ? localMatch.photo : null
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
       };
     });
 

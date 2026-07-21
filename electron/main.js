@@ -23,12 +23,16 @@ import {
   getSchoolByName,
   saveSchoolLocally, 
   updateLocalProfile, 
+<<<<<<< HEAD
   offlineLoginCheck,
   saveEnrolmentLocally,
   loadEnrolmentLocally,
   loadEnrolmentTotalsForSY,
   getDirtyEnrolmentRows,
   markEnrolmentClean
+=======
+  offlineLoginCheck  
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 } from "./database.js";
 
 // IMPORT OUR NEW UNIFIED PRINT HANDLER
@@ -220,6 +224,7 @@ ipcMain.handle("school:deleteLogo", (_, schoolId) => {
 });
 
 // ==========================================
+<<<<<<< HEAD
 // SBFP ENROLMENT (offline-first local SQLite)
 // ==========================================
 // These back window.sqlite.saveEnrolment / loadEnrolment /
@@ -276,6 +281,8 @@ ipcMain.handle("sbfp-enrolment:totals", (_, sy) => {
 });
 
 // ==========================================
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 // WINDOW INTERACTION ACTIONS (Cross-Platform Fix)
 // ==========================================
 ipcMain.on("close-current-window", (event) => {

@@ -78,10 +78,18 @@ export async function saveSbfpConfig(config) {
  * based on the SDO-configured criteria.
  */
 export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
+<<<<<<< HEAD
+=======
+  // 1. If config is null, undefined, or a Promise instance, return false safely
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   if (!config || typeof config.then === "function") return false;
 
   const grade = student.section?.split(" - ")[0] || "";
 
+<<<<<<< HEAD
+=======
+  // 2. Added safe fallbacks (|| []) to avoid undefined errors
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   const configGrades = config.grades || [];
   const configCriteria = config.criteria || [];
   const restrictions = config.criterionGradeRestrictions || {};
@@ -178,10 +186,15 @@ export async function loadSbfpEnrolment(schoolId, sy) {
 }
 
 /**
+<<<<<<< HEAD
  * Save manual enrolment numbers for a given school + school year.
  * Offline-first: always writes to local SQLite first, then pushes to Supabase
  * when online. Also computes and stores the grand `total` in both local SQLite 
  * and Supabase.
+=======
+ * Save manual enrolment numbers for a given school + school year to Supabase.
+ * Uses a streamlined upsert pipeline targeting the composite key.
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
  */
 export async function saveSbfpEnrolment(schoolId, sy, enrolmentData, total) {
   if (!schoolId) {

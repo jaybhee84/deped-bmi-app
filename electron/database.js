@@ -86,6 +86,53 @@ CREATE TABLE IF NOT EXISTS school_logos (
 );
 `);
 
+// ==========================================
+// NEW ARCHITECTURE SYNC ENGINE FUNCTIONS
+// ==========================================
+
+export function getSchoolById(schoolId) {
+  return db.prepare("SELECT * FROM global_schools WHERE school_id = ?").get(schoolId);
+}
+
+// Case-insensitive lookup by name, used for offline autocomplete during
+// onboarding (district/address auto-fill when a school is picked while
+// the app has no network connection).
+export function getSchoolByName(schoolName) {
+  return db
+    .prepare("SELECT * FROM global_schools WHERE school_name = ? COLLATE NOCASE")
+    .get(schoolName);
+}
+
+export function saveSchoolLocally(school) {
+  db.prepare(`
+    INSERT OR REPLACE INTO global_schools (school_id, school_name, district, address, created_by)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(school.school_id, school.school_name, school.district, school.address, school.created_by);
+}
+
+export function updateLocalProfile(profile) {
+  db.prepare(`
+    INSERT INTO profiles (id, email, role, school_id, password_hash)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      email = excluded.email,
+      role = excluded.role,
+      school_id = excluded.school_id,
+      password_hash = COALESCE(excluded.password_hash, password_hash)
+  `).run(profile.id, profile.email, profile.role, profile.school_id, profile.password_hash);
+}
+
+export function offlineLoginCheck(email, password) {
+  const user = db.prepare("SELECT * FROM profiles WHERE email = ?").get(email);
+  if (!user) return { success: false, message: "User credentials do not exist locally." };
+  
+  if (user.password_hash === password) {
+    return { success: true, user };
+  } else {
+    return { success: false, message: "Invalid credentials matched offline." };
+  }
+}
+
 // =========================
 // SBFP ENROLMENT TABLE (offline-first, mirrors sbfp_enrolment in Supabase)
 // =========================
@@ -291,6 +338,7 @@ export function deleteSchoolLogo(schoolId) {
   ).run(String(schoolId));
 }
 
+<<<<<<< HEAD
 // =========================
 // SBFP ENROLMENT FUNCTIONS (offline-first)
 // =========================
@@ -360,4 +408,6 @@ export function markEnrolmentClean(schoolId, sy) {
   ).run(String(schoolId), sy);
 }
 
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 export default db;

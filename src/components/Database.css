@@ -16,12 +16,15 @@
   width: 260px !important;
 }
 
+<<<<<<< HEAD
 .students-page-container .filter-row select:disabled {
   background: #f1f5f9 !important;
   color: #94a3b8;
   cursor: not-allowed;
 }
 
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 /* ── SCROLLABLE CONTAINER CARD ── */
 .students-page-container {
   /* Defensive stop against ancestor flex/grid containers that would
@@ -53,6 +56,7 @@
 }
 
 /* Dedicated scroll boundary — this is the ONLY element that scrolls
+<<<<<<< HEAD
    both horizontally and vertically. Bounding its height means the
    horizontal scrollbar always sits directly under the visible rows,
    instead of at the bottom of a page that grows with the student count. */
@@ -94,6 +98,18 @@
   background: #F8FAFC !important;
 }
 
+=======
+   horizontally. Isolating it from the card avoids fighting whatever
+   overflow/flex behavior the card's own ancestors impose. */
+.students-page-container .table-scroll-track {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+}
+
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 /* ── DATA TABLE SYSTEM ── */
 .students-page-container .data-table {
   /* No hardcoded width here on purpose. The <colgroup> in Database.jsx
@@ -104,6 +120,7 @@
      were the direct cause of the squeezed/ballooned columns seen
      earlier. */
   table-layout: fixed !important;
+<<<<<<< HEAD
   /* IMPORTANT: must be `separate`, not `collapse`. Chromium/Electron has
      a known bug where position:sticky on <td>/<th> silently does nothing
      when border-collapse is `collapse` — this is why the sticky Name
@@ -112,6 +129,9 @@
      identical but actually lets sticky work. */
   border-collapse: separate !important;
   border-spacing: 0 !important;
+=======
+  border-collapse: collapse !important;
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   margin: 0 !important;
 }
 
@@ -134,8 +154,12 @@
 }
 
 .students-page-container .data-table th {
+<<<<<<< HEAD
   text-align: center !important;
   vertical-align: middle !important;
+=======
+  text-align: center;
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -231,6 +255,7 @@
   background: #b91c1c;
 }
 
+<<<<<<< HEAD
 .students-page-container .btn-delete-class {
   background: #dc2626;
   color: #ffffff;
@@ -248,6 +273,8 @@
   background: #b91c1c;
 }
 
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 .students-page-container .btn-save {
   background: #16a34a;
   color: #ffffff;

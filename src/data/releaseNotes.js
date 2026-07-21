@@ -1,4 +1,5 @@
 export const RELEASE_NOTES = {
+<<<<<<< HEAD
   "1.0.8": {
   title: "v1.0.8",
   sections: [
@@ -21,5 +22,6 @@ export const RELEASE_NOTES = {
     },
   ],
 },
+
   
 };

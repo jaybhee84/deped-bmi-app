@@ -98,9 +98,12 @@ export default function SDODashboard({
 }) {
   // allSchoolsData: { [schoolName]: students[] }
 
+<<<<<<< HEAD
   // ── Modal popout state for enlarged charts ──
   const [modalChart, setModalChart] = useState(null);
 
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   // ── School registry pulled from Supabase (source of truth) ─────────
   const [schools, setSchools] = useState([]);
   const [schoolsLoading, setSchoolsLoading] = useState(true);
@@ -109,9 +112,12 @@ export default function SDODashboard({
   // Fallback map state for broken image logos
   const [brokenLogos, setBrokenLogos] = useState({});
 
+<<<<<<< HEAD
   // Official enrolment loaded from sbfp_enrolment
   const [schoolEnrolment, setSchoolEnrolment] = useState(0);
 
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   useEffect(() => {
     let cancelled = false;
 
@@ -347,6 +353,10 @@ export default function SDODashboard({
     return c;
   }, [syStudents, filterSY, filterPeriod]);
 
+<<<<<<< HEAD
+=======
+  // ── Division-wide reporting completion (schools with data vs without) ──
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   const schoolReportingStats = useMemo(() => {
     const total = schoolNames.length;
     let reporting = 0;
@@ -418,6 +428,10 @@ export default function SDODashboard({
     return t;
   }, [gradeSummary]);
 
+<<<<<<< HEAD
+=======
+  // ── Calculation for Overall Grand Totals ──
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   const grandTotals = useMemo(() => {
     const totals = {
       Male: {
@@ -462,6 +476,10 @@ export default function SDODashboard({
       const m = gradeSummary[g].Male;
       const f = gradeSummary[g].Female;
 
+<<<<<<< HEAD
+=======
+      // Accumulate Male
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
       totals.Male.Normal += m.Normal;
       totals.Male.Wasted += m.Wasted;
       totals.Male.SevWasted += m["Severely Wasted"];
@@ -473,10 +491,18 @@ export default function SDODashboard({
       totals.Male.Tall += m.Tall;
       totals.Male.Total += m.Total;
 
+<<<<<<< HEAD
       totals.Female.Normal += f.Normal;
       totals.Female.Wasted += f.Wasted;
       totals.Female.SevWasted += f["Severely Wasted"];
       totals.Female.Overweight += f["Severely Wasted"];
+=======
+      // Accumulate Female
+      totals.Female.Normal += f.Normal;
+      totals.Female.Wasted += f.Wasted;
+      totals.Female.SevWasted += f["Severely Wasted"];
+      totals.Female.Overweight += f.Overweight;
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
       totals.Female.Obese += f.Obese;
       totals.Female.NormalHt += f["Normal Height"];
       totals.Female.Stunted += f.Stunted;
@@ -485,6 +511,10 @@ export default function SDODashboard({
       totals.Female.Total += f.Total;
     });
 
+<<<<<<< HEAD
+=======
+    // Compute Combined
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
     Object.keys(totals.Combined).forEach((key) => {
       totals.Combined[key] = totals.Male[key] + totals.Female[key];
     });
@@ -605,6 +635,10 @@ export default function SDODashboard({
     "Grade 6": "#ECFEFF",
   };
 
+<<<<<<< HEAD
+=======
+  // Pre-calculate line limits for combined graphs
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
   const combinedMaxBMI = useMemo(() => {
     return Math.max(
       ...timelineData.flatMap((d) => [
@@ -718,6 +752,7 @@ export default function SDODashboard({
           font-size: 18px !important;
           font-weight: 500;
         }
+<<<<<<< HEAD
 
         /* ── Clickable Graph Cards & Modal Overlay ── */
         .clickable-graph-card {
@@ -799,6 +834,8 @@ export default function SDODashboard({
           background: #e2e8f0;
           color: #0f172a;
         }
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
       `}</style>
 
       {/* ── Header ── */}
@@ -972,19 +1009,1409 @@ export default function SDODashboard({
             );
           })()}
 
+<<<<<<< HEAD
           {/* ── Dynamic Top Section: Stat cards + Pie Chart(s) ── */}
+=======
+          {/* ── Stat cards + School Reporting pie chart ── */}
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
           <div
             className="sdo-stats-row"
             style={{
               display: "grid",
+<<<<<<< HEAD
               gridTemplateColumns:
                 selectedSchool === "ALL SCHOOLS" ? "1fr 1fr" : "40% 60%",
+=======
+              gridTemplateColumns: "1fr 1fr",
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
               gap: "24px",
               marginBottom: "32px",
               alignItems: "stretch",
             }}
           >
+<<<<<<< HEAD
             {/* ── Cards Container (Left Side) ── */}
+=======
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "16px",
+                width: "100%",
+                alignContent: "start",
+              }}
+            >
+              {[
+                {
+                  label: "Total Learners",
+                  val: syStudents.length,
+                  border: "#cbd5e1",
+                  color: "#0f172a",
+                },
+                {
+                  label: "Learners with Records",
+                  val: totalForPeriod,
+                  border: "#10b981",
+                  color: "#059669",
+                },
+                {
+                  label: "Normal",
+                  val: statusCounts["Normal"],
+                  border: "#10b981",
+                  color: "#059669",
+                },
+                {
+                  label: "Wasted",
+                  val: statusCounts["Wasted"],
+                  border: "#f59e0b",
+                  color: "#d97706",
+                },
+                {
+                  label: "Severely Wasted",
+                  val: statusCounts["Severely Wasted"],
+                  border: "#ef4444",
+                  color: "#dc2626",
+                },
+                {
+                  label: "Overweight",
+                  val: statusCounts["Overweight"],
+                  border: "#6366f1",
+                  color: "#4f46e5",
+                },
+                {
+                  label: "Obese",
+                  val: statusCounts["Obese"],
+                  border: "#b91c1c",
+                  color: "#991b1b",
+                },
+                {
+                  label: "Normal Height",
+                  val: hfaCounts["Normal Height"],
+                  border: "#10b981",
+                  color: "#059669",
+                },
+                {
+                  label: "Stunted",
+                  val: hfaCounts["Stunted"],
+                  border: "#f59e0b",
+                  color: "#d97706",
+                },
+                {
+                  label: "Severely Stunted",
+                  val: hfaCounts["Severely Stunted"],
+                  border: "#ef4444",
+                  color: "#dc2626",
+                },
+                {
+                  label: "Tall",
+                  val: hfaCounts["Tall"],
+                  border: "#3b82f6",
+                  color: "#2563eb",
+                },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  style={{
+                    backgroundColor: "#ffffff",
+                    padding: "14px 16px",
+                    borderRadius: "12px",
+                    boxShadow:
+                      "0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.02)",
+                    borderTop: `4px solid ${s.border}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "26px",
+                      fontWeight: "800",
+                      color: s.color,
+                      lineHeight: "1",
+                      letterSpacing: "-1px",
+                    }}
+                  >
+                    {s.val}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12.5px",
+                      fontWeight: "600",
+                      color: "#64748b",
+                      marginTop: "6px",
+                    }}
+                  >
+                    {s.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ── School Reporting donut chart ── */}
+            <div
+              className="card"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+              }}
+            >
+              <h3 className="card-title" style={{ marginBottom: 4 }}>
+                Schools Reporting
+              </h3>
+              <p
+                style={{
+                  color: "#64748b",
+                  fontSize: "12px",
+                  marginBottom: "16px",
+                }}
+              >
+                {filterSY} · {filterPeriod}
+              </p>
+
+              <div
+                style={{
+                  position: "relative",
+                  width: "min(300px, 100%)",
+                  aspectRatio: "1 / 1",
+                }}
+              >
+                <svg viewBox="0 0 42 42" width="100%" height="100%">
+                  <circle
+                    cx="21"
+                    cy="21"
+                    r="15.9155"
+                    fill="transparent"
+                    stroke="#e2e8f0"
+                    strokeWidth="5"
+                  />
+                  {schoolReportingStats.pct > 0 && (
+                    <circle
+                      cx="21"
+                      cy="21"
+                      r="15.9155"
+                      fill="transparent"
+                      stroke="#10b981"
+                      strokeWidth="5"
+                      strokeDasharray={`${schoolReportingStats.pct} ${
+                        100 - schoolReportingStats.pct
+                      }`}
+                      strokeDashoffset="25"
+                      strokeLinecap="round"
+                    />
+                  )}
+                </svg>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "42px",
+                      fontWeight: 800,
+                      color: "#0f172a",
+                      lineHeight: 1,
+                    }}
+                  >
+                    {schoolReportingStats.pct.toFixed(0)}%
+                  </div>
+                  <div
+                    style={{ fontSize: "13px", color: "#64748b", marginTop: 4 }}
+                  >
+                    reporting
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "20px",
+                  marginTop: "20px",
+                  fontSize: "12px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: "#10b981",
+                      display: "inline-block",
+                    }}
+                  />
+                  <span>
+                    <strong>{schoolReportingStats.reporting}</strong> with data
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: "#e2e8f0",
+                      display: "inline-block",
+                    }}
+                  />
+                  <span>
+                    <strong>{schoolReportingStats.notReporting}</strong> no data
+                    yet
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  fontSize: "11px",
+                  color: "#94a3b8",
+                  marginTop: "10px",
+                }}
+              >
+                {schoolReportingStats.reporting} out of{" "}
+                {schoolReportingStats.total} schools division-wide
+              </div>
+            </div>
+          </div>
+
+          {/* ── Side-by-side distribution graphs ── */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "24px",
+              marginBottom: "32px",
+            }}
+          >
+            <div className="card">
+              <h3 className="card-title">
+                Nutritional Status Distribution (BMI-for-Age)
+              </h3>
+              {barItems.map((b) => {
+                const pct = totalForPeriod
+                  ? (statusCounts[b.label] / totalForPeriod) * 100
+                  : 0;
+                return (
+                  <div key={b.label} className="bar-row">
+                    <div className="bar-labels">
+                      <span>{b.label}</span>
+                      <span>
+                        {statusCounts[b.label]} learners ({pct.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="bar-track">
+                      <div
+                        className="bar-fill"
+                        style={{ width: `${pct}%`, background: b.color }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="card">
+              <h3 className="card-title">Height-for-Age Distribution (HFA)</h3>
+              {hfaBarItems.map((b) => {
+                const pct = totalForPeriod
+                  ? (hfaCounts[b.label] / totalForPeriod) * 100
+                  : 0;
+                return (
+                  <div key={b.label} className="bar-row">
+                    <div className="bar-labels">
+                      <span>{b.label}</span>
+                      <span>
+                        {hfaCounts[b.label]} learners ({pct.toFixed(1)}%)
+                      </span>
+                    </div>
+                    <div className="bar-track">
+                      <div
+                        className="bar-fill"
+                        style={{ width: `${pct}%`, background: b.color }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Comprehensive line trends section ── */}
+          <div
+            style={{
+              backgroundColor: "#fff",
+              padding: "28px",
+              borderRadius: "16px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+              marginBottom: "32px",
+            }}
+          >
+            <h3
+              style={{
+                fontSize: "18px",
+                fontWeight: "700",
+                color: "#0f172a",
+                marginBottom: "4px",
+              }}
+            >
+              Nutritional Trends across Reporting Periods
+            </h3>
+            <p
+              style={{
+                color: "#64748b",
+                fontSize: "14px",
+                marginBottom: "28px",
+              }}
+            >
+              Dynamic phase trajectory metrics mapped natively using continuous
+              line profiles.
+            </p>
+
+            <h4
+              style={{
+                fontSize: "14px",
+                fontWeight: "700",
+                color: "#1e3a8a",
+                borderBottom: "1px solid #f1f5f9",
+                paddingBottom: "8px",
+                marginBottom: "20px",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Nutritional Status Distribution Line Profiles
+            </h4>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gap: "20px",
+                marginBottom: "40px",
+              }}
+            >
+              {["Baseline", "Midline", "Endline"].map((pId, idx) => {
+                const rawData = timelineData[idx] || {
+                  Normal: 0,
+                  Wasted: 0,
+                  "Severely Wasted": 0,
+                  Overweight: 0,
+                  Obese: 0,
+                };
+                const cNormal = rawData.Normal || 0;
+                const cWasted = rawData.Wasted || 0;
+                const cSevWasted = rawData["Severely Wasted"] || 0;
+                const cOverweight = rawData.Overweight || 0;
+                const cObese = rawData.Obese || 0;
+
+                const subMax = Math.max(
+                  cNormal,
+                  cWasted,
+                  cSevWasted,
+                  cOverweight,
+                  cObese,
+                  5,
+                );
+                const p1 = { x: 25, y: 100 - (cNormal / subMax) * 65 };
+                const p2 = { x: 70, y: 100 - (cWasted / subMax) * 65 };
+                const p3 = { x: 115, y: 100 - (cSevWasted / subMax) * 65 };
+                const p4 = { x: 160, y: 100 - (cOverweight / subMax) * 65 };
+                const p5 = { x: 205, y: 100 - (cObese / subMax) * 65 };
+
+                return (
+                  <div
+                    key={pId}
+                    style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "14px",
+                      padding: "16px",
+                      backgroundColor: "#f8fafc",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "700",
+                        color: "#334155",
+                      }}
+                    >
+                      {pId}
+                    </span>
+                    <svg
+                      viewBox="0 0 230 140"
+                      style={{
+                        width: "100%",
+                        height: "auto",
+                        marginTop: "12px",
+                        overflow: "visible",
+                      }}
+                    >
+                      <line
+                        x1="15"
+                        y1="35"
+                        x2="215"
+                        y2="35"
+                        stroke="#e2e8f0"
+                        strokeDasharray="3,3"
+                      />
+                      <line
+                        x1="15"
+                        y1="67"
+                        x2="215"
+                        y2="67"
+                        stroke="#e2e8f0"
+                        strokeDasharray="3,3"
+                      />
+                      <line
+                        x1="15"
+                        y1="100"
+                        x2="215"
+                        y2="100"
+                        stroke="#cbd5e1"
+                        strokeWidth="1.5"
+                      />
+                      <line
+                        x1="15"
+                        y1="15"
+                        x2="15"
+                        y2="100"
+                        stroke="#cbd5e1"
+                        strokeWidth="1"
+                      />
+
+                      <path
+                        d={`M ${p1.x} 100 L ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} L ${p5.x} ${p5.y} L ${p5.x} 100 Z`}
+                        fill="rgba(30, 58, 138, 0.04)"
+                      />
+                      <path
+                        d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} L ${p5.x} ${p5.y}`}
+                        fill="none"
+                        stroke="#1e3a8a"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      <circle
+                        cx={p1.x}
+                        cy={p1.y}
+                        r="3.5"
+                        fill="#10b981"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={p1.x}
+                        y={p1.y - 6}
+                        fontSize="9"
+                        fontWeight="800"
+                        fill="#059669"
+                        textAnchor="middle"
+                      >
+                        {cNormal}
+                      </text>
+
+                      <circle
+                        cx={p2.x}
+                        cy={p2.y}
+                        r="3.5"
+                        fill="#f59e0b"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={p2.x}
+                        y={p2.y - 6}
+                        fontSize="9"
+                        fontWeight="800"
+                        fill="#d97706"
+                        textAnchor="middle"
+                      >
+                        {cWasted}
+                      </text>
+
+                      <circle
+                        cx={p3.x}
+                        cy={p3.y}
+                        r="3.5"
+                        fill="#ef4444"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={p3.x}
+                        y={p3.y - 6}
+                        fontSize="9"
+                        fontWeight="800"
+                        fill="#dc2626"
+                        textAnchor="middle"
+                      >
+                        {cSevWasted}
+                      </text>
+
+                      <circle
+                        cx={p4.x}
+                        cy={p4.y}
+                        r="3.5"
+                        fill="#6366f1"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={p4.x}
+                        y={p4.y - 6}
+                        fontSize="9"
+                        fontWeight="800"
+                        fill="#4f46e5"
+                        textAnchor="middle"
+                      >
+                        {cOverweight}
+                      </text>
+
+                      <circle
+                        cx={p5.x}
+                        cy={p5.y}
+                        r="3.5"
+                        fill="#b91c1c"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={p5.x}
+                        y={p5.y - 6}
+                        fontSize="9"
+                        fontWeight="800"
+                        fill="#991b1b"
+                        textAnchor="middle"
+                      >
+                        {cObese}
+                      </text>
+
+                      <text
+                        x={p1.x}
+                        y="116"
+                        fontSize="6.5"
+                        fontWeight="600"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        Normal
+                      </text>
+                      <text
+                        x={p2.x}
+                        y="116"
+                        fontSize="6.5"
+                        fontWeight="600"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        Wasted
+                      </text>
+                      <text
+                        x={p3.x}
+                        y="116"
+                        fontSize="6.5"
+                        fontWeight="600"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        <tspan x={p3.x} dy="0">
+                          Severely
+                        </tspan>
+                        <tspan x={p3.x} dy="8">
+                          Wasted
+                        </tspan>
+                      </text>
+                      <text
+                        x={p4.x}
+                        y="116"
+                        fontSize="6.5"
+                        fontWeight="600"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        Overweight
+                      </text>
+                      <text
+                        x={p5.x}
+                        y="116"
+                        fontSize="6.5"
+                        fontWeight="600"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        Obese
+                      </text>
+                    </svg>
+                  </div>
+                );
+              })}
+
+              <div
+                style={{
+                  border: "2px dashed #cbd5e1",
+                  borderRadius: "14px",
+                  padding: "16px",
+                  backgroundColor: "#ffffff",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: "700",
+                      color: "#1e3a8a",
+                    }}
+                  >
+                    Combined Period Trend
+                  </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "6px",
+                      marginTop: "6px",
+                      flexWrap: "wrap",
+                      rowGap: "2px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: "700",
+                        color: "#10b981",
+                      }}
+                    >
+                      ● Normal
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: "700",
+                        color: "#f59e0b",
+                      }}
+                    >
+                      ● Wasted
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: "700",
+                        color: "#ef4444",
+                      }}
+                    >
+                      ● Sev. Wast
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: "700",
+                        color: "#6366f1",
+                      }}
+                    >
+                      ● Overwt
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: "700",
+                        color: "#b91c1c",
+                      }}
+                    >
+                      ● Obese
+                    </span>
+                  </div>
+                </div>
+                <svg
+                  viewBox="0 0 180 110"
+                  style={{ width: "100%", height: "auto", overflow: "visible" }}
+                >
+                  <line
+                    x1="20"
+                    y1="25"
+                    x2="165"
+                    y2="25"
+                    stroke="#f1f5f9"
+                    strokeDasharray="2,2"
+                  />
+                  <line
+                    x1="20"
+                    y1="55"
+                    x2="165"
+                    y2="55"
+                    stroke="#f1f5f9"
+                    strokeDasharray="2,2"
+                  />
+                  <line
+                    x1="20"
+                    y1="85"
+                    x2="165"
+                    y2="85"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                  />
+                  <line
+                    x1="20"
+                    y1="10"
+                    x2="20"
+                    y2="85"
+                    stroke="#e2e8f0"
+                    strokeWidth="1"
+                  />
+
+                  {/* Dynamic Trend Curves */}
+                  {[
+                    "Normal",
+                    "Wasted",
+                    "Severely Wasted",
+                    "Overweight",
+                    "Obese",
+                  ].map((lbl, idx) => {
+                    const colors = [
+                      "#10b981",
+                      "#f59e0b",
+                      "#ef4444",
+                      "#6366f1",
+                      "#b91c1c",
+                    ];
+                    const pts = timelineData.map((d, dIdx) => {
+                      const x = 40 + dIdx * 55;
+                      const val = d[lbl] || 0;
+                      const y = 85 - (val / combinedMaxBMI) * 65;
+                      return { x, y };
+                    });
+                    const dStr = `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y} L ${pts[2].x} ${pts[2].y}`;
+                    return (
+                      <g key={lbl}>
+                        <path
+                          d={dStr}
+                          fill="none"
+                          stroke={colors[idx]}
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                        {pts.map((pt, pIdx) => (
+                          <circle
+                            key={pIdx}
+                            cx={pt.x}
+                            cy={pt.y}
+                            r="2.5"
+                            fill={colors[idx]}
+                          />
+                        ))}
+                      </g>
+                    );
+                  })}
+
+                  <text
+                    x="40"
+                    y="98"
+                    fontSize="9"
+                    fontWeight="700"
+                    fill="#475569"
+                    textAnchor="middle"
+                  >
+                    Baseline
+                  </text>
+                  <text
+                    x="95"
+                    y="98"
+                    fontSize="9"
+                    fontWeight="700"
+                    fill="#475569"
+                    textAnchor="middle"
+                  >
+                    Midline
+                  </text>
+                  <text
+                    x="150"
+                    y="98"
+                    fontSize="9"
+                    fontWeight="700"
+                    fill="#475569"
+                    textAnchor="middle"
+                  >
+                    Endline
+                  </text>
+                </svg>
+              </div>
+            </div>
+
+            <h4
+              style={{
+                fontSize: "14px",
+                fontWeight: "700",
+                color: "#1e3a8a",
+                borderBottom: "1px solid #f1f5f9",
+                paddingBottom: "8px",
+                marginBottom: "20px",
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+              }}
+            >
+              Height-for-Age (HFA) Distribution Line Profiles
+            </h4>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gap: "20px",
+              }}
+            >
+              {["Baseline", "Midline", "Endline"].map((pId, idx) => {
+                const counts = hfaTimelineData[idx] || {
+                  "Normal Height": 0,
+                  Stunted: 0,
+                  "Severely Stunted": 0,
+                  Tall: 0,
+                };
+                const subMax = Math.max(
+                  counts["Normal Height"],
+                  counts.Stunted,
+                  counts["Severely Stunted"],
+                  counts.Tall,
+                  5,
+                );
+
+                const p1 = {
+                  x: 35,
+                  y: 100 - (counts["Normal Height"] / subMax) * 65,
+                };
+                const p2 = { x: 90, y: 100 - (counts.Stunted / subMax) * 65 };
+                const p3 = {
+                  x: 145,
+                  y: 100 - (counts["Severely Stunted"] / subMax) * 65,
+                };
+                const p4 = { x: 200, y: 100 - (counts.Tall / subMax) * 65 };
+
+                return (
+                  <div
+                    key={pId}
+                    style={{
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "14px",
+                      padding: "16px",
+                      backgroundColor: "#f8fafc",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "700",
+                        color: "#334155",
+                      }}
+                    >
+                      {pId}
+                    </span>
+                    <svg
+                      viewBox="0 0 230 140"
+                      style={{
+                        width: "100%",
+                        height: "auto",
+                        marginTop: "12px",
+                        overflow: "visible",
+                      }}
+                    >
+                      <line
+                        x1="15"
+                        y1="35"
+                        x2="215"
+                        y2="35"
+                        stroke="#e2e8f0"
+                        strokeDasharray="3,3"
+                      />
+                      <line
+                        x1="15"
+                        y1="67"
+                        x2="215"
+                        y2="67"
+                        stroke="#e2e8f0"
+                        strokeDasharray="3,3"
+                      />
+                      <line
+                        x1="15"
+                        y1="100"
+                        x2="215"
+                        y2="100"
+                        stroke="#cbd5e1"
+                        strokeWidth="1.5"
+                      />
+                      <line
+                        x1="15"
+                        y1="15"
+                        x2="15"
+                        y2="100"
+                        stroke="#cbd5e1"
+                        strokeWidth="1"
+                      />
+
+                      <path
+                        d={`M ${p1.x} 100 L ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y} L ${p4.x} 100 Z`}
+                        fill="rgba(30, 58, 138, 0.04)"
+                      />
+                      <path
+                        d={`M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y} L ${p4.x} ${p4.y}`}
+                        fill="none"
+                        stroke="#1e3a8a"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      <circle
+                        cx={p1.x}
+                        cy={p1.y}
+                        r="3.5"
+                        fill="#10b981"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={p1.x}
+                        y={p1.y - 6}
+                        fontSize="9"
+                        fontWeight="800"
+                        fill="#059669"
+                        textAnchor="middle"
+                      >
+                        {counts["Normal Height"]}
+                      </text>
+
+                      <circle
+                        cx={p2.x}
+                        cy={p2.y}
+                        r="3.5"
+                        fill="#f59e0b"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={p2.x}
+                        y={p2.y - 6}
+                        fontSize="9"
+                        fontWeight="800"
+                        fill="#d97706"
+                        textAnchor="middle"
+                      >
+                        {counts.Stunted}
+                      </text>
+
+                      <circle
+                        cx={p3.x}
+                        cy={p3.y}
+                        r="3.5"
+                        fill="#ef4444"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={p3.x}
+                        y={p3.y - 6}
+                        fontSize="9"
+                        fontWeight="800"
+                        fill="#dc2626"
+                        textAnchor="middle"
+                      >
+                        {counts["Severely Stunted"]}
+                      </text>
+
+                      <circle
+                        cx={p4.x}
+                        cy={p4.y}
+                        r="3.5"
+                        fill="#3b82f6"
+                        stroke="#fff"
+                        strokeWidth="1"
+                      />
+                      <text
+                        x={p4.x}
+                        y={p4.y - 6}
+                        fontSize="9"
+                        fontWeight="800"
+                        fill="#2563eb"
+                        textAnchor="middle"
+                      >
+                        {counts.Tall}
+                      </text>
+
+                      <text
+                        x={p1.x}
+                        y="116"
+                        fontSize="6.5"
+                        fontWeight="600"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        <tspan x={p1.x} dy="0">
+                          Normal
+                        </tspan>
+                        <tspan x={p1.x} dy="8">
+                          Height
+                        </tspan>
+                      </text>
+                      <text
+                        x={p2.x}
+                        y="116"
+                        fontSize="6.5"
+                        fontWeight="600"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        Stunted
+                      </text>
+                      <text
+                        x={p3.x}
+                        y="116"
+                        fontSize="6.5"
+                        fontWeight="600"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        <tspan x={p3.x} dy="0">
+                          Severely
+                        </tspan>
+                        <tspan x={p3.x} dy="8">
+                          Stunted
+                        </tspan>
+                      </text>
+                      <text
+                        x={p4.x}
+                        y="116"
+                        fontSize="6.5"
+                        fontWeight="600"
+                        fill="#64748b"
+                        textAnchor="middle"
+                      >
+                        Tall
+                      </text>
+                    </svg>
+                  </div>
+                );
+              })}
+
+              <div
+                style={{
+                  border: "2px dashed #cbd5e1",
+                  borderRadius: "14px",
+                  padding: "16px",
+                  backgroundColor: "#ffffff",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: "700",
+                      color: "#1e3a8a",
+                    }}
+                  >
+                    Combined HFA Trend
+                  </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "8px",
+                      marginTop: "6px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: "700",
+                        color: "#10b981",
+                      }}
+                    >
+                      ● Norm Ht
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: "700",
+                        color: "#f59e0b",
+                      }}
+                    >
+                      ● Stunted
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: "700",
+                        color: "#ef4444",
+                      }}
+                    >
+                      ● Sev. Stun
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: "700",
+                        color: "#3b82f6",
+                      }}
+                    >
+                      ● Tall
+                    </span>
+                  </div>
+                </div>
+                <svg
+                  viewBox="0 0 180 110"
+                  style={{ width: "100%", height: "auto", overflow: "visible" }}
+                >
+                  <line
+                    x1="20"
+                    y1="25"
+                    x2="165"
+                    y2="25"
+                    stroke="#f1f5f9"
+                    strokeDasharray="2,2"
+                  />
+                  <line
+                    x1="20"
+                    y1="55"
+                    x2="165"
+                    y2="55"
+                    stroke="#f1f5f9"
+                    strokeDasharray="2,2"
+                  />
+                  <line
+                    x1="20"
+                    y1="85"
+                    x2="165"
+                    y2="85"
+                    stroke="#cbd5e1"
+                    strokeWidth="1.5"
+                  />
+                  <line
+                    x1="20"
+                    y1="10"
+                    x2="20"
+                    y2="85"
+                    stroke="#e2e8f0"
+                    strokeWidth="1"
+                  />
+
+                  {/* Dynamic HFA Trend Curves */}
+                  {["Normal Height", "Stunted", "Severely Stunted", "Tall"].map(
+                    (lbl, idx) => {
+                      const colors = [
+                        "#10b981",
+                        "#f59e0b",
+                        "#ef4444",
+                        "#3b82f6",
+                      ];
+                      const pts = hfaTimelineData.map((d, dIdx) => {
+                        const x = 40 + dIdx * 55;
+                        const val = d[lbl] || 0;
+                        const y = 85 - (val / combinedMaxHFA) * 65;
+                        return { x, y };
+                      });
+                      const dStr = `M ${pts[0].x} ${pts[0].y} L ${pts[1].x} ${pts[1].y} L ${pts[2].x} ${pts[2].y}`;
+                      return (
+                        <g key={lbl}>
+                          <path
+                            d={dStr}
+                            fill="none"
+                            stroke={colors[idx]}
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                          />
+                          {pts.map((pt, pIdx) => (
+                            <circle
+                              key={pIdx}
+                              cx={pt.x}
+                              cy={pt.y}
+                              r="2.5"
+                              fill={colors[idx]}
+                            />
+                          ))}
+                        </g>
+                      );
+                    },
+                  )}
+
+                  <text
+                    x="40"
+                    y="98"
+                    fontSize="9"
+                    fontWeight="700"
+                    fill="#475569"
+                    textAnchor="middle"
+                  >
+                    Baseline
+                  </text>
+                  <text
+                    x="95"
+                    y="98"
+                    fontSize="9"
+                    fontWeight="700"
+                    fill="#475569"
+                    textAnchor="middle"
+                  >
+                    Midline
+                  </text>
+                  <text
+                    x="150"
+                    y="98"
+                    fontSize="9"
+                    fontWeight="700"
+                    fill="#475569"
+                    textAnchor="middle"
+                  >
+                    Endline
+                  </text>
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Grade level breakdown table ── */}
+          <div className="card">
+            <h3 className="card-title">Nutritional Status by Grade Level</h3>
+            <div style={{ overflowX: "auto" }}>
+              <table className="sdo-isolated-table">
+                <thead>
+                  <tr>
+                    <th>Grade</th>
+                    <th>Sex</th>
+                    <th>Normal</th>
+                    <th>Wasted</th>
+                    <th>Sev. Wasted</th>
+                    <th>Overweight</th>
+                    <th>Obese</th>
+                    <th>Normal Ht.</th>
+                    <th>Stunted</th>
+                    <th>Sev. Stunted</th>
+                    <th>Tall</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {GRADE_LEVELS.map((grade) => (
+                    <React.Fragment key={grade}>
+                      <tr>
+                        <td
+                          style={{
+                            background: gradeBg[grade],
+                            fontWeight: 700,
+                          }}
+                        >
+                          {grade}
+                        </td>
+                        <td>Male</td>
+                        <td>{gradeSummary[grade].Male.Normal}</td>
+                        <td>{gradeSummary[grade].Male.Wasted}</td>
+                        <td>{gradeSummary[grade].Male["Severely Wasted"]}</td>
+                        <td>{gradeSummary[grade].Male.Overweight}</td>
+                        <td>{gradeSummary[grade].Male.Obese}</td>
+                        <td>{gradeSummary[grade].Male["Normal Height"]}</td>
+                        <td>{gradeSummary[grade].Male.Stunted}</td>
+                        <td>{gradeSummary[grade].Male["Severely Stunted"]}</td>
+                        <td>{gradeSummary[grade].Male.Tall}</td>
+                        <td>
+                          <strong>{gradeSummary[grade].Male.Total}</strong>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ background: gradeBg[grade] }}></td>
+                        <td>Female</td>
+                        <td>{gradeSummary[grade].Female.Normal}</td>
+                        <td>{gradeSummary[grade].Female.Wasted}</td>
+                        <td>{gradeSummary[grade].Female["Severely Wasted"]}</td>
+                        <td>{gradeSummary[grade].Female.Overweight}</td>
+                        <td>{gradeSummary[grade].Female.Obese}</td>
+                        <td>{gradeSummary[grade].Female["Normal Height"]}</td>
+                        <td>{gradeSummary[grade].Female.Stunted}</td>
+                        <td>
+                          {gradeSummary[grade].Female["Severely Stunted"]}
+                        </td>
+                        <td>{gradeSummary[grade].Female.Tall}</td>
+                        <td>
+                          <strong>{gradeSummary[grade].Female.Total}</strong>
+                        </td>
+                      </tr>
+                    </React.Fragment>
+                  ))}
+                </tbody>
+
+                <tfoot>
+                  <tr>
+                    <td>TOTALS</td>
+                    <td>Male</td>
+                    <td>{grandTotals.Male.Normal}</td>
+                    <td>{grandTotals.Male.Wasted}</td>
+                    <td>{grandTotals.Male.SevWasted}</td>
+                    <td>{grandTotals.Male.Overweight}</td>
+                    <td>{grandTotals.Male.Obese}</td>
+                    <td>{grandTotals.Male.NormalHt}</td>
+                    <td>{grandTotals.Male.Stunted}</td>
+                    <td>{grandTotals.Male.SevStunted}</td>
+                    <td>{grandTotals.Male.Tall}</td>
+                    <td>{grandTotals.Male.Total}</td>
+                  </tr>
+                  <tr>
+                    <td></td>
+                    <td>Female</td>
+                    <td>{grandTotals.Female.Normal}</td>
+                    <td>{grandTotals.Female.Wasted}</td>
+                    <td>{grandTotals.Female.SevWasted}</td>
+                    <td>{grandTotals.Female.Overweight}</td>
+                    <td>{grandTotals.Female.Obese}</td>
+                    <td>{grandTotals.Female.NormalHt}</td>
+                    <td>{grandTotals.Female.Stunted}</td>
+                    <td>{grandTotals.Female.SevStunted}</td>
+                    <td>{grandTotals.Female.Tall}</td>
+                    <td>{grandTotals.Female.Total}</td>
+                  </tr>
+                  <tr className="overall-grand-total">
+                    <td></td>
+                    <td style={{ fontWeight: "900" }}>Combined</td>
+                    <td>
+                      <strong>{grandTotals.Combined.Normal}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Wasted}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.SevWasted}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Overweight}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Obese}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.NormalHt}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Stunted}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.SevStunted}</strong>
+                    </td>
+                    <td>
+                      <strong>{grandTotals.Combined.Tall}</strong>
+                    </td>
+                    <td>
+                      <strong style={{ color: "#1E3A8A" }}>
+                        {grandTotals.Combined.Total}
+                      </strong>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
             <div
               style={{
                 display: "grid",

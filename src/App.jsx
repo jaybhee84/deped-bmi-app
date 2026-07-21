@@ -20,7 +20,11 @@ import OnboardingModal from "./components/OnboardingModal";
 import { SchoolProvider } from "./context/SchoolContext";
 import { RELEASE_NOTES } from "./data/releaseNotes";
 import { getSession, logout, canEdit, ROLES } from "./utils/auth";
+<<<<<<< HEAD
 import { supabase } from "./utils/supabaseClient";
+=======
+import { supabase } from "./utils/supabaseClient"; // 🌟 ADDED SECURE CLIENT IMPORT
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
 import {
   localLoadStudents,
   localSaveStudents,
@@ -163,7 +167,11 @@ function AppContent({
             setStudents={readOnly ? undefined : updateStudents}
             onBack={() => setPage("database")}
             readOnly={readOnly}
+<<<<<<< HEAD
             supabase={supabase}
+=======
+            supabase={supabase} // 🌟 BIND SUPABASE PIPELINE INTO CANVAS PROPS
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
           />
         )}
 
@@ -584,6 +592,7 @@ export default function App() {
       const safeNext = Array.isArray(next) ? next : [];
       const safePrev = Array.isArray(prev) ? prev : [];
 
+<<<<<<< HEAD
       // --- Deduplicate next state to clean duplicate IDs ---
       const uniqueMap = new Map();
       safeNext.forEach((s) => {
@@ -594,12 +603,20 @@ export default function App() {
       const deduplicatedNext = Array.from(uniqueMap.values());
 
       deduplicatedNext.forEach((student) => {
+=======
+      safeNext.forEach((student) => {
+        if (!student) return;
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
         const old = safePrev.find((p) => p && p.id === student.id);
         if (!old || JSON.stringify(old) !== JSON.stringify(student)) {
           queueStudentForSync(student.id);
         }
       });
+<<<<<<< HEAD
       return deduplicatedNext;
+=======
+      return safeNext;
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
     });
   }
 
@@ -663,6 +680,7 @@ export default function App() {
     setStudents([]);
     setSchoolName("");
     setPage("dashboard");
+<<<<<<< HEAD
     // Reset school-scoped view state — App never unmounts on logout, so
     // these otherwise carry the previous user's last-picked school into
     // the next login even though storage was just cleared above.
@@ -671,6 +689,8 @@ export default function App() {
     setReportsSchool("CONSOLIDATED");
     setSelectedPeriod("Baseline");
     setSelectedSY("2026-2027");
+=======
+>>>>>>> 9c27fbc09b7624779a042834bfa9843d0037a349
     setTimeout(() => {
       window.electronAPI?.forceRefocusWindow?.();
     }, 50);
