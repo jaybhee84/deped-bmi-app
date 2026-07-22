@@ -379,10 +379,7 @@ export default function SBFPBeneficiaries({
           if (!cancelled) {
             setManualEnrolment(localData);
             setIsDirty(false);
-<<<<<<< HEAD
             setIsLocked(true);
-=======
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
             setSaveMessage("");
           }
           return;
@@ -411,7 +408,6 @@ export default function SBFPBeneficiaries({
         if (data && data.data && !cancelled) {
           setManualEnrolment(data.data);
           setIsDirty(false);
-<<<<<<< HEAD
           setIsLocked(true);
           setSaveMessage("");
         } else {
@@ -419,11 +415,6 @@ export default function SBFPBeneficiaries({
             setManualEnrolment({});
             setIsLocked(false);
           }
-=======
-          setSaveMessage("");
-        } else {
-          if (!cancelled) setManualEnrolment({});
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
         }
       } catch (err) {
         console.error("[SBFP] Enrolment sync resolution crash context:", err);
@@ -1181,7 +1172,6 @@ export default function SBFPBeneficiaries({
             width: "100%",
           }}
         >
-<<<<<<< HEAD
           <button
             type="button"
             disabled={!isDirty || isLocked}
@@ -1197,14 +1187,6 @@ export default function SBFPBeneficiaries({
               opacity: isDirty && !isLocked ? 1 : 0.8,
               transition: "all .2s ease",
             }}
-=======
-          {isDirty ? "💾 Save Enrolment" : "✓ Enrolment Saved"}
-        </button>
-
-        {saveMessage && (
-          <span
-            style={{ color: "#15803d", fontWeight: 600, marginLeft: "10px" }}
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
           >
             {isDirty ? "💾 Save Enrolment" : "✓ Enrolment Saved"}
           </button>

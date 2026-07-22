@@ -12,10 +12,7 @@ import Badge from "./Badge";
 import { fetchAllSchools } from "../utils/syncService";
 import "./SDODashboard.css";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
-<<<<<<< HEAD
 import { getCachedLogoSrc, useLogoCacheHydrated } from "../utils/logoCache";
-=======
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 import DataAndTables from "./DataAndTables";
 
 // ── Multi-Segment SVG Donut Chart Component ──────────────────────────────────
@@ -113,13 +110,10 @@ export default function SDODashboard({
   // Fallback map state for broken image logos
   const [brokenLogos, setBrokenLogos] = useState({});
 
-<<<<<<< HEAD
   // Re-renders once cached logos are hydrated from SQLite, so the banner
   // below picks up local logos instead of Supabase Storage URLs.
   useLogoCacheHydrated();
 
-=======
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
   // Official enrolment loaded from sbfp_enrolment
   const [schoolEnrolment, setSchoolEnrolment] = useState(0);
 
@@ -925,17 +919,11 @@ export default function SDODashboard({
 
             const sampleUrl =
               getSchoolLogoUrl("Isabela East Central Elementary School") || "";
-<<<<<<< HEAD
             const sdoLogoUrl =
               getCachedLogoSrc("__SDO__") ||
               (sampleUrl
                 ? `${sampleUrl.substring(0, sampleUrl.lastIndexOf("/"))}/sdo.png`
                 : null);
-=======
-            const sdoLogoUrl = sampleUrl
-              ? `${sampleUrl.substring(0, sampleUrl.lastIndexOf("/"))}/sdo.png`
-              : null;
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 
             const info = isAll
               ? {

@@ -112,7 +112,6 @@ contextBridge.exposeInMainWorld("sqlite", {
       "sbfp-enrolment:totals",
       sy
     ),
-<<<<<<< HEAD
 
   // SCHOOL LOGO CACHE (bulk preload, name-keyed — see logoCache.js)
   saveLogoToCache: (schoolKey, filename, dataUrl) =>
@@ -136,8 +135,6 @@ contextBridge.exposeInMainWorld("sqlite", {
     ipcRenderer.invoke(
       "logo-cache:keys"
     ),
-=======
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 });
 
 // =========================
@@ -165,7 +162,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   
   checkForUpdates: () =>
     ipcRenderer.invoke("app:checkForUpdates"),
-<<<<<<< HEAD
 
   // macOS-only manual update path (no code signing yet, so no silent
   // Squirrel.Mac self-update). Mirrors checkForUpdates' shape: main.js
@@ -183,8 +179,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("update-download-progress", listener);
     return () => ipcRenderer.removeListener("update-download-progress", listener);
   },
-=======
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 
   forceRefocusWindow: () => ipcRenderer.send("force-refocus-window"),
   

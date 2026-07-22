@@ -20,10 +20,7 @@ import OnboardingModal from "./components/OnboardingModal";
 import { SchoolProvider } from "./context/SchoolContext";
 import { RELEASE_NOTES } from "./data/releaseNotes";
 import { getSession, logout, canEdit, ROLES } from "./utils/auth";
-<<<<<<< HEAD
 import { hydrateLogoCache, preloadAllSchoolLogos } from "./utils/logoCache";
-=======
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 import { supabase } from "./utils/supabaseClient";
 import {
   localLoadStudents,
@@ -318,10 +315,7 @@ function AppContent({
 
 // ── Root Master Component ───────────────────────────────────────────────────
 export default function App() {
-<<<<<<< HEAD
   // Uses sessionStorage so closing the app always forces login on next boot
-=======
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
   const [session, setSession] = useState(() => {
     const memorySession = sessionStorage.getItem("sb_current_session");
     if (memorySession) {
@@ -331,15 +325,10 @@ export default function App() {
         return null;
       }
     }
-<<<<<<< HEAD
     // Clean up outdated session tokens without wiping offline credentials
     localStorage.removeItem("sb_auth_token");
     localStorage.removeItem("sb_user_session");
     localStorage.removeItem("deped_bmi_session");
-=======
-    localStorage.removeItem("sb_auth_token");
-    localStorage.removeItem("sb_user_session");
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
     return null;
   });
 
@@ -505,7 +494,6 @@ export default function App() {
     checkReleaseNotes();
   }, []);
 
-<<<<<<< HEAD
   // Warm the local school-logo cache after login — SDO users only, since
   // they're the ones who browse between all ~65 schools in SDODashboard.
   // School-based users only ever see their own school's logo, which is
@@ -529,8 +517,6 @@ export default function App() {
     };
   }, [session?.id, session?.role]);
 
-=======
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
   const isSDO =
     String(session?.role || "")
       .toLowerCase()
@@ -699,28 +685,18 @@ export default function App() {
   function handleLogout() {
     logout();
     sessionStorage.clear();
-<<<<<<< HEAD
 
     // Explicitly clean up active session keys only, DO NOT call localStorage.clear()
     localStorage.removeItem("sb_auth_token");
     localStorage.removeItem("sb_user_session");
     localStorage.removeItem("deped_bmi_session");
 
-=======
-    localStorage.clear();
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
     setSession(null);
     setStudents([]);
     setSchoolName("");
     setPage("dashboard");
-<<<<<<< HEAD
 
     // Reset school-scoped view state
-=======
-    // Reset school-scoped view state — App never unmounts on logout, so
-    // these otherwise carry the previous user's last-picked school into
-    // the next login even though storage was just cleared above.
->>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
     setSelectedSchool("ALL SCHOOLS");
     setDashboardSchool("ALL SCHOOLS");
     setReportsSchool("CONSOLIDATED");
