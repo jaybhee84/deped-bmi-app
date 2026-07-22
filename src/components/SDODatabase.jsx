@@ -52,15 +52,14 @@ export default function SDOStudents({
   onViewProfile,
   readOnly,
 }) {
-
   const FUTURE_SCHOOL_YEARS = [
-    "2026â€“2027",
-    "2027â€“2028",
-    "2028â€“2029",
-    "2029â€“2030",
+    "2026–2027",
+    "2027–2028",
+    "2028–2029",
+    "2029–2030",
   ];
 
-  const [filterSy, setFilterSy] = useState("2026â€“2027");
+  const [filterSy, setFilterSy] = useState("2026–2027");
   const [filterSchool, setFilterSchool] = useState("ALL SCHOOLS");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
@@ -200,7 +199,7 @@ export default function SDOStudents({
       ...(Array.isArray(prev) ? prev : []),
       {
         id: Date.now(),
-        lrn: form.lrn || "â€”",
+        lrn: form.lrn || "—",
         name: form.name,
         age: parseInt(form.age) || 0,
         sex: form.sex,
@@ -236,7 +235,7 @@ export default function SDOStudents({
       <div className="sdo-filter-row">
         <input
           className="sdo-form-input sdo-search-input"
-          placeholder="Search by name or LRNâ€¦"
+          placeholder="Search by name or LRN…"
           value={searchQ}
           onChange={(e) => setSearchQ(e.target.value)}
         />
@@ -272,7 +271,6 @@ export default function SDOStudents({
           }}
         >
           <option value="All">All Years</option>
-
           {FUTURE_SCHOOL_YEARS.map((sy) => (
             <option key={sy} value={sy}>
               {sy}
@@ -315,7 +313,7 @@ export default function SDOStudents({
 
       {saveMessage.visible && (
         <div className="sdo-success-toast">
-          <div className="sdo-toast-icon">âœ“</div>
+          <div className="sdo-toast-icon">✓</div>
           <div>
             <div className="sdo-toast-title">Saved Successfully</div>
             <div className="sdo-toast-text">
@@ -387,7 +385,7 @@ export default function SDOStudents({
 
                   const previousSbfp = hasPreviousYearData(
                     s,
-                    filterSy === "All" ? "2026â€“2027" : filterSy,
+                    filterSy === "All" ? "2026–2027" : filterSy,
                   );
 
                   return (
@@ -396,16 +394,16 @@ export default function SDOStudents({
                       onClick={() => onViewProfile && onViewProfile(s)}
                       style={{ cursor: "pointer" }}
                     >
-                      <td>{s.lrn || <span className="sdo-muted">â€”</span>}</td>
+                      <td>{s.lrn || <span className="sdo-muted">—</span>}</td>
                       <td className="sdo-name-cell">{s.name}</td>
                       <td style={{ textAlign: "center" }}>{s.age}</td>
                       <td style={{ textAlign: "center" }}>{s.sex}</td>
-                      <td>{s.section || "â€”"}</td>
+                      <td>{s.section || "—"}</td>
                       <td style={{ textAlign: "center" }}>
                         {typeof bmi === "number" ? (
                           bmi.toFixed(1)
                         ) : (
-                          <span className="sdo-muted">â€”</span>
+                          <span className="sdo-muted">—</span>
                         )}
                       </td>
                       <td>

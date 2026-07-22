@@ -92,7 +92,18 @@ CREATE TABLE IF NOT EXISTS school_logos (
 // needing a Supabase round trip to resolve name -> school_id first. Kept
 // separate from `school_logos` above, which is keyed by the real
 // school_id and only ever holds the currently-bound school's logo.)
-// 
+// =========================
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS school_logo_cache (
+  school_key TEXT PRIMARY KEY,
+  filename TEXT,
+  data_url TEXT,
+  updated_at TEXT
+);
+`);
+
+// =========================
 // SBFP ENROLMENT TABLE (offline-first, mirrors sbfp_enrolment in Supabase)
 // =========================
 
@@ -299,7 +310,52 @@ export function deleteSchoolLogo(schoolId) {
 
 // =========================
 // SCHOOL LOGO CACHE FUNCTIONS (bulk preload, name-keyed)
-// 
+// =========================
+
+export function saveLogoToCache(schoolKey, filename, dataUrl) {
+  db.prepare(`
+    INSERT OR REPLACE INTO school_logo_cache (
+      school_key,
+      filename,
+      data_url,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?)
+  `).run(
+    String(schoolKey),
+    filename || null,
+    dataUrl,
+    new Date().toISOString()
+  );
+}
+
+export function loadLogoFromCache(schoolKey) {
+  const row = db
+    .prepare("SELECT data_url FROM school_logo_cache WHERE school_key = ?")
+    .get(String(schoolKey));
+
+  return row ? row.data_url : null;
+}
+
+// Returns everything in one shot as { schoolKey: dataUrl } so the renderer
+// can hydrate its in-memory lookup with a single IPC call instead of one
+// round trip per school.
+export function loadAllCachedLogos() {
+  const rows = db.prepare("SELECT school_key, data_url FROM school_logo_cache").all();
+  return rows.reduce((acc, row) => {
+    acc[row.school_key] = row.data_url;
+    return acc;
+  }, {});
+}
+
+export function getCachedLogoKeys() {
+  return db
+    .prepare("SELECT school_key FROM school_logo_cache")
+    .all()
+    .map((r) => r.school_key);
+}
+
+// =========================
 // SBFP ENROLMENT FUNCTIONS (offline-first)
 // =========================
 
