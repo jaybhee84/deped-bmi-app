@@ -18,9 +18,8 @@ import {
 } from "../utils/sbfpConfig";
 import Badge from "./Badge";
 import "./SBFPBeneficiaries.css";
-import "./SBFPBeneficiaries.print.css"; // NEW: styles for the official DepEd report
+import "./SBFPBeneficiaries.print.css";
 
-// ── Order the report follows (Kinder → Grade 6 → SPED) ──
 const REPORT_GRADE_ORDER = [
   "Kinder",
   "Grade 1",
@@ -50,7 +49,6 @@ const enrolmentInputStyle = {
   textAlign: "center",
   fontSize: "14px",
   fontWeight: 600,
-  background: "#FFFFFF",
   boxSizing: "border-box",
 };
 
@@ -77,15 +75,6 @@ function pct(n, d) {
   return ((n / d) * 100).toFixed(2) + "%";
 }
 
-/**
- * Builds the Grade Level x Sex nutritional status summary
- * (mirrors the DepEd "Nutritional Status Report" template).
- *
- * ASSUMPTION: "grade" for grouping is derived the same way as the rest of
- * the file (s.section?.split(" - ")[0]), with anything not matching a
- * regular grade level bucketed as "SPED". Adjust deriveGrade() below if
- * your data marks SPED learners differently (e.g. s.isSPED or s.track).
- */
 function deriveGrade(s) {
   const g = s.section?.split(" - ")[0] || s.grade || "";
   return REPORT_GRADE_ORDER.includes(g) ? g : "SPED";
@@ -102,7 +91,7 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
   students.forEach((s) => {
     const grade = deriveGrade(s);
     const row = rowByGrade[grade];
-    if (!row) return; // unmatched grade label, skip
+    if (!row) return;
     const sex = String(s.sex || "")
       .trim()
       .toUpperCase();
@@ -136,7 +125,6 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
     }
   });
 
-  // Total row per grade (M + F)
   const withTotals = rows.map((r) => {
     const Total = emptyStats();
     addInto(Total, r.M);
@@ -144,7 +132,6 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
     return { ...r, Total };
   });
 
-  // Grand total across all grades
   const grand = { M: emptyStats(), F: emptyStats(), Total: emptyStats() };
   withTotals.forEach((r) => {
     addInto(grand.M, r.M);
@@ -153,6 +140,110 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
   });
 
   return { rows: withTotals, grand };
+}
+
+// ── CUSTOM INLINE DIALOG COMPONENT ──────────────────────────────────────────
+function CustomAlertDialog({ isOpen, title, message, type = "info", onClose }) {
+  if (!isOpen) return null;
+
+  const headerColors = {
+    error: "bg-red-50 text-red-700 border-red-200",
+    success: "bg-green-50 text-green-700 border-green-200",
+    info: "bg-blue-50 text-blue-700 border-blue-200",
+  };
+
+  const buttonColors = {
+    error: "bg-red-600 hover:bg-red-700 focus:ring-red-500",
+    success: "bg-green-600 hover:bg-green-700 focus:ring-green-500",
+    info: "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500",
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px",
+        background: "rgba(15, 23, 42, 0.4)",
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "440px",
+          overflow: "hidden",
+          backgroundColor: "#FFFFFF",
+          borderRadius: "12px",
+          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+          border: "1px solid #F1F5F9",
+        }}
+      >
+        <div
+          className={`px-6 py-4 border-b font-semibold flex items-center gap-2 ${headerColors[type]}`}
+          style={{
+            padding: "16px 24px",
+            fontWeight: 600,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            borderBottom: "1px solid #E2E8F0",
+          }}
+        >
+          {type === "error" && <span>⚠️</span>}
+          {type === "success" && <span>✅</span>}
+          {type === "info" && <span>ℹ️</span>}
+          {title}
+        </div>
+
+        <div
+          style={{
+            padding: "20px 24px",
+            color: "#475569",
+            fontSize: "14px",
+            lineHeight: "1.6",
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {message}
+        </div>
+
+        <div
+          style={{
+            padding: "12px 24px",
+            backgroundColor: "#F8FAFC",
+            display: "flex",
+            justifyContent: "end",
+            borderTop: "1px solid #F1F5F9",
+          }}
+        >
+          <button
+            onClick={onClose}
+            className={buttonColors[type]}
+            style={{
+              padding: "8px 16px",
+              color: "#FFFFFF",
+              fontSize: "14px",
+              fontWeight: 500,
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function SBFPBeneficiaries({
@@ -168,24 +259,35 @@ export default function SBFPBeneficiaries({
   const [searchQ, setSearchQ] = useState("");
   const [manualEnrolment, setManualEnrolment] = useState({});
   const [isDirty, setIsDirty] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+
+  // Dialog State
+  const [dialogConfig, setDialogConfig] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "info",
+  });
+
+  const triggerDialog = (title, message, type = "info") => {
+    setDialogConfig({ isOpen: true, title, message, type });
+  };
+
+  const closeDialog = () => {
+    setDialogConfig((prev) => ({ ...prev, isOpen: false }));
+  };
 
   const csvFileInputRef = React.useRef(null);
   const saveTimeoutRef = React.useRef(null);
 
-  // ── School name/ID resolution ──
-  // Priority: explicit props -> local SQLite (offline-safe) -> Supabase
-  // (only attempted if online and local had nothing).
-  // NOTE: moved above the enrolment-loading effect below, since that
-  // effect now needs resolvedSchool.id to know which school's enrolment
-  // to fetch.
+  const initialSchoolId = schoolId || currentUser?.school_id || "";
   const [resolvedSchool, setResolvedSchool] = useState({
     name: schoolName,
-    id: schoolId,
+    id: initialSchoolId,
   });
 
   useEffect(() => {
-    // Props always win if the parent explicitly passed them in.
     if (schoolName && schoolId) {
       setResolvedSchool({ name: schoolName, id: schoolId });
       return;
@@ -194,10 +296,21 @@ export default function SBFPBeneficiaries({
     let cancelled = false;
 
     async function resolveSchool() {
-      // 1) Local SQLite (fast, works offline, matches Settings.jsx).
-      // Scoped to currentUser so a different account on this device can't
-      // inherit a previous user's school (and, through it, stale SBFP
-      // enrolment numbers keyed by that school's id).
+      if (currentUser?.school_id) {
+        try {
+          const local = await window.sqlite?.loadSchool?.(currentUser?.id);
+          if (local && !cancelled) {
+            setResolvedSchool({
+              name: local.school_name || "",
+              id: currentUser.school_id,
+            });
+            return;
+          }
+        } catch (e) {
+          console.error("[SBFP] Profile session validation error:", e);
+        }
+      }
+
       try {
         const local = await window.sqlite?.loadSchool?.(currentUser?.id);
         if (local && (local.school_name || local.school_id)) {
@@ -213,18 +326,14 @@ export default function SBFPBeneficiaries({
         console.error("[SBFP] Failed to load school from SQLite:", e);
       }
 
-      // 2) Supabase fallback (only if online and something is still missing)
       if (!navigator.onLine) return;
 
       try {
         const config = loadSupabaseConfig();
         if (!config?.url || !config?.key) return;
 
-        const supabase = createClient(config.url, config.key);
-        // ASSUMPTION: table "schools", columns "school_name"/"school_id",
-        // single-school-per-install (no filter needed). Adjust if your
-        // actual schema differs.
-        const { data, error } = await supabase
+        const supabaseInstance = createClient(config.url, config.key);
+        const { data, error } = await supabaseInstance
           .from("schools")
           .select("school_name, school_id")
           .limit(1)
@@ -251,27 +360,68 @@ export default function SBFPBeneficiaries({
     return () => {
       cancelled = true;
     };
-  }, [schoolName, schoolId, currentUser?.id]);
+  }, [schoolName, schoolId, currentUser]);
 
-  // ── Enrolment (school-scoped: shared by every user bound to this school) ──
   useEffect(() => {
-    // Wait until we actually know which school we're loading enrolment for.
-    // Without this guard we'd either fetch nothing (schoolId missing) or,
-    // worse, silently load/save under the wrong school.
     if (!resolvedSchool.id) {
       setManualEnrolment({});
+      setIsLocked(false);
       return;
     }
 
     let cancelled = false;
 
-    loadSbfpEnrolment(resolvedSchool.id, filterSY).then((data) => {
-      if (!cancelled) {
-        setManualEnrolment(data);
-        setIsDirty(false);
-        setSaveMessage("");
+    async function fetchEnrolmentLifecycle() {
+      try {
+        const localData = await loadSbfpEnrolment(resolvedSchool.id, filterSY);
+
+        if (localData && Object.keys(localData).length > 0) {
+          if (!cancelled) {
+            setManualEnrolment(localData);
+            setIsDirty(false);
+            setIsLocked(true);
+            setSaveMessage("");
+          }
+          return;
+        }
+
+        if (!navigator.onLine) return;
+
+        const config = loadSupabaseConfig();
+        if (!config?.url || !config?.key) return;
+
+        const textSchoolId = String(resolvedSchool.id).trim();
+
+        const supabaseInstance = createClient(config.url, config.key);
+        const { data, error } = await supabaseInstance
+          .from("sbfp_enrolment")
+          .select("data")
+          .eq("school_id", textSchoolId)
+          .eq("sy", filterSY)
+          .maybeSingle();
+
+        if (error) {
+          console.error("[SBFP] Supabase online matching query failed:", error);
+          return;
+        }
+
+        if (data && data.data && !cancelled) {
+          setManualEnrolment(data.data);
+          setIsDirty(false);
+          setIsLocked(true);
+          setSaveMessage("");
+        } else {
+          if (!cancelled) {
+            setManualEnrolment({});
+            setIsLocked(false);
+          }
+        }
+      } catch (err) {
+        console.error("[SBFP] Enrolment sync resolution crash context:", err);
       }
-    });
+    }
+
+    fetchEnrolmentLifecycle();
 
     return () => {
       cancelled = true;
@@ -289,7 +439,7 @@ export default function SBFPBeneficiaries({
   function handleEnrolmentChange(key, value) {
     setManualEnrolment((prev) => ({
       ...prev,
-      [key]: value, // <-- Computed Property Name (Fixes the bug)
+      [key]: value,
     }));
 
     setIsDirty(true);
@@ -298,20 +448,29 @@ export default function SBFPBeneficiaries({
 
   async function handleSaveEnrolment() {
     if (!resolvedSchool.id) {
-      alert(
-        "No school is set up yet. Go to Settings and save your school info first.",
+      triggerDialog(
+        "Missing Profile Scope",
+        "No school identification configuration details are initialized yet. Please access your local Settings view context to assert primary institution parameters first.",
+        "error",
       );
       return;
     }
+
+    const total = Object.values(manualEnrolment).reduce(
+      (sum, val) => sum + (Number(val) || 0),
+      0,
+    );
 
     const ok = await saveSbfpEnrolment(
       resolvedSchool.id,
       filterSY,
       manualEnrolment,
+      total,
     );
 
     if (ok) {
       setIsDirty(false);
+      setIsLocked(true);
       setSaveMessage("✅ Enrolment saved successfully.");
 
       if (saveTimeoutRef.current) {
@@ -322,7 +481,11 @@ export default function SBFPBeneficiaries({
         setSaveMessage("");
       }, 3000);
     } else {
-      alert("Failed to save enrolment.");
+      triggerDialog(
+        "Database Write Error",
+        "The application failed to update your enrollment numbers. This might be due to a strict security profile rule restriction mismatch context. Please review the operational permissions map with the SDO.",
+        "error",
+      );
     }
   }
 
@@ -332,20 +495,44 @@ export default function SBFPBeneficiaries({
     loadSbfpConfig().then(setConfig);
   }, []);
 
-  const isConfigured = config.grades.length > 0 || config.criteria.length > 0;
+  const isConfigured = config.grades?.length > 0 || config.criteria?.length > 0;
+
   const beneficiaries = useMemo(() => {
     return students
       .map((s) => {
         const rec =
-          s.records.find((r) => r.sy === filterSY && r.q === filterPeriod) ||
+          s.records?.find((r) => r.sy === filterSY && r.q === filterPeriod) ||
           null;
 
         const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
         const baz = bmi ? getBMIStatus(bmi, s.sex, s.birthdate) : null;
         const haz = rec ? getHAZStatus(rec.height, s.sex, s.birthdate) : null;
-        const grade = s.section?.split(" - ")[0] || "";
+        const grade = s.section?.split(" - ")[0] || s.grade || "";
 
-        const isBen = rec ? isOfficialBeneficiary(s, baz, haz, config) : true;
+        let isBen = false;
+        if (rec) {
+          const gradeInclusion = config.grades?.includes(grade);
+
+          const hasBmiMatch = config.criteria?.includes(baz?.label);
+          const bmiRestrictionActive =
+            config.criterionGradeRestrictions?.[baz?.label] !== undefined;
+          const passesBmiRestriction = bmiRestrictionActive
+            ? config.criterionGradeRestrictions[baz.label].includes(grade)
+            : true;
+          const bazInclusion = hasBmiMatch && passesBmiRestriction;
+
+          const hasHazMatch = config.criteria?.includes(haz?.label);
+          const hazRestrictionActive =
+            config.criterionGradeRestrictions?.[haz?.label] !== undefined;
+          const passesHazRestriction = hazRestrictionActive
+            ? config.criterionGradeRestrictions[haz.label].includes(grade)
+            : true;
+          const hazInclusion = hasHazMatch && passesHazRestriction;
+
+          isBen = gradeInclusion || bazInclusion || hazInclusion;
+        } else {
+          isBen = true;
+        }
 
         return { ...s, bmi, baz, haz, grade, rec, isBen };
       })
@@ -417,10 +604,6 @@ export default function SBFPBeneficiaries({
     return a.name.localeCompare(b.name);
   });
 
-  // NEW: official DepEd-format report, built from the FULL roster
-  // (not just SBFP beneficiaries) so enrolment counts are accurate.
-  // Manual enrolment entries (per grade) override the computed Total row,
-  // since official DepEd enrolment counts may not match the app's roster.
   const nutritionReport = useMemo(() => {
     const report = buildNutritionReport(students, filterSY, filterPeriod);
 
@@ -428,40 +611,19 @@ export default function SBFPBeneficiaries({
       const male = Number(manualEnrolment[`${r.grade}_M`] || 0);
       const female = Number(manualEnrolment[`${r.grade}_F`] || 0);
 
-      r.M = {
-        ...r.M,
-        enrolment: male,
-      };
-
-      r.F = {
-        ...r.F,
-        enrolment: female,
-      };
-
-      r.Total = {
-        ...r.Total,
-        enrolment: male + female,
-      };
+      r.M = { ...r.M, enrolment: male };
+      r.F = { ...r.F, enrolment: female };
+      r.Total = { ...r.Total, enrolment: male + female };
     });
 
     const grandMale = report.rows.reduce((sum, r) => sum + r.M.enrolment, 0);
-
     const grandFemale = report.rows.reduce((sum, r) => sum + r.F.enrolment, 0);
 
     report.grand = {
       ...report.grand,
-      M: {
-        ...report.grand.M,
-        enrolment: grandMale,
-      },
-      F: {
-        ...report.grand.F,
-        enrolment: grandFemale,
-      },
-      Total: {
-        ...report.grand.Total,
-        enrolment: grandMale + grandFemale,
-      },
+      M: { ...report.grand.M, enrolment: grandMale },
+      F: { ...report.grand.F, enrolment: grandFemale },
+      Total: { ...report.grand.Total, enrolment: grandMale + grandFemale },
     };
 
     return report;
@@ -472,7 +634,7 @@ export default function SBFPBeneficiaries({
 
     if (window.electronAPI?.generatePrintPreview) {
       window.electronAPI.generatePrintPreview({
-        reportType: "landscape", // <--- ADD THIS LINE
+        reportType: "landscape",
         meta: {
           schoolName: resolvedSchool.name,
           schoolId: resolvedSchool.id,
@@ -493,17 +655,13 @@ export default function SBFPBeneficiaries({
     window.print();
   }
 
-  // Exports a blank data-collection template for the currently filtered
-  // beneficiary list. Registry No. / LRN / Name / Birthdate / Sex are
-  // prefilled (known, fixed identity fields — Registry No. is the fallback
-  // identifier BatchEntry.jsx auto-assigns to any student without an LRN).
-  // Age, Grade, Section, Weight, and Height are left blank for the user to
-  // fill in and re-upload via Import CSV. Computed columns (BMI, BMI
-  // Status, HFA Status) are intentionally omitted since they depend on
-  // Weight/Height the user hasn't entered yet.
   function handleExportCsv() {
     if (!filtered.length) {
-      alert("No beneficiaries to export.");
+      triggerDialog(
+        "Export Notice",
+        "There are no beneficiaries currently matching your target metrics to isolate and compile into a CSV file summary structure.",
+        "info",
+      );
       return;
     }
 
@@ -531,11 +689,11 @@ export default function SBFPBeneficiaries({
       s.name || "",
       s.birthdate || "",
       s.sex || "",
-      "", // Age — left blank
-      "", // Grade — left blank
-      "", // Section — left blank
-      "", // Weight — left blank
-      "", // Height — left blank
+      "",
+      "",
+      "",
+      "",
+      "",
     ]);
 
     const csvContent = [headers, ...rows]
@@ -555,11 +713,6 @@ export default function SBFPBeneficiaries({
     URL.revokeObjectURL(url);
   }
 
-  // Parses an uploaded CSV of weight/height measurements and writes them
-  // into each matched student's records for the currently selected
-  // filterSY / filterPeriod. Mirrors the matching logic in CSVUpload.jsx,
-  // but matches by LRN only (registry_no isn't shown on this page) and is
-  // scoped to the current beneficiary list + selected school year/period.
   function handleImportCsv(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -570,7 +723,11 @@ export default function SBFPBeneficiaries({
       const lines = text.trim().split("\n").filter(Boolean);
 
       if (!lines.length) {
-        alert("CSV file is empty.");
+        triggerDialog(
+          "Parsing Failed",
+          "The target CSV file you selected is completely blank. Please load a structured data payload containing record rows.",
+          "error",
+        );
         return;
       }
 
@@ -586,13 +743,19 @@ export default function SBFPBeneficiaries({
       const hasHeight = headers.includes("height");
 
       if (!hasRegistry && !hasLRN && !hasName) {
-        alert(
-          "CSV must have a Registry No., LRN, or Name column. Use Export CSV to get the correct format.",
+        triggerDialog(
+          "Invalid Column Format",
+          "CSV must contain at least a Registry No., LRN, or Name reference coordinate. Execute an Export structural query to match standard data layouts.",
+          "error",
         );
         return;
       }
       if (!hasWeight || !hasHeight) {
-        alert("CSV must have weight and height columns.");
+        triggerDialog(
+          "Missing Parameters",
+          "The matching engine requires standard numeric weight and height identifier properties to execute synchronization operations.",
+          "error",
+        );
         return;
       }
 
@@ -614,22 +777,23 @@ export default function SBFPBeneficiaries({
 
         if (!registryNo && !lrn && !name) {
           errs.push(
-            `Row ${i + 2}: missing Registry No., LRN, and Name — can't match.`,
+            `Row ${i + 2}: structural index missing reference mapping metadata.`,
           );
           return;
         }
         if (isNaN(weight) || weight <= 0) {
-          errs.push(`Row ${i + 2}: invalid weight for ${label}.`);
+          errs.push(
+            `Row ${i + 2}: specified tracking weight is incorrect for ${label}.`,
+          );
           return;
         }
         if (isNaN(height) || height <= 0) {
-          errs.push(`Row ${i + 2}: invalid height for ${label}.`);
+          errs.push(
+            `Row ${i + 2}: structural stature tracking height is invalid for ${label}.`,
+          );
           return;
         }
 
-        // Match priority mirrors CSVUpload.jsx: Registry No. first (the
-        // fallback identifier BatchEntry.jsx assigns to students without
-        // an LRN), then LRN, then an exact case-insensitive Name match.
         let match = null;
         if (registryNo) {
           match = students.find((s) => s.registryNo === registryNo);
@@ -643,7 +807,9 @@ export default function SBFPBeneficiaries({
         }
 
         if (!match) {
-          errs.push(`Row ${i + 2}: no student found for "${label}".`);
+          errs.push(
+            `Row ${i + 2}: no active local student profile mapped to target sequence identifier "${label}".`,
+          );
           return;
         }
 
@@ -651,7 +817,12 @@ export default function SBFPBeneficiaries({
       });
 
       if (!matches.length) {
-        alert("No matching students found.\n\n" + errs.slice(0, 10).join("\n"));
+        triggerDialog(
+          "Import Matching Failure",
+          "Could not synchronize row indices.\n\n" +
+            errs.slice(0, 5).join("\n"),
+          "error",
+        );
         return;
       }
 
@@ -684,30 +855,32 @@ export default function SBFPBeneficiaries({
         matches.length !== 1 ? "s" : ""
       } for ${filterPeriod} ${filterSY}.${
         errs.length
-          ? `\n\n${errs.length} row(s) skipped:\n` +
-            errs.slice(0, 10).join("\n")
+          ? `\n\n${errs.length} record conflict deviations omitted:\n` +
+            errs.slice(0, 5).join("\n")
           : ""
       }`;
-      alert(summary);
+      triggerDialog(
+        "Import Finished",
+        summary,
+        errs.length ? "info" : "success",
+      );
     };
     reader.readAsText(file);
-
-    // reset so selecting the same file twice still fires onChange
     e.target.value = "";
   }
 
-  // FIXED: now builds the learners payload the same way Reports.jsx does
-  // (weight/height/bmi/wfa/hfa fields), so the generated PDF's per-learner
-  // table actually renders values instead of blank columns. Previously
-  // this sent bmiStatus/hfaStatus, which the print template never reads.
   function handlePrintBeneficiaries() {
     if (!sortedRows.length) {
-      alert("No beneficiaries found.");
+      triggerDialog(
+        "Print Operation Deferred",
+        "No structural rows isolated to send to printer spool arrays under current filter scopes.",
+        "info",
+      );
       return;
     }
 
     const payload = {
-      reportType: "portrait", // <--- ADD THIS LINE
+      reportType: "portrait",
       title: "School-Based Feeding Program (SBFP) Nutritional Report",
       meta: {
         schoolName: resolvedSchool.name,
@@ -733,7 +906,11 @@ export default function SBFPBeneficiaries({
     if (window.electronAPI?.generatePrintPreview) {
       window.electronAPI.generatePrintPreview(payload);
     } else {
-      alert("Electron API preview channel not detected.");
+      triggerDialog(
+        "Hardware Context Missing",
+        "Electron native bridge API layer was not identified in the active platform wrapper context.",
+        "error",
+      );
     }
   }
 
@@ -770,7 +947,6 @@ export default function SBFPBeneficiaries({
 
   return (
     <div className="page">
-      {/* ── Header (screen only) ── */}
       <div className="page-header no-print">
         <div>
           <h1 className="page-title">SBFP Beneficiaries</h1>
@@ -778,13 +954,7 @@ export default function SBFPBeneficiaries({
             Official learners included in the School-Based Feeding Program
           </p>
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-          }}
-        >
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <button className="btn btn-primary no-print" onClick={handlePrint}>
             🖨 Print Summary
           </button>
@@ -812,12 +982,12 @@ export default function SBFPBeneficiaries({
           <span className="sbfp-config-label">
             Official criteria set by SDO:
           </span>
-          {config.grades.map((g) => (
+          {config.grades?.map((g) => (
             <span key={g} className="sbfp-config-tag grade">
               {g}
             </span>
           ))}
-          {config.criteria.map((c) => (
+          {config.criteria?.map((c) => (
             <span key={c} className="sbfp-config-tag criteria">
               {c}
             </span>
@@ -835,7 +1005,6 @@ export default function SBFPBeneficiaries({
         </div>
       )}
 
-      {/* ── Enrolment override (screen only) ── */}
       <div
         className="sbfp-enrolment-row no-print"
         style={{
@@ -850,12 +1019,36 @@ export default function SBFPBeneficiaries({
           borderRadius: "8px",
         }}
       >
-        <span
-          className="sbfp-config-label"
-          style={{ fontWeight: 600, marginRight: "4px" }}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            width: "100%",
+          }}
         >
-          Enrolment (official, per grade):
-        </span>
+          <span
+            className="sbfp-config-label"
+            style={{ fontWeight: 600, marginRight: "4px" }}
+          >
+            Enrolment (official, per grade):
+          </span>
+          {isLocked && (
+            <span
+              style={{
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "#6B7280",
+                background: "#E5E7EB",
+                padding: "2px 8px",
+                borderRadius: "12px",
+              }}
+            >
+              🔒 Inputs Locked
+            </span>
+          )}
+        </div>
+
         <div
           style={{
             display: "grid",
@@ -920,11 +1113,16 @@ export default function SBFPBeneficiaries({
                 <input
                   type="number"
                   min="0"
+                  disabled={isLocked}
                   value={manualEnrolment[`${g}_M`] ?? ""}
                   onChange={(e) =>
                     handleEnrolmentChange(`${g}_M`, e.target.value)
                   }
-                  style={enrolmentInputStyle}
+                  style={{
+                    ...enrolmentInputStyle,
+                    background: isLocked ? "#F3F4F6" : "#FFFFFF",
+                    cursor: isLocked ? "not-allowed" : "text",
+                  }}
                 />
               </div>
 
@@ -949,50 +1147,70 @@ export default function SBFPBeneficiaries({
                 <input
                   type="number"
                   min="0"
+                  disabled={isLocked}
                   value={manualEnrolment[`${g}_F`] ?? ""}
                   onChange={(e) =>
                     handleEnrolmentChange(`${g}_F`, e.target.value)
                   }
-                  style={enrolmentInputStyle}
+                  style={{
+                    ...enrolmentInputStyle,
+                    background: isLocked ? "#F3F4F6" : "#FFFFFF",
+                    cursor: isLocked ? "not-allowed" : "text",
+                  }}
                 />
               </div>
             </div>
           ))}
         </div>
-        <button
-          type="button"
-          disabled={!isDirty}
-          onClick={handleSaveEnrolment}
+
+        <div
           style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
             marginTop: "16px",
-            padding: "10px 24px",
-            background: isDirty ? "#16A34A" : "#9CA3AF",
-            color: "#fff",
-            border: "none",
-            borderRadius: "10px",
-            fontWeight: 600,
-            cursor: isDirty ? "pointer" : "not-allowed",
-            opacity: isDirty ? 1 : 0.8,
-            transition: "all .2s ease",
+            width: "100%",
           }}
         >
-          {isDirty ? "💾 Save Enrolment" : "✓ Enrolment Saved"}
-        </button>
-
-        {saveMessage && (
-          <span
+          <button
+            type="button"
+            disabled={!isDirty || isLocked}
+            onClick={handleSaveEnrolment}
             style={{
-              color: "#15803d",
+              padding: "10px 24px",
+              background: isDirty && !isLocked ? "#16A34A" : "#9CA3AF",
+              color: "#fff",
+              border: "none",
+              borderRadius: "8px",
               fontWeight: 600,
-              marginLeft: "10px",
+              cursor: isDirty && !isLocked ? "pointer" : "not-allowed",
+              opacity: isDirty && !isLocked ? 1 : 0.8,
+              transition: "all .2s ease",
             }}
           >
-            {saveMessage}
-          </span>
-        )}
+            {isDirty ? "💾 Save Enrolment" : "✓ Enrolment Saved"}
+          </button>
+
+          {isLocked && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setIsLocked(false)}
+            >
+              ✏️ Edit Enrolment
+            </button>
+          )}
+
+          {saveMessage && (
+            <span
+              style={{ color: "#15803d", fontWeight: 600, marginLeft: "10px" }}
+            >
+              {saveMessage}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* ── Filters (screen only) ── */}
       <div
         className="filter-row no-print"
         style={{
@@ -1003,7 +1221,6 @@ export default function SBFPBeneficiaries({
           gap: "10px",
         }}
       >
-        {/* Grouped, tighter filter + CSV toolbar */}
         <div
           style={{
             display: "flex",
@@ -1111,14 +1328,11 @@ export default function SBFPBeneficiaries({
           </div>
         </div>
 
-        {/* Print Beneficiaries — far right, vertically aligned with
-            Print Summary in the page header above */}
         <button className="btn btn-primary" onClick={handlePrintBeneficiaries}>
           🖨 Print Beneficiaries
         </button>
       </div>
 
-      {/* ── Summary pills (screen only) ── */}
       {isConfigured && (
         <div className="sbfp-summary-row no-print">
           {[
@@ -1185,7 +1399,6 @@ export default function SBFPBeneficiaries({
         </div>
       )}
 
-      {/* ── On-screen beneficiary table ── */}
       <div className="card screen-only">
         {!isConfigured ? (
           <div
@@ -1222,13 +1435,28 @@ export default function SBFPBeneficiaries({
             </thead>
             <tbody>
               {sortedRows.map((s, idx) => {
-                const gradeInclusion = config.grades.includes(s.grade);
-                const bazInclusion = config.criteria.includes(s.baz?.label);
-                const hazInclusion = config.criteria.includes(s.haz?.label);
+                const gradeInclusion = config.grades?.includes(s.grade);
+
+                const bazInclusion =
+                  config.criteria?.includes(s.baz?.label) &&
+                  (config.criterionGradeRestrictions?.[s.baz?.label] ===
+                    undefined ||
+                    config.criterionGradeRestrictions[s.baz.label].includes(
+                      s.grade,
+                    ));
+
+                const hazInclusion =
+                  config.criteria?.includes(s.haz?.label) &&
+                  (config.criterionGradeRestrictions?.[s.haz?.label] ===
+                    undefined ||
+                    config.criterionGradeRestrictions[s.haz.label].includes(
+                      s.grade,
+                    ));
+
                 const reasons = [];
                 if (gradeInclusion) reasons.push(`Grade (${s.grade})`);
-                if (bazInclusion) reasons.push(s.baz?.label);
-                if (hazInclusion) reasons.push(s.haz?.label);
+                if (bazInclusion && s.baz?.label) reasons.push(s.baz.label);
+                if (hazInclusion && s.haz?.label) reasons.push(s.haz.label);
 
                 return (
                   <tr key={s.id}>
@@ -1281,14 +1509,8 @@ export default function SBFPBeneficiaries({
         )}
       </div>
 
-      {/* ══════════════════════════════════════════════════════════
-          PRINT-ONLY: Official DepEd Nutritional Status Report
-          Hidden on screen, shown only via @media print (see .css)
-         ══════════════════════════════════════════════════════════ */}
       <div className="deped-report print-only">
         <div className="deped-report-header">
-          {/* Swap in your DepEd logo asset if you have one */}
-          {/* <img src="/assets/deped-logo.png" alt="DepEd" className="deped-logo" /> */}
           <div className="deped-report-title">
             <p>Department of Education</p>
             <p>Bureau of Learner Support Services</p>
@@ -1403,6 +1625,15 @@ export default function SBFPBeneficiaries({
           })}
         </p>
       </div>
+
+      {/* --- RENDER CUSTOM CONTEXT DIALOG --- */}
+      <CustomAlertDialog
+        isOpen={dialogConfig.isOpen}
+        title={dialogConfig.title}
+        message={dialogConfig.message}
+        type={dialogConfig.type}
+        onClose={closeDialog}
+      />
     </div>
   );
 }

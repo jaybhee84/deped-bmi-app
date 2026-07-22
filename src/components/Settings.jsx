@@ -15,7 +15,21 @@ import {
 import "./Settings.css";
 import { SCHOOL_OPTIONS } from "../utils/schools";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
-import { RELEASE_NOTES } from "../data/releaseNotes";
+
+// Pre-defined list of Districts
+const DISTRICT_OPTIONS = [
+  "East District I",
+  "East District II",
+  "West District I",
+  "West District II",
+  "West District III",
+  "North DIstrict I",
+  "North District II",
+  "North District III",
+  "Island District I",
+  "Island District II",
+  "Island District III",
+];
 
 export default function Settings({
   schoolName,
@@ -36,31 +50,32 @@ export default function Settings({
   const [schoolExists, setSchoolExists] = useState(false);
   const [schoolLogo, setSchoolLogo] = useState(null);
   const [appVersion, setAppVersion] = useState("");
-  const latestRelease = RELEASE_NOTES[appVersion];
+
+  // Process school options: filter out "ALL SCHOOLS" and high schools, then sort alphabetically
+  const processedSchools = SCHOOL_OPTIONS.filter((name) => {
+    if (name === "ALL SCHOOLS") return false;
+    // Remove any high school variants (e.g., High School, NHS, BHS, HS)
+    const lowerName = name.toLowerCase();
+    return (
+      !lowerName.includes("high school") &&
+      !lowerName.includes("nhs") &&
+      !lowerName.endsWith(" hs")
+    );
+  }).sort((a, b) => a.localeCompare(b));
+
   useEffect(() => {
     async function getVersion() {
       const version = await window.electronAPI.getAppVersion();
-
       setAppVersion(version);
     }
-
     getVersion();
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
     async function loadSchoolDb() {
-      if (!currentUser?.id) return;
-
       try {
-        // 1. Try local SQLite first (fast, works offline) — but only trust
-        // it if it was bound by THIS user. A different (or brand-new)
-        // account on the same device gets nothing here, not the previous
-        // user's school.
-        const schoolData = await window.sqlite.loadSchool(currentUser.id);
-
-        if (cancelled) return;
+        // 1. Try local SQLite first (fast, works offline)
+        const schoolData = await window.sqlite.loadSchool();
 
         if (schoolData) {
           setSchool({
@@ -71,68 +86,49 @@ export default function Settings({
             address: schoolData.address || "",
           });
 
-          // Mark the form as "loaded" immediately — don't make Save/logout
-          // wait on the logo lookup below.
           setSchoolLoaded(true);
-
           const logoUrl = getSchoolLogoUrl(schoolData.school_name);
+
           setSchoolLogo(logoUrl);
+          const localLogo = await window.sqlite.loadSchoolLogo(
+            schoolData.school_id,
+          );
 
-          // Background: prefer a locally-cached custom logo if present.
-          // Fire-and-forget so it can't block or race Save/logout.
-          window.sqlite
-            .loadSchoolLogo(schoolData.school_id)
-            .then((localLogo) => {
-              if (!cancelled && localLogo) setSchoolLogo(localLogo);
-            })
-            .catch((e) =>
-              console.error("[SQLite] Failed to load school logo:", e),
-            );
-
+          if (localLogo) {
+            setSchoolLogo(localLogo);
+          }
           return;
         }
 
-        // 2. Nothing local for THIS user — check if they're already bound
-        // to a school in Supabase (e.g. new device, or new account bound
-        // to an existing school) and pre-fill from there.
-        if (navigator.onLine) {
+        // 2. Nothing local yet — check if this user is already bound in Supabase
+        if (currentUser?.id && navigator.onLine) {
           const boundSchool = await fetchSchoolForUser(currentUser.id);
 
-          if (cancelled || !boundSchool) return;
+          if (boundSchool) {
+            setSchool({
+              name: boundSchool.name || "",
+              id: boundSchool.id || "",
+              division: boundSchool.division || "",
+              district: boundSchool.district || "",
+              address: boundSchool.address || "",
+            });
 
-          setSchool({
-            name: boundSchool.name || "",
-            id: boundSchool.id || "",
-            division: boundSchool.division || "",
-            district: boundSchool.district || "",
-            address: boundSchool.address || "",
-          });
+            setSchoolExists(true);
 
-          setSchoolExists(true);
-          setSchoolName(boundSchool.name);
+            const logoUrl = getSchoolLogoUrl(boundSchool.name);
+            setSchoolLogo(logoUrl);
 
-          // Mark the form ready right away — the logo and the local-cache
-          // write below happen in the background and must never block
-          // Save or logout.
-          setSchoolLoaded(true);
+            await window.sqlite.saveSchool({
+              school_name: boundSchool.name,
+              school_id: boundSchool.id,
+              division: boundSchool.division,
+              district: boundSchool.district,
+              address: boundSchool.address,
+            });
 
-          const logoUrl = getSchoolLogoUrl(boundSchool.name);
-          setSchoolLogo(logoUrl);
-
-          window.sqlite
-            .saveSchool(
-              {
-                name: boundSchool.name,
-                id: boundSchool.id,
-                division: boundSchool.division,
-                district: boundSchool.district,
-                address: boundSchool.address,
-              },
-              currentUser.id,
-            )
-            .catch((e) =>
-              console.error("[SQLite] Failed to cache school locally:", e),
-            );
+            setSchoolName(boundSchool.name);
+            setSchoolLoaded(true);
+          }
         }
       } catch (e) {
         console.error("[SQLite] Failed to load school:", e);
@@ -140,10 +136,6 @@ export default function Settings({
     }
 
     loadSchoolDb();
-
-    return () => {
-      cancelled = true;
-    };
   }, [currentUser]);
 
   // Supabase config state
@@ -167,20 +159,18 @@ export default function Settings({
     }
 
     try {
-      // Save locally first, scoped to the current account
-      await window.sqlite.saveSchool(school, currentUser?.id);
+      // Save locally first
+      await window.sqlite.saveSchool(school);
 
       // Sync to Supabase if online
       if (navigator.onLine) {
-        // Only create/update the school if it doesn't already exist
         if (!schoolExists) {
           await saveSchoolInfo(school);
         }
 
-        // Always bind the user to the school
         if (currentUser?.id) {
           try {
-            await bindSchoolToUser(school.id, currentUser.id);
+            const success = await bindSchoolToUser(school.id, currentUser.id);
 
             window.dispatchEvent(
               new CustomEvent("school-bound", {
@@ -192,7 +182,6 @@ export default function Settings({
             );
           } catch (bindErr) {
             console.error("Failed binding school to user:", bindErr);
-
             alert(
               "School saved, but could not bind it to your account. You may need to set it up again next time.",
             );
@@ -201,7 +190,6 @@ export default function Settings({
       }
 
       setSchoolName(school.name);
-
       setSchoolSaved(true);
 
       setTimeout(() => {
@@ -209,7 +197,6 @@ export default function Settings({
       }, 2500);
     } catch (e) {
       console.error(e);
-
       alert("School saved locally but failed to sync to Supabase.");
     }
   }
@@ -223,7 +210,6 @@ export default function Settings({
         district: "",
         address: "",
       });
-
       setSchoolExists(false);
       return;
     }
@@ -239,7 +225,6 @@ export default function Settings({
           district: existingSchool.district || "",
           address: existingSchool.address || "",
         });
-
         setSchoolExists(true);
       } else {
         setSchool({
@@ -249,42 +234,11 @@ export default function Settings({
           district: "",
           address: "",
         });
-
         setSchoolExists(false);
       }
     } catch (err) {
       console.error(err);
     }
-  }
-  async function handleTestAndSaveSupabase() {
-    if (!supabase.url || !supabase.key) return;
-    setTesting(true);
-    setTestResult(null);
-    const ok = await testSupabaseConnection(supabase.url, supabase.key);
-    setTesting(false);
-    if (ok) {
-      saveSupabaseConfig(supabase.url, supabase.key);
-      // Queue all local students for first-time upload
-      queueAllStudentsForSync(students);
-      setTestResult({
-        ok: true,
-        msg: "✓ Connected! All local data queued for upload.",
-      });
-      setSupaSaved(true);
-      setTimeout(() => setSupaSaved(false), 3000);
-    } else {
-      setTestResult({
-        ok: false,
-        msg: "✗ Could not connect. Check your URL and API key.",
-      });
-    }
-  }
-
-  function handleClearSupabase() {
-    localStorage.removeItem("deped_bmi_supabase");
-    setSupabase({ url: "", key: "" });
-    setTestResult(null);
-    setSupaSaved(false);
   }
 
   function handleResetRegistryCounter() {
@@ -310,10 +264,6 @@ export default function Settings({
     setTimeout(() => {
       setRegistryReset(false);
     }, 3000);
-
-    console.log(
-      JSON.parse(localStorage.getItem("deped_bmi_registry_counters")),
-    );
 
     alert("Registry counter reset");
   }
@@ -352,10 +302,7 @@ export default function Settings({
               onChange={(e) => handleSchoolChange(e.target.value)}
             >
               <option value="">Select School</option>
-
-              {SCHOOL_OPTIONS.filter(
-                (schoolName) => schoolName !== "ALL SCHOOLS",
-              ).map((schoolName) => (
+              {processedSchools.map((schoolName) => (
                 <option key={schoolName} value={schoolName}>
                   {schoolName}
                 </option>
@@ -363,42 +310,66 @@ export default function Settings({
             </select>
           </div>
 
-          {[
-            { key: "id", label: "School ID", placeholder: "e.g. 100123" },
-            {
-              key: "division",
-              label: "Division",
-              placeholder: "e.g. Division of Isabela City",
-            },
-            {
-              key: "district",
-              label: "District",
-              placeholder: "e.g. East District I",
-            },
-            {
-              key: "address",
-              label: "Address",
-              placeholder: "Complete school address",
-            },
-          ].map(({ key, label, placeholder }) => (
-            <div key={key} className="settings-field">
-              <label className="form-label">{label}</label>
-              <input
-                className={`form-input ${
-                  schoolLoaded ? "school-configured" : ""
-                }`}
-                placeholder={placeholder}
-                value={school[key]}
-                disabled={
-                  schoolExists &&
-                  ["id", "division", "district", "address"].includes(key)
-                }
-                onChange={(e) =>
-                  setSchool((s) => ({ ...s, [key]: e.target.value }))
-                }
-              />
-            </div>
-          ))}
+          {/* School ID Field */}
+          <div className="settings-field">
+            <label className="form-label">School ID</label>
+            <input
+              className={`form-input ${schoolLoaded ? "school-configured" : ""}`}
+              placeholder="e.g. 100123"
+              value={school.id}
+              disabled={schoolExists}
+              onChange={(e) => setSchool((s) => ({ ...s, id: e.target.value }))}
+            />
+          </div>
+
+          {/* Division Field */}
+          <div className="settings-field">
+            <label className="form-label">Division</label>
+            <input
+              className={`form-input ${schoolLoaded ? "school-configured" : ""}`}
+              placeholder="e.g. Division of Isabela City"
+              value={school.division}
+              disabled={schoolExists}
+              onChange={(e) =>
+                setSchool((s) => ({ ...s, division: e.target.value }))
+              }
+            />
+          </div>
+
+          {/* District Select Dropdown */}
+          <div className="settings-field">
+            <label className="form-label">District</label>
+            <select
+              className={`form-input ${schoolLoaded ? "school-configured" : ""}`}
+              value={school.district}
+              disabled={schoolExists}
+              onChange={(e) =>
+                setSchool((s) => ({ ...s, district: e.target.value }))
+              }
+            >
+              <option value="">Select District</option>
+              {DISTRICT_OPTIONS.map((dist) => (
+                <option key={dist} value={dist}>
+                  {dist}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Address Field */}
+          <div className="settings-field">
+            <label className="form-label">Address</label>
+            <input
+              className={`form-input ${schoolLoaded ? "school-configured" : ""}`}
+              placeholder="Complete school address"
+              value={school.address}
+              disabled={schoolExists}
+              onChange={(e) =>
+                setSchool((s) => ({ ...s, address: e.target.value }))
+              }
+            />
+          </div>
+
           <div className="settings-save-row">
             <button className="btn btn-primary" onClick={handleSaveSchool}>
               Save Settings
@@ -406,30 +377,11 @@ export default function Settings({
             <button
               className="btn btn-danger"
               onClick={async () => {
-                const confirmed = window.confirm(
-                  "This will unlink this account from its school. " +
-                  "Local data on this device will be cleared either way.\n\n" +
-                  "Continue?"
-                );
-
-                if (!confirmed) return;
-
-                let serverUnbindFailed = false;
-
                 try {
-                  // Always attempt this — not just when navigator.onLine
-                  // looked true — since that flag can be stale/wrong, and
-                  // skipping it silently left the account bound in
-                  // Supabase while the device looked cleared.
-                  if (currentUser?.id) {
+                  if (currentUser?.id && navigator.onLine) {
                     await unbindSchoolFromUser(currentUser.id);
                   }
-                } catch (err) {
-                  console.error("Failed to unbind school on server:", err);
-                  serverUnbindFailed = true;
-                }
 
-                try {
                   await window.sqlite.clearSchool();
                   await window.sqlite.saveStudents([]);
 
@@ -454,15 +406,6 @@ export default function Settings({
                       },
                     }),
                   );
-
-                  if (serverUnbindFailed) {
-                    alert(
-                      "This device has been cleared, but the account is " +
-                      "still bound to the school on the server (likely " +
-                      "no internet connection). Try again while online " +
-                      "to fully unlink this account."
-                    );
-                  }
                 } catch (err) {
                   console.error(err);
                   alert("Failed to clear school settings.");
@@ -480,18 +423,13 @@ export default function Settings({
           {(school.name || school.division || school.address) && (
             <div className="school-preview">
               {schoolLogo && (
-                <div
-                  style={{
-                    textAlign: "center",
-                    marginBottom: "16px",
-                  }}
-                >
+                <div style={{ textAlign: "center", marginBottom: "16px" }}>
                   <img
                     src={schoolLogo}
                     alt="School Logo"
                     style={{
-                      width: "180px",
-                      height: "180px",
+                      width: "100px",
+                      height: "100px",
                       objectFit: "contain",
                     }}
                   />
@@ -563,6 +501,7 @@ export default function Settings({
                 );
               })}
             </div>
+
             <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
               Height-for-Age (HAZ) Reference
             </h3>
@@ -603,7 +542,6 @@ export default function Settings({
             </div>
             <div className="card">
               <h3 className="card-title">Registry Management</h3>
-
               <p className="settings-ref-sub">
                 Reset the registry numbering sequence.
               </p>
@@ -628,12 +566,7 @@ export default function Settings({
               </button>
 
               {registryReset && (
-                <div
-                  style={{
-                    marginTop: "12px",
-                    color: "green",
-                  }}
-                >
+                <div style={{ marginTop: "12px", color: "green" }}>
                   ✓ Registry counter reset.
                 </div>
               )}
@@ -655,48 +588,6 @@ export default function Settings({
                 <span>WHO / DepEd</span>
               </div>
             </div>
-            {latestRelease && (
-              <>
-                <h3 className="card-title" style={{ marginTop: "1.5rem" }}>
-                  📋 Release Notes
-                </h3>
-
-                <div
-                  style={{
-                    background: "#F8FAFC",
-                    border: "1px solid #E5E7EB",
-                    borderRadius: 10,
-                    padding: 16,
-                    maxHeight: 260,
-                    overflowY: "auto",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontWeight: 700,
-                      color: "#1E3A5F",
-                      marginBottom: 10,
-                      fontSize: "15px",
-                    }}
-                  >
-                    {latestRelease.title}
-                  </div>
-
-                  <ul
-                    style={{
-                      margin: 0,
-                      paddingLeft: 20,
-                      color: "#374151",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    {latestRelease.notes.map((note, index) => (
-                      <li key={index}>{note}</li>
-                    ))}
-                  </ul>
-                </div>
-              </>
-            )}
           </div>
         </div>
       </div>

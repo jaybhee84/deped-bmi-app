@@ -22,9 +22,18 @@
   gap: 8px;
 }
 
-.sdo-empty-icon { font-size: 48px; }
-.sdo-empty p    { font-size: 14px; }
-.sdo-empty-sub  { font-size: 12px; color: var(--gray-400); }
+.sdo-empty-icon {
+  font-size: 48px;
+}
+
+.sdo-empty p {
+  font-size: 14px;
+}
+
+.sdo-empty-sub {
+  font-size: 12px;
+  color: var(--gray-400);
+}
 
 /* School banner */
 .sdo-school-banner {
@@ -39,9 +48,20 @@
   flex-wrap: wrap;
 }
 
-.sdo-banner-icon  { font-size: 28px; }
-.sdo-banner-name  { font-size: 15px; font-weight: 700; }
-.sdo-banner-sub   { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+.sdo-banner-icon {
+  font-size: 28px;
+}
+
+.sdo-banner-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.sdo-banner-sub {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-top: 2px;
+}
 
 .sdo-banner-stats {
   margin-left: auto;
@@ -57,6 +77,7 @@
   color: #fff;
 }
 
+/* School logo */
 .sdo-banner-logo {
   width: 40px;
   height: 40px;
@@ -64,4 +85,11 @@
   border-radius: 8px;
   margin-right: 12px;
   flex-shrink: 0;
+}
+
+/* Stat cards + reporting pie chart row */
+@media (max-width: 900px) {
+  .sdo-stats-row {
+    grid-template-columns: 1fr !important;
+  }
 }

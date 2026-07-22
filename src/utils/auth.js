@@ -1,4 +1,3 @@
-
 // ── Auth utility ───────────────────────────────────────────────────────────
 const STORAGE_KEY = 'deped_bmi_users';
 const SESSION_KEY = 'deped_bmi_session';
@@ -17,7 +16,6 @@ export const SCHOOL_POSITIONS = [
  
 export const DIVISION_POSITIONS = [
   'Nurse II',
- 
 ];
  
 const DEFAULT_USERS = [
@@ -75,7 +73,7 @@ export function suggestUsername(firstName, lastName) {
   return (firstName.trim()[0] + lastName.trim()).toLowerCase().replace(/\s+/g, '');
 }
  
-// ── Session ────────────────────────────────────────────────────────────────
+// ── Session (Stored in sessionStorage to auto-logout on app close) ─────────
  
 export function login(username, password) {
   const user = loadUsers().find(
@@ -84,21 +82,33 @@ export function login(username, password) {
   if (!user) return null;
   const session = { ...user, loginTime: new Date().toISOString() };
   delete session.password;
-  try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch {}
+  saveSession(session);
   return session;
 }
  
 export function logout() {
-  try { localStorage.removeItem(SESSION_KEY); } catch {}
+  try { 
+    sessionStorage.removeItem(SESSION_KEY); 
+    localStorage.removeItem(SESSION_KEY); // Remove legacy key if exists
+  } catch {}
 }
  
 export function getSession() {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = sessionStorage.getItem(SESSION_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
 }
- 
+
+export function saveSession(session) {
+  try {
+    sessionStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify(session)
+    );
+  } catch {}
+}
+
 // ── Permission helpers ─────────────────────────────────────────────────────
  
 export function canEdit(session) {
@@ -108,29 +118,10 @@ export function canEdit(session) {
 export function canViewOnly(session) {
   return session?.role === ROLES.DIVISION;
 }
-export function saveSession(session) {
-  try {
-    localStorage.setItem(
-      SESSION_KEY,
-      JSON.stringify(session)
-    );
-  } catch {}
-}
 
-// ── Offline credential cache ────────────────────────────────────────────
-// Supabase is the source of truth for login, but this device-local cache
-// lets a user who has ALREADY signed in successfully online on THIS
-// device sign back in without internet (e.g. after an explicit logout,
-// or if this machine can't reach the internet right now).
-//
-// A username that has never signed in on this device before still
-// requires an online first login — there's nothing local to check it
-// against yet.
+// ── Offline credential cache (Stored in localStorage permanently) ─────────
 const OFFLINE_CACHE_KEY = 'deped_bmi_offline_cache';
 
-// Call this right after a SUCCESSFUL online (Supabase) login, passing the
-// same profile/session object you're about to hand to onLogin, plus the
-// password the user just typed.
 export function cacheOfflineCredentials(profile, password) {
   try {
     const cache = loadOfflineCache();
@@ -149,8 +140,6 @@ function loadOfflineCache() {
   } catch { return {}; }
 }
 
-// Returns the cached profile if username+password match a previous
-// successful online login on this device, otherwise null.
 export function attemptOfflineLogin(username, password) {
   const cache = loadOfflineCache();
   const entry = cache[(username || '').toLowerCase()];
@@ -160,9 +149,6 @@ export function attemptOfflineLogin(username, password) {
   return entry.profile;
 }
 
-// Whether this username has ever successfully signed in online on this
-// device — used to give a clearer error message when offline login fails
-// (wrong password vs. "never signed in here before").
 export function hasOfflineCredentials(username) {
   const cache = loadOfflineCache();
   return Boolean(cache[(username || '').toLowerCase()]);

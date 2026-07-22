@@ -35,7 +35,7 @@ export const SCHOOL_LOGO_MAP = {
   "Maligue Elementary School": "males.png",
   "Balatanay Elementary School": "bales.png",
   "Balawatin Elementary School": "bawes.png",
-//"Makiri Elementary School": "makes.png",
+  "Makiri Elementary School": "makes.png",
   "NR Hugo Elementary School": "nhes.png",
   "Campo Barn Elementary School": "cbes.png",
   "Hadji Maulana Primary School": "hmps.png",
@@ -61,9 +61,3 @@ export function getSchoolLogoUrl(schoolName) {
 
   return `https://usbqwedfhmceasrepjnb.supabase.co/storage/v1/object/public/school-logos/${file}`;
 }
-
-console.log(
-  getSchoolLogoUrl(
-    "Isabela East Central Elementary School"
-  )
-);

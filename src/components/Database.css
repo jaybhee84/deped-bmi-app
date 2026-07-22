@@ -16,29 +16,102 @@
   width: 260px !important;
 }
 
+.students-page-container .filter-row select:disabled {
+  background: #f1f5f9 !important;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 /* ── SCROLLABLE CONTAINER CARD ── */
+.students-page-container {
+  /* Defensive stop against ancestor flex/grid containers that would
+     otherwise shrink this page below its content's natural width
+     (the classic "flex item ignores min-width:0" issue). If App.css's
+     .main-content/.app-shell is a flex container without min-width: 0
+     on its children, this alone won't fully fix it — but it removes
+     one link in that chain that we do control. */
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .students-page-container .card.scrollable-table-container {
   width: 100% !important;
   max-width: 100% !important;
+  min-width: 0;
   background: #ffffff;
   border-radius: 8px;
   border: 1px solid var(--gray-200);
   padding: 0 !important;
-  /* Smooth table borders and edges */
   margin-bottom: 1.5rem;
-  overflow-x: auto !important;
-  /* Forces native horizontal scrollbar */
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  /* The card itself no longer scrolls directly — the inner
+     .table-scroll-track does. This keeps the card's own box model
+     (border-radius, shadow) intact regardless of scroll position,
+     and gives us one clean, dedicated overflow boundary. */
+  overflow: hidden;
+}
+
+/* Dedicated scroll boundary — this is the ONLY element that scrolls
+   both horizontally and vertically. Bounding its height means the
+   horizontal scrollbar always sits directly under the visible rows,
+   instead of at the bottom of a page that grows with the student count. */
+.students-page-container .table-scroll-track {
+  width: 100%;
+  min-width: 0;
+  overflow: auto;
+  max-height: calc(100vh - 320px);
+  min-height: 240px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Sticky header stays visible while scrolling rows vertically within
+   the bounded track above. */
+.students-page-container .data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+/* Keep Name visible while scrolling horizontally, so the user always
+   knows whose row they're editing/deleting no matter how far right
+   they've scrolled. */
+.students-page-container .data-table th:nth-child(2),
+.students-page-container .data-table td:nth-child(2) {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #ffffff;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.04);
+}
+
+.students-page-container .data-table thead th:nth-child(2) {
+  z-index: 4;
+  background: #5D9C32 !important;
+}
+
+.students-page-container .clickable-row:hover td:nth-child(2) {
+  background: #F8FAFC !important;
 }
 
 /* ── DATA TABLE SYSTEM ── */
 .students-page-container .data-table {
-  width: 1500px !important;
-  /* Forces the table to stay exactly 1500px wide */
-  min-width: 1500px !important;
+  /* No hardcoded width here on purpose. The <colgroup> in Database.jsx
+     is now the single source of truth for column widths — the table's
+     overall width falls out naturally as their sum. This removes the
+     need to keep a manually-typed total (e.g. "1620px") in sync with
+     the column widths every time a column changes; mismatches there
+     were the direct cause of the squeezed/ballooned columns seen
+     earlier. */
   table-layout: fixed !important;
-  /* Strictly enforces your inline column styles */
-  border-collapse: collapse !important;
+  /* IMPORTANT: must be `separate`, not `collapse`. Chromium/Electron has
+     a known bug where position:sticky on <td>/<th> silently does nothing
+     when border-collapse is `collapse` — this is why the sticky Name
+     column wasn't sticking. Since this table only uses bottom borders
+     (no left/right borders anywhere), `separate` with 0 spacing looks
+     identical but actually lets sticky work. */
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
   margin: 0 !important;
 }
 
@@ -58,6 +131,14 @@
   box-sizing: border-box !important;
   vertical-align: middle;
   text-align: left;
+}
+
+.students-page-container .data-table th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Header Design */
@@ -147,6 +228,23 @@
 }
 
 .students-page-container .btn-delete:hover {
+  background: #b91c1c;
+}
+
+.students-page-container .btn-delete-class {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+
+.students-page-container .btn-delete-class:hover {
   background: #b91c1c;
 }
 

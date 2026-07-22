@@ -5,13 +5,31 @@ import {
   getHAZStatus,
   SECTIONS,
   GRADE_LEVELS,
-  SCHOOL_YEARS,
 } from "../utils/bmi";
 import Badge from "./Badge";
 import Modal from "./Modal";
-import "./SDOStudents.css";
+import "./SDODatabase.css";
 import { queueStudentForDelete } from "../utils/syncService";
 import { SCHOOL_OPTIONS } from "../constants/schools";
+
+const GRADE_ORDER = [
+  "Kinder",
+  "Kindergarten",
+  "Grade 1",
+  "Grade 2",
+  "Grade 3",
+  "Grade 4",
+  "Grade 5",
+  "Grade 6",
+  "SPED",
+];
+
+function getGradeRank(sectionStr) {
+  if (!sectionStr) return 999;
+  const str = String(sectionStr).trim().toLowerCase();
+  const index = GRADE_ORDER.findIndex((g) => str.startsWith(g.toLowerCase()));
+  return index !== -1 ? index : 998;
+}
 
 function hasPreviousYearData(student, currentSy) {
   if (!student?.records?.length || !currentSy) {
@@ -34,7 +52,14 @@ export default function SDOStudents({
   onViewProfile,
   readOnly,
 }) {
-  const [filterSy, setFilterSy] = useState(SCHOOL_YEARS[0] || "2026-2027");
+  const FUTURE_SCHOOL_YEARS = [
+    "2026–2027",
+    "2027–2028",
+    "2028–2029",
+    "2029–2030",
+  ];
+
+  const [filterSy, setFilterSy] = useState("2026–2027");
   const [filterSchool, setFilterSchool] = useState("ALL SCHOOLS");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
@@ -51,6 +76,8 @@ export default function SDOStudents({
   });
 
   const availableSections = useMemo(() => {
+    if (filterGrade === "All") return [];
+
     const targetStudents = Array.isArray(students) ? students : [];
     const filteredStudents = targetStudents.filter((student) => {
       if (!student) return false;
@@ -62,49 +89,70 @@ export default function SDOStudents({
     let list = [
       ...new Set(filteredStudents.map((s) => s?.section).filter(Boolean)),
     ];
-    if (filterGrade !== "All") {
-      list = list.filter((section) => section.startsWith(filterGrade));
-    }
+    list = list.filter((section) => section.startsWith(filterGrade));
     return list.sort();
   }, [students, filterSy, filterGrade]);
 
   const filtered = useMemo(() => {
     const targetStudents = Array.isArray(students) ? students : [];
-    return targetStudents.filter((s) => {
-      if (!s) return false;
+    return targetStudents
+      .filter((s) => {
+        if (!s) return false;
 
-      const matchSy =
-        filterSy === "All" || s.records?.some((r) => r?.sy === filterSy);
+        const matchSy =
+          filterSy === "All" || s.records?.some((r) => r?.sy === filterSy);
 
-      const matchPeriod =
-        filterPeriod === "All" ||
-        s.records?.some((r) => r?.sy === filterSy && r?.q === filterPeriod);
+        const matchPeriod =
+          filterPeriod === "All" ||
+          s.records?.some((r) => r?.sy === filterSy && r?.q === filterPeriod);
 
-      const matchSchool =
-        filterSchool === "ALL SCHOOLS" || s.schoolName === filterSchool;
+        const matchSchool =
+          filterSchool === "ALL SCHOOLS" || s.schoolName === filterSchool;
 
-      const matchGrade =
-        filterGrade === "All" ||
-        (s.section && s.section.startsWith(filterGrade));
+        const matchGrade =
+          filterGrade === "All" ||
+          (s.section && s.section.startsWith(filterGrade));
 
-      const matchSec = filterSection === "All" || s.section === filterSection;
+        const matchSec = filterSection === "All" || s.section === filterSection;
 
-      const sName = s.name || "";
-      const sLrn = s.lrn || "";
-      const matchSearch =
-        searchQ === "" ||
-        sName.toLowerCase().includes(searchQ.toLowerCase()) ||
-        sLrn.includes(searchQ);
+        const sName = s.name || "";
+        const sLrn = s.lrn || "";
+        const matchSearch =
+          searchQ === "" ||
+          sName.toLowerCase().includes(searchQ.toLowerCase()) ||
+          sLrn.includes(searchQ);
 
-      return (
-        matchSchool &&
-        matchSy &&
-        matchPeriod &&
-        matchGrade &&
-        matchSec &&
-        matchSearch
-      );
-    });
+        return (
+          matchSchool &&
+          matchSy &&
+          matchPeriod &&
+          matchGrade &&
+          matchSec &&
+          matchSearch
+        );
+      })
+      .sort((a, b) => {
+        // 1. Sort by Grade Level Rank (Kinder -> Grade 1..6 -> SPED)
+        const rankA = getGradeRank(a?.section);
+        const rankB = getGradeRank(b?.section);
+        if (rankA !== rankB) {
+          return rankA - rankB;
+        }
+
+        // 2. Group by Sex: Males ('M') first, then Females ('F')
+        const sexA = (a?.sex || "").toUpperCase();
+        const sexB = (b?.sex || "").toUpperCase();
+        if (sexA !== sexB) {
+          if (sexA === "M") return -1;
+          if (sexB === "M") return 1;
+          return sexA.localeCompare(sexB);
+        }
+
+        // 3. Alphabetical by Name within the same grade & sex
+        const nameA = a?.name || "";
+        const nameB = b?.name || "";
+        return nameA.localeCompare(nameB);
+      });
   }, [
     students,
     filterSchool,
@@ -169,7 +217,7 @@ export default function SDOStudents({
     <div className="sdo-page">
       <div className="sdo-page-header">
         <div>
-          <h1 className="sdo-page-title">SDO Students</h1>
+          <h1 className="sdo-page-title">SDO Database</h1>
           <p className="sdo-page-sub">
             Manage student profiles and health records
           </p>
@@ -223,12 +271,13 @@ export default function SDOStudents({
           }}
         >
           <option value="All">All Years</option>
-          {SCHOOL_YEARS.map((sy) => (
+          {FUTURE_SCHOOL_YEARS.map((sy) => (
             <option key={sy} value={sy}>
               {sy}
             </option>
           ))}
         </select>
+
         <select
           className="sdo-form-select"
           value={filterGrade}
@@ -249,8 +298,11 @@ export default function SDOStudents({
           className="sdo-form-select"
           value={filterSection}
           onChange={(e) => setFilterSection(e.target.value)}
+          disabled={filterGrade === "All"}
         >
-          <option value="All">All Sections</option>
+          <option value="All">
+            {filterGrade === "All" ? "Select Grade First" : "All Sections"}
+          </option>
           {availableSections.map((section) => (
             <option key={section} value={section}>
               {section}
@@ -307,9 +359,7 @@ export default function SDOStudents({
               ) : (
                 filtered.map((s) => {
                   if (!s) return null;
-                  const recordsList = Array.isArray(s.records)
-                    ? s.records
-                    : [];
+                  const recordsList = Array.isArray(s.records) ? s.records : [];
                   const rec = recordsList.length
                     ? recordsList[recordsList.length - 1]
                     : null;
@@ -335,7 +385,7 @@ export default function SDOStudents({
 
                   const previousSbfp = hasPreviousYearData(
                     s,
-                    filterSy === "All" ? SCHOOL_YEARS[0] || "2026-2027" : filterSy,
+                    filterSy === "All" ? "2026–2027" : filterSy,
                   );
 
                   return (
@@ -429,7 +479,7 @@ export default function SDOStudents({
                         {!readOnly &&
                           (s.hasUnsavedChanges ? (
                             <button
-                              className="sdo-btn-save"
+                              className="sdo-btn sdo-btn-primary"
                               onClick={() => saveStudentChanges(s)}
                             >
                               Save

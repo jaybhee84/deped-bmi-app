@@ -6,7 +6,9 @@
 }
 
 @media (max-width: 900px) {
-  .sdo-settings-grid { grid-template-columns: 1fr; }
+  .sdo-settings-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .sdo-settings-header {
@@ -38,7 +40,11 @@
   line-height: 1.5;
 }
 
-.sdo-notice-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+.sdo-notice-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
 
 /* Config grid */
 .sbfp-config-grid {
@@ -49,10 +55,15 @@
 }
 
 @media (max-width: 700px) {
-  .sbfp-config-grid { grid-template-columns: 1fr; }
+  .sbfp-config-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
-.sbfp-config-section { display: flex; flex-direction: column; }
+.sbfp-config-section {
+  display: flex;
+  flex-direction: column;
+}
 
 .sbfp-section-header {
   display: flex;
@@ -74,7 +85,11 @@
 }
 
 /* Quick buttons */
-.sbfp-quick-btns { display: flex; gap: 4px; }
+.sbfp-quick-btns {
+  display: flex;
+  gap: 4px;
+}
+
 .sbfp-quick-btn {
   padding: 2px 8px;
   border-radius: 4px;
@@ -84,7 +99,10 @@
   cursor: pointer;
   color: var(--gray-500);
 }
-.sbfp-quick-btn:hover { background: var(--gray-100); }
+
+.sbfp-quick-btn:hover {
+  background: var(--gray-100);
+}
 
 /* Options list */
 .sbfp-options-list {
@@ -93,7 +111,12 @@
   gap: 4px;
 }
 
-.sbfp-criteria-group { display: flex; flex-direction: column; gap: 4px; }
+.sbfp-criteria-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .sbfp-criteria-label {
   font-size: 11px;
   font-weight: 700;
@@ -118,7 +141,11 @@
   background: #fff;
 }
 
-.sbfp-option:hover { border-color: var(--navy); background: #F0F5FF; }
+.sbfp-option:hover {
+  border-color: var(--navy);
+  background: #F0F5FF;
+}
+
 .sbfp-option.selected {
   border-color: var(--navy);
   background: #EFF6FF;
@@ -126,7 +153,11 @@
   font-weight: 600;
 }
 
-.sbfp-option input[type="checkbox"] { width: 14px; height: 14px; cursor: pointer; }
+.sbfp-option input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
 
 .sbfp-check {
   margin-left: auto;
@@ -145,9 +176,19 @@
   border-top: 1px solid var(--gray-100);
 }
 
-.sdo-summary { font-size: 13px; flex: 1; }
-.sdo-summary-empty { color: var(--gray-400); font-style: italic; }
-.sdo-summary-text  { color: var(--gray-700); }
+.sdo-summary {
+  font-size: 13px;
+  flex: 1;
+}
+
+.sdo-summary-empty {
+  color: var(--gray-400);
+  font-style: italic;
+}
+
+.sdo-summary-text {
+  color: var(--gray-700);
+}
 
 /* Preview card */
 .sdo-preview-empty {
@@ -161,7 +202,10 @@
   font-size: 13px;
 }
 
-.sdo-preview-group { margin-bottom: 14px; }
+.sdo-preview-group {
+  margin-bottom: 14px;
+}
+
 .sdo-preview-label {
   font-size: 11px;
   font-weight: 700;
@@ -171,7 +215,11 @@
   margin-bottom: 6px;
 }
 
-.sdo-preview-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.sdo-preview-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 
 .sdo-preview-tag {
   display: inline-block;
@@ -181,8 +229,15 @@
   font-weight: 600;
 }
 
-.sdo-preview-tag.grade    { background: #EFF6FF; color: var(--navy); }
-.sdo-preview-tag.criteria { background: #FAEEDA; color: var(--amber); }
+.sdo-preview-tag.grade {
+  background: #EFF6FF;
+  color: var(--navy);
+}
+
+.sdo-preview-tag.criteria {
+  background: #FAEEDA;
+  color: var(--amber);
+}
 
 .sdo-preview-rule {
   margin-top: 14px;
@@ -204,4 +259,15 @@
   color: var(--gray-700);
   padding-left: 1.25rem;
   line-height: 2;
+}
+
+/* Nested grade sub-bullets under a criterion (e.g. Wasted -> Grade 2, Grade 3) */
+.sdo-preview-sub-list {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 2px 0 4px;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: var(--gray-500);
+  line-height: 1.7;
 }

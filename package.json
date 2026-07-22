@@ -1,7 +1,7 @@
 {
   "name": "deped-bmi-app",
   "private": true,
-  "version": "20.0.12",
+  "version": "1.1.0",
   "description": "A desktop application for managing and monitoring Body Mass Index (BMI) records for DepEd personnel.",
   "author": "BuzzJay",
   "type": "module",
@@ -9,17 +9,24 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+   
+    "postinstall": "electron-builder install-app-deps",
     "lint": "oxlint",
     "preview": "vite preview",
     "electron": "electron .",
     "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "dist": "npm run build && electron-builder",
-    "release": "npm run build && node scripts/release.js"
+    "release": "npm run build && electron-builder"
+  
   },
   "build": {
     "appId": "com.deped.bmiapp",
     "productName": "DepEd BMI App",
-    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "asar": true,
+    "generateUpdatesFilesForAllChannels": true,
+
+   
     "directories": {
       "output": "release"
     },
@@ -35,8 +42,38 @@
       "releaseType": "release"
     },
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "public/icon.ico"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "public/icon.icns"
+    },
+    "dmg": {
+      "sign": false
     },
     "nsis": {
       "oneClick": false,
@@ -49,9 +86,12 @@
     "@supabase/supabase-js": "^2.110.1",
     "better-sqlite3": "^12.11.1",
     "electron-updater": "^6.3.9",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
     "papaparse": "^5.5.4",
     "pdf-lib": "^1.17.1",
     "pdf-to-printer": "^5.8.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-easy-crop": "^6.0.2"
