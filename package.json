@@ -81,7 +81,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }
-  },
+  
+  },  
   "dependencies": {
     "@supabase/supabase-js": "^2.110.1",
     "better-sqlite3": "^12.11.1",

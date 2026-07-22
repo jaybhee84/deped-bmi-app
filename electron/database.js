@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS school_logos (
 `);
 
 // =========================
+<<<<<<< HEAD
 // SCHOOL LOGO CACHE TABLE (bulk preload, keyed by school NAME not id —
 // this lets us cache every school's logo from schoolLogoMap.js without
 // needing a Supabase round trip to resolve name -> school_id first. Kept
@@ -104,6 +105,8 @@ CREATE TABLE IF NOT EXISTS school_logo_cache (
 `);
 
 // =========================
+=======
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 // SBFP ENROLMENT TABLE (offline-first, mirrors sbfp_enrolment in Supabase)
 // =========================
 
@@ -309,6 +312,7 @@ export function deleteSchoolLogo(schoolId) {
 }
 
 // =========================
+<<<<<<< HEAD
 // SCHOOL LOGO CACHE FUNCTIONS (bulk preload, name-keyed)
 // =========================
 
@@ -356,6 +360,8 @@ export function getCachedLogoKeys() {
 }
 
 // =========================
+=======
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 // SBFP ENROLMENT FUNCTIONS (offline-first)
 // =========================
 

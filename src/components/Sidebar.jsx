@@ -46,6 +46,7 @@ export default function Sidebar({
     }
   }, []);
 
+<<<<<<< HEAD
   // macOS-only: reports .dmg download progress from app:downloadUpdateMac
   // so the button area can show "Downloading… 42%" instead of going silent.
   useEffect(() => {
@@ -57,6 +58,8 @@ export default function Sidebar({
     }
   }, []);
 
+=======
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
   const isSDO = session?.role === ROLES.DIVISION;
   const navItems = isSDO ? SDO_NAV : SCHOOL_NAV;
 

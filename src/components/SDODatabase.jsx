@@ -12,6 +12,7 @@ import "./SDODatabase.css";
 import { queueStudentForDelete } from "../utils/syncService";
 import { SCHOOL_OPTIONS } from "../constants/schools";
 
+<<<<<<< HEAD
 const GRADE_ORDER = [
   "Kinder",
   "Kindergarten",
@@ -31,6 +32,8 @@ function getGradeRank(sectionStr) {
   return index !== -1 ? index : 998;
 }
 
+=======
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 function hasPreviousYearData(student, currentSy) {
   if (!student?.records?.length || !currentSy) {
     return false;
@@ -52,6 +55,10 @@ export default function SDOStudents({
   onViewProfile,
   readOnly,
 }) {
+<<<<<<< HEAD
+=======
+  // FIXED: Removed old dynamic utility dependency and added 2026–2027 through 2029–2030 manually[cite: 3]
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
   const FUTURE_SCHOOL_YEARS = [
     "2026–2027",
     "2027–2028",
@@ -76,8 +83,11 @@ export default function SDOStudents({
   });
 
   const availableSections = useMemo(() => {
+<<<<<<< HEAD
     if (filterGrade === "All") return [];
 
+=======
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
     const targetStudents = Array.isArray(students) ? students : [];
     const filteredStudents = targetStudents.filter((student) => {
       if (!student) return false;
@@ -89,12 +99,19 @@ export default function SDOStudents({
     let list = [
       ...new Set(filteredStudents.map((s) => s?.section).filter(Boolean)),
     ];
+<<<<<<< HEAD
     list = list.filter((section) => section.startsWith(filterGrade));
+=======
+    if (filterGrade !== "All") {
+      list = list.filter((section) => section.startsWith(filterGrade));
+    }
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
     return list.sort();
   }, [students, filterSy, filterGrade]);
 
   const filtered = useMemo(() => {
     const targetStudents = Array.isArray(students) ? students : [];
+<<<<<<< HEAD
     return targetStudents
       .filter((s) => {
         if (!s) return false;
@@ -153,6 +170,43 @@ export default function SDOStudents({
         const nameB = b?.name || "";
         return nameA.localeCompare(nameB);
       });
+=======
+    return targetStudents.filter((s) => {
+      if (!s) return false;
+
+      const matchSy =
+        filterSy === "All" || s.records?.some((r) => r?.sy === filterSy);
+
+      const matchPeriod =
+        filterPeriod === "All" ||
+        s.records?.some((r) => r?.sy === filterSy && r?.q === filterPeriod);
+
+      const matchSchool =
+        filterSchool === "ALL SCHOOLS" || s.schoolName === filterSchool;
+
+      const matchGrade =
+        filterGrade === "All" ||
+        (s.section && s.section.startsWith(filterGrade));
+
+      const matchSec = filterSection === "All" || s.section === filterSection;
+
+      const sName = s.name || "";
+      const sLrn = s.lrn || "";
+      const matchSearch =
+        searchQ === "" ||
+        sName.toLowerCase().includes(searchQ.toLowerCase()) ||
+        sLrn.includes(searchQ);
+
+      return (
+        matchSchool &&
+        matchSy &&
+        matchPeriod &&
+        matchGrade &&
+        matchSec &&
+        matchSearch
+      );
+    });
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
   }, [
     students,
     filterSchool,
@@ -217,7 +271,16 @@ export default function SDOStudents({
     <div className="sdo-page">
       <div className="sdo-page-header">
         <div>
+<<<<<<< HEAD
+<<<<<<<< HEAD:src/components/SDODatabase.jsx
           <h1 className="sdo-page-title">SDO Database</h1>
+========
+          <h1 className="sdo-page-title">Database</h1>
+>>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13:src/components/SDOStudents.jsx
+=======
+          {/* FIXED: Changed title from SDO Students to SDODatabase */}
+          <h1 className="sdo-page-title">SDO Database</h1>
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
           <p className="sdo-page-sub">
             Manage student profiles and health records
           </p>
@@ -271,13 +334,20 @@ export default function SDOStudents({
           }}
         >
           <option value="All">All Years</option>
+<<<<<<< HEAD
+=======
+          {/* FIXED: Replaced SCHOOL_YEARS with FUTURE_SCHOOL_YEARS loop[cite: 3] */}
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
           {FUTURE_SCHOOL_YEARS.map((sy) => (
             <option key={sy} value={sy}>
               {sy}
             </option>
           ))}
         </select>
+<<<<<<< HEAD
 
+=======
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
         <select
           className="sdo-form-select"
           value={filterGrade}
@@ -298,11 +368,16 @@ export default function SDOStudents({
           className="sdo-form-select"
           value={filterSection}
           onChange={(e) => setFilterSection(e.target.value)}
+<<<<<<< HEAD
           disabled={filterGrade === "All"}
         >
           <option value="All">
             {filterGrade === "All" ? "Select Grade First" : "All Sections"}
           </option>
+=======
+        >
+          <option value="All">All Sections</option>
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
           {availableSections.map((section) => (
             <option key={section} value={section}>
               {section}
@@ -383,9 +458,22 @@ export default function SDOStudents({
                     }
                   }
 
+<<<<<<< HEAD
+                  const previousSbfp = hasPreviousYearData(
+                    s,
+<<<<<<<< HEAD:src/components/SDODatabase.jsx
+                    filterSy === "All" ? "2026–2027" : filterSy,
+========
+                    filterSy === "All"
+                      ? SCHOOL_YEARS[0] || "2026-2027"
+                      : filterSy,
+>>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13:src/components/SDOStudents.jsx
+=======
+                  // FIXED: Modified fallback query mapping parameter to point to FUTURE_SCHOOL_YEARS[0]
                   const previousSbfp = hasPreviousYearData(
                     s,
                     filterSy === "All" ? "2026–2027" : filterSy,
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
                   );
 
                   return (
@@ -479,7 +567,11 @@ export default function SDOStudents({
                         {!readOnly &&
                           (s.hasUnsavedChanges ? (
                             <button
+<<<<<<< HEAD
                               className="sdo-btn sdo-btn-primary"
+=======
+                              className="sdo-btn-save"
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
                               onClick={() => saveStudentChanges(s)}
                             >
                               Save

@@ -9,6 +9,7 @@ import pkg from "electron-updater";
 
 const { autoUpdater } = pkg;
 
+<<<<<<< HEAD
 // ==========================================
 // PLATFORM FLAG
 // ==========================================
@@ -21,6 +22,8 @@ const { autoUpdater } = pkg;
 const isMac = process.platform === "darwin";
 const GITHUB_REPO = "jaybhee84/deped-bmi-app";
 
+=======
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 // IMPORT LOCAL DATABASE ENGINE ATTRIBUTES
 import {
   saveStudents,
@@ -41,11 +44,15 @@ import {
   loadEnrolmentLocally,
   loadEnrolmentTotalsForSY,
   getDirtyEnrolmentRows,
+<<<<<<< HEAD
   markEnrolmentClean,
   saveLogoToCache,
   loadLogoFromCache,
   loadAllCachedLogos,
   getCachedLogoKeys
+=======
+  markEnrolmentClean
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 } from "./database.js";
 
 // IMPORT OUR NEW UNIFIED PRINT HANDLER
@@ -60,6 +67,7 @@ const __dirname = path.dirname(__filename);
 app.disableHardwareAcceleration();
 
 // ==========================================
+<<<<<<< HEAD
 // AUTO UPDATER Configuration (Windows / Linux)
 // ==========================================
 // Everything in this block only ever fires on platforms where we're not
@@ -69,6 +77,10 @@ app.disableHardwareAcceleration();
 // flow instead of autoUpdater. We still leave the listeners attached
 // (harmless if unused) rather than conditionally wiring them, to keep this
 // block identical to what was already working on Windows.
+=======
+// AUTO UPDATER Configuration
+// ==========================================
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
@@ -115,6 +127,7 @@ ipcMain.handle("app:getVersion", () => {
   return app.getVersion();
 });
 
+<<<<<<< HEAD
 // ==========================================
 // UNIFIED "CHECK FOR UPDATES" HANDLER
 // ==========================================
@@ -385,6 +398,9 @@ ipcMain.handle("school:deleteLogo", (_, schoolId) => {
 // never actually persisted locally offline.
 
 ipcMain.handle("sbfp-enrolment:save", (_, schoolId, sy, data, total) => {
+=======
+ipcMain.handle("app:checkForUpdates", async () => {
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
   try {
     saveEnrolmentLocally(schoolId, sy, data, total);
     return true;
@@ -394,6 +410,160 @@ ipcMain.handle("sbfp-enrolment:save", (_, schoolId, sy, data, total) => {
   }
 });
 
+<<<<<<< HEAD
+=======
+autoUpdater.on("checking-for-update", () => {
+  console.log("[Updater] Checking for updates...");
+});
+
+autoUpdater.on("update-available", (info) => {
+  console.log("[Updater] Update available:", info.version);
+  mainWindow?.webContents.send(
+    "update-message",
+    `Update available: ${info.version}`
+  );
+});
+
+autoUpdater.on("update-not-available", (info) => {
+  console.log("[Updater] No update available");
+  mainWindow?.webContents.send(
+    "update-message",
+    "You already have the latest version."
+  );
+});
+
+autoUpdater.on("error", (err) => {
+  console.error("[Updater] Error:", err);
+  mainWindow?.webContents.send(
+    "update-message",
+    `Update failed: ${err.message}`
+  );
+});
+
+// ==========================================
+// HYBRID ARCHITECTURE REGISTRIES
+// ==========================================
+
+ipcMain.handle('get-school-by-id', async (event, schoolId) => {
+  try {
+    const row = getSchoolById(schoolId);
+    return row || null;
+  } catch (error) {
+    console.error("IPC get-school-by-id error:", error);
+    throw error;
+  }
+});
+
+ipcMain.handle('get-school-by-name', async (event, schoolName) => {
+  try {
+    const row = getSchoolByName(schoolName);
+    return row || null;
+  } catch (error) {
+    console.error("IPC get-school-by-name error:", error);
+    throw error;
+  }
+});
+
+ipcMain.handle('save-school-locally', async (event, school) => {
+  try {
+    saveSchoolLocally(school);
+    return true;
+  } catch (error) {
+    console.error("IPC save-school-locally error:", error);
+    throw error;
+  }
+});
+
+ipcMain.handle('update-local-profile', async (event, profileData) => {
+  try {
+    updateLocalProfile(profileData);
+    return true;
+  } catch (error) {
+    console.error("IPC update-local-profile error:", error);
+    throw error;
+  }
+});
+
+ipcMain.handle('offline-login-check', async (event, { email, password }) => {
+  try {
+    return offlineLoginCheck(email, password);
+  } catch (error) {
+    console.error("IPC offline-login-check error:", error);
+    return { success: false, message: error.message };
+  }
+});
+
+// ==========================================
+// STUDENTS & LEGACY SCHOOL IPC
+// ==========================================
+
+ipcMain.handle("students:save", (_, students) => {
+  saveStudents(students);
+  return true;
+});
+
+ipcMain.handle("students:load", () => {
+  return loadStudents();
+});
+
+ipcMain.handle("school:save", (_, { school, userId }) => {
+  saveSchool(school, userId);
+  return true;
+});
+
+ipcMain.handle("school:load", (_, userId) => {
+  return loadSchool(userId);
+});
+
+ipcMain.handle("school:loadWithLogo", (_, userId) => {
+  const schoolData = loadSchool(userId);
+  if (!schoolData || !schoolData.school_id) return null;
+  const logoUrl = loadSchoolLogo(schoolData.school_id);
+  return {
+    ...schoolData,
+    logo_url: logoUrl || null
+  };
+});
+
+ipcMain.handle("school:clear", () => {
+  clearSchool();
+  return true;
+});
+
+ipcMain.handle("school:saveLogo", (_, { schoolId, filename, dataUrl }) => {
+  saveSchoolLogo(schoolId, filename, dataUrl);
+  return true;
+});
+
+ipcMain.handle("school:loadLogo", (_, schoolId) => {
+  return loadSchoolLogo(schoolId);
+});
+
+ipcMain.handle("school:deleteLogo", (_, schoolId) => {
+  deleteSchoolLogo(schoolId);
+  return true;
+});
+
+// ==========================================
+// SBFP ENROLMENT (offline-first local SQLite)
+// ==========================================
+// These back window.sqlite.saveEnrolment / loadEnrolment /
+// markEnrolmentClean / getDirtyEnrolment, which sbfpConfig.js already
+// calls on every save/load. Without these handlers those calls hit
+// nothing on the main-process side and silently no-op, so enrolment
+// never actually persisted locally offline.
+
+ipcMain.handle("sbfp-enrolment:save", (_, schoolId, sy, data, total) => {
+  try {
+    saveEnrolmentLocally(schoolId, sy, data, total);
+    return true;
+  } catch (error) {
+    console.error("IPC sbfp-enrolment:save error:", error);
+    throw error;
+  }
+});
+
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 ipcMain.handle("sbfp-enrolment:load", (_, schoolId, sy) => {
   try {
     return loadEnrolmentLocally(schoolId, sy);
@@ -432,6 +602,7 @@ ipcMain.handle("sbfp-enrolment:totals", (_, sy) => {
 });
 
 // ==========================================
+<<<<<<< HEAD
 // SCHOOL LOGO CACHE (bulk preload, name-keyed)
 // ==========================================
 // Backs window.sqlite.saveLogoToCache / loadLogoFromCache /
@@ -478,6 +649,8 @@ ipcMain.handle("logo-cache:keys", () => {
 });
 
 // ==========================================
+=======
+>>>>>>> 3492e0e17071ff1ffc19b4d75d43e6ecc25deb13
 // WINDOW INTERACTION ACTIONS (Cross-Platform Fix)
 // ==========================================
 ipcMain.on("close-current-window", (event) => {
