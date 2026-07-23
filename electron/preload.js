@@ -10,131 +10,69 @@ contextBridge.exposeInMainWorld("sqlite", {
 
   // STUDENTS
   saveStudents: (students) =>
-    ipcRenderer.invoke(
-      "students:save",
-      students
-    ),
+    ipcRenderer.invoke("students:save", students),
 
   loadStudents: () =>
-    ipcRenderer.invoke(
-      "students:load"
-    ),
+    ipcRenderer.invoke("students:load"),
 
   // SCHOOLS
   saveSchool: (school, userId) =>
-    ipcRenderer.invoke(
-      "school:save",
-      { school, userId }
-    ),
+    ipcRenderer.invoke("school:save", { school, userId }),
 
   loadSchool: (userId) =>
-    ipcRenderer.invoke(
-      "school:load",
-      userId
-    ),
+    ipcRenderer.invoke("school:load", userId),
 
   loadSchoolWithLogo: (userId) =>
-    ipcRenderer.invoke(
-      "school:loadWithLogo",
-      userId
-    ),
+    ipcRenderer.invoke("school:loadWithLogo", userId),
   
   clearSchool: () =>
-    ipcRenderer.invoke(
-      "school:clear"
-    ),
+    ipcRenderer.invoke("school:clear"),
 
   // SBFP CONFIG
   loadSbfpConfig: () =>
-    ipcRenderer.invoke(
-      "sbfpConfig:load"
-    ),
+    ipcRenderer.invoke("sbfpConfig:load"),
 
   saveSbfpConfig: (config) =>
-    ipcRenderer.invoke(
-      "sbfpConfig:save",
-      config
-    ),
+    ipcRenderer.invoke("sbfpConfig:save", config),
 
   // SCHOOL LOGO
   saveSchoolLogo: (payload) =>
-    ipcRenderer.invoke(
-      "school:saveLogo",
-      payload
-    ),
+    ipcRenderer.invoke("school:saveLogo", payload),
 
   loadSchoolLogo: (schoolId) =>
-    ipcRenderer.invoke(
-      "school:loadLogo",
-      schoolId
-    ),
+    ipcRenderer.invoke("school:loadLogo", schoolId),
 
   deleteSchoolLogo: (schoolId) =>
-    ipcRenderer.invoke(
-      "school:deleteLogo",
-      schoolId
-    ),
+    ipcRenderer.invoke("school:deleteLogo", schoolId),
 
-  // SBFP ENROLMENT (offline-first local SQLite — mirrors sbfp_enrolment in
-  // Supabase). These back the window.sqlite.saveEnrolment / loadEnrolment /
-  // markEnrolmentClean / getDirtyEnrolment calls already made throughout
-  // sbfpConfig.js; without them those calls silently resolved to undefined.
+  // SBFP ENROLMENT (offline-first local SQLite)
   saveEnrolment: (schoolId, sy, data, total) =>
-    ipcRenderer.invoke(
-      "sbfp-enrolment:save",
-      schoolId,
-      sy,
-      data,
-      total
-    ),
+    ipcRenderer.invoke("sbfp-enrolment:save", schoolId, sy, data, total),
 
   loadEnrolment: (schoolId, sy) =>
-    ipcRenderer.invoke(
-      "sbfp-enrolment:load",
-      schoolId,
-      sy
-    ),
+    ipcRenderer.invoke("sbfp-enrolment:load", schoolId, sy),
 
   markEnrolmentClean: (schoolId, sy) =>
-    ipcRenderer.invoke(
-      "sbfp-enrolment:markClean",
-      schoolId,
-      sy
-    ),
+    ipcRenderer.invoke("sbfp-enrolment:markClean", schoolId, sy),
 
   getDirtyEnrolment: () =>
-    ipcRenderer.invoke(
-      "sbfp-enrolment:dirty"
-    ),
+    ipcRenderer.invoke("sbfp-enrolment:dirty"),
 
   getEnrolmentTotals: (sy) =>
-    ipcRenderer.invoke(
-      "sbfp-enrolment:totals",
-      sy
-    ),
+    ipcRenderer.invoke("sbfp-enrolment:totals", sy),
 
-  // SCHOOL LOGO CACHE (bulk preload, name-keyed — see logoCache.js)
+  // SCHOOL LOGO CACHE
   saveLogoToCache: (schoolKey, filename, dataUrl) =>
-    ipcRenderer.invoke(
-      "logo-cache:save",
-      { schoolKey, filename, dataUrl }
-    ),
+    ipcRenderer.invoke("logo-cache:save", { schoolKey, filename, dataUrl }),
 
   loadLogoFromCache: (schoolKey) =>
-    ipcRenderer.invoke(
-      "logo-cache:load",
-      schoolKey
-    ),
+    ipcRenderer.invoke("logo-cache:load", schoolKey),
 
   loadAllCachedLogos: () =>
-    ipcRenderer.invoke(
-      "logo-cache:loadAll"
-    ),
+    ipcRenderer.invoke("logo-cache:loadAll"),
 
   getCachedLogoKeys: () =>
-    ipcRenderer.invoke(
-      "logo-cache:keys"
-    ),
+    ipcRenderer.invoke("logo-cache:keys"),
 });
 
 // =========================
@@ -150,10 +88,10 @@ contextBridge.exposeInMainWorld("electron", {
 // PRINT, PREVIEW & SYSTEM APIS
 // =========================
 contextBridge.exposeInMainWorld("electronAPI", {
-  // Generates print preview using single or multi-page formats
+  // Generates print preview
   generatePrintPreview: (payload) => ipcRenderer.send("generate-pdf-preview", payload),
   
-  // Triggers final printed hardcopies from the native dialogue engine
+  // Triggers final printed hardcopies
   printReport: () => ipcRenderer.invoke("print-report"),
 
   // Application Details & Updater Callbacks
@@ -163,11 +101,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   checkForUpdates: () =>
     ipcRenderer.invoke("app:checkForUpdates"),
 
-  // macOS-only manual update path (no code signing yet, so no silent
-  // Squirrel.Mac self-update). Mirrors checkForUpdates' shape: main.js
-  // returns { platform: "darwin", updateAvailable, dmgUrl, dmgName, ... }
-  // from app:checkForUpdates when running on mac, and this downloads +
-  // opens that .dmg so the user can drag-install it.
   downloadUpdateMac: (payload) =>
     ipcRenderer.invoke("app:downloadUpdateMac", payload),
 
@@ -182,7 +115,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   forceRefocusWindow: () => ipcRenderer.send("force-refocus-window"),
   
-  // WINDOW ACTIONS (New cross-platform window management addition)
+  // WINDOW ACTIONS
   closeWindow: () => ipcRenderer.send("close-current-window"),
 
   onUpdateMessage: (callback) => {
@@ -191,6 +124,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     return () => ipcRenderer.removeListener("update-message", listener);
   },
 
-  onUpdateReady: (callback) => ipcRenderer.on("update-ready", callback),
+  onUpdateReady: (callback) => {
+    const listener = (_, info) => callback(info);
+    ipcRenderer.on("update-ready", listener);
+    return () => ipcRenderer.removeListener("update-ready", listener);
+  },
+
   restartForUpdate: () => ipcRenderer.send("restart-app-for-update"),
 });

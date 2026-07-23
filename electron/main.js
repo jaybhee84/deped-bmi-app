@@ -3,7 +3,7 @@ import os from "os";
 import fs from "fs";
 import https from "https";
 import { fileURLToPath } from "url";
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, shell, dialog } from "electron";
 import { PDFDocument } from "pdf-lib";
 import pkg from "electron-updater";
 
@@ -12,12 +12,6 @@ const { autoUpdater } = pkg;
 // ==========================================
 // PLATFORM FLAG
 // ==========================================
-// electron-updater's silent self-update (Squirrel.Mac) requires the app to
-// be code-signed with an Apple Developer ID cert + notarized. We're not
-// signed on macOS, so instead of letting autoUpdater silently fail/hang
-// there, macOS gets its own manual "check GitHub releases -> download the
-// .dmg -> open it in Finder" flow further below. Windows keeps the existing
-// fully-automatic electron-updater flow untouched.
 const isMac = process.platform === "darwin";
 const GITHUB_REPO = "jaybhee84/deped-bmi-app";
 
@@ -48,7 +42,7 @@ import {
   getCachedLogoKeys
 } from "./database.js";
 
-// IMPORT OUR NEW UNIFIED PRINT HANDLER
+// IMPORT UNIFIED PRINT HANDLER
 import { setupPrintHandler } from "./printHandler.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -62,13 +56,6 @@ app.disableHardwareAcceleration();
 // ==========================================
 // AUTO UPDATER Configuration (Windows / Linux)
 // ==========================================
-// Everything in this block only ever fires on platforms where we're not
-// mac, since createWindow/app.whenReady() below never calls
-// autoUpdater.checkForUpdatesAndNotify() when isMac is true, and the
-// unified "app:checkForUpdates" handler routes mac requests to the manual
-// flow instead of autoUpdater. We still leave the listeners attached
-// (harmless if unused) rather than conditionally wiring them, to keep this
-// block identical to what was already working on Windows.
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
@@ -80,7 +67,7 @@ autoUpdater.on("update-available", (info) => {
   console.log("[Updater] Update available:", info.version);
   mainWindow?.webContents.send(
     "update-message",
-    `Update available: ${info.version}`
+    `Update available: v${info.version}. Downloading in background...`
   );
 });
 
@@ -92,11 +79,27 @@ autoUpdater.on("update-not-available", (info) => {
   );
 });
 
-autoUpdater.on("update-downloaded", () => {
-  console.log("[Updater] Update downloaded, will install on quit.");
+autoUpdater.on("update-downloaded", (info) => {
+  console.log("[Updater] Update downloaded, prompting restart.");
   if (mainWindow) {
-    mainWindow.webContents.send("update-ready");
+    mainWindow.webContents.send("update-ready", info);
   }
+
+  // Native prompt asking the user to restart and install immediately
+  dialog
+    .showMessageBox(mainWindow, {
+      type: "info",
+      title: "Update Ready",
+      message: `Version v${info.version} has been downloaded. Restart the application now to apply the update?`,
+      buttons: ["Restart & Install", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    })
+    .then((result) => {
+      if (result.response === 0) {
+        autoUpdater.quitAndInstall(false, true);
+      }
+    });
 });
 
 autoUpdater.on("error", (err) => {
@@ -108,7 +111,7 @@ autoUpdater.on("error", (err) => {
 });
 
 ipcMain.on("restart-app-for-update", () => {
-  autoUpdater.quitAndInstall();
+  autoUpdater.quitAndInstall(false, true);
 });
 
 ipcMain.handle("app:getVersion", () => {
@@ -118,10 +121,6 @@ ipcMain.handle("app:getVersion", () => {
 // ==========================================
 // UNIFIED "CHECK FOR UPDATES" HANDLER
 // ==========================================
-// Windows: delegates to electron-updater as before (silent auto-download).
-// macOS: hits the GitHub Releases API directly and returns the .dmg asset
-// info so the renderer can offer a "Download Update" button that triggers
-// app:downloadUpdateMac below. No code signing required for this path.
 ipcMain.handle("app:checkForUpdates", async () => {
   if (isMac) {
     try {
@@ -134,13 +133,20 @@ ipcMain.handle("app:checkForUpdates", async () => {
 
   try {
     const result = await autoUpdater.checkForUpdates();
+    const currentVersion = app.getVersion();
+    const latestVersion = result?.updateInfo?.version || currentVersion;
+    const updateAvailable = latestVersion !== currentVersion;
+
     return {
       success: true,
       platform: process.platform,
+      currentVersion,
+      latestVersion,
+      updateAvailable,
       updateInfo: result?.updateInfo || null,
     };
   } catch (error) {
-    console.error(error);
+    console.error("[Updater] Check failed:", error);
     return {
       success: false,
       platform: process.platform,
@@ -150,7 +156,7 @@ ipcMain.handle("app:checkForUpdates", async () => {
 });
 
 // ==========================================
-// MACOS MANUAL UPDATE FLOW (no code signing required)
+// MACOS MANUAL UPDATE FLOW
 // ==========================================
 
 function githubGetJson(urlPath) {
@@ -186,8 +192,6 @@ function githubGetJson(urlPath) {
   });
 }
 
-// GitHub asset download URLs 302-redirect to objects.githubusercontent.com;
-// follow a handful of hops rather than assuming exactly one.
 function downloadFile(url, destPath, onProgress, redirectsLeft = 5) {
   return new Promise((resolve, reject) => {
     https
@@ -241,9 +245,6 @@ async function checkForUpdatesMac() {
   };
 }
 
-// Downloads the .dmg to ~/Downloads and opens it, which mounts it and pops
-// open a Finder window — same drag-to-Applications experience as a fresh
-// install. Reports progress back to the renderer via "update-download-progress".
 ipcMain.handle("app:downloadUpdateMac", async (event, { dmgUrl, dmgName }) => {
   if (!dmgUrl || !dmgName) {
     return { success: false, error: "Missing dmgUrl/dmgName." };
@@ -264,8 +265,6 @@ ipcMain.handle("app:downloadUpdateMac", async (event, { dmgUrl, dmgName }) => {
   }
 });
 
-// Fallback for when she'd rather just browse the release page herself
-// (e.g. to pick a specific version, or if the direct download hiccups).
 ipcMain.handle("app:openReleasesPage", async () => {
   await shell.openExternal(`https://github.com/${GITHUB_REPO}/releases/latest`);
   return true;
@@ -275,7 +274,7 @@ ipcMain.handle("app:openReleasesPage", async () => {
 // HYBRID ARCHITECTURE REGISTRIES
 // ==========================================
 
-ipcMain.handle('get-school-by-id', async (event, schoolId) => {
+ipcMain.handle("get-school-by-id", async (event, schoolId) => {
   try {
     const row = getSchoolById(schoolId);
     return row || null;
@@ -285,7 +284,7 @@ ipcMain.handle('get-school-by-id', async (event, schoolId) => {
   }
 });
 
-ipcMain.handle('get-school-by-name', async (event, schoolName) => {
+ipcMain.handle("get-school-by-name", async (event, schoolName) => {
   try {
     const row = getSchoolByName(schoolName);
     return row || null;
@@ -295,7 +294,7 @@ ipcMain.handle('get-school-by-name', async (event, schoolName) => {
   }
 });
 
-ipcMain.handle('save-school-locally', async (event, school) => {
+ipcMain.handle("save-school-locally", async (event, school) => {
   try {
     saveSchoolLocally(school);
     return true;
@@ -305,7 +304,7 @@ ipcMain.handle('save-school-locally', async (event, school) => {
   }
 });
 
-ipcMain.handle('update-local-profile', async (event, profileData) => {
+ipcMain.handle("update-local-profile", async (event, profileData) => {
   try {
     updateLocalProfile(profileData);
     return true;
@@ -315,7 +314,7 @@ ipcMain.handle('update-local-profile', async (event, profileData) => {
   }
 });
 
-ipcMain.handle('offline-login-check', async (event, { email, password }) => {
+ipcMain.handle("offline-login-check", async (event, { email, password }) => {
   try {
     return offlineLoginCheck(email, password);
   } catch (error) {
@@ -378,11 +377,6 @@ ipcMain.handle("school:deleteLogo", (_, schoolId) => {
 // ==========================================
 // SBFP ENROLMENT (offline-first local SQLite)
 // ==========================================
-// These back window.sqlite.saveEnrolment / loadEnrolment /
-// markEnrolmentClean / getDirtyEnrolment, which sbfpConfig.js already
-// calls on every save/load. Without these handlers those calls hit
-// nothing on the main-process side and silently no-op, so enrolment
-// never actually persisted locally offline.
 
 ipcMain.handle("sbfp-enrolment:save", (_, schoolId, sy, data, total) => {
   try {
@@ -432,13 +426,8 @@ ipcMain.handle("sbfp-enrolment:totals", (_, sy) => {
 });
 
 // ==========================================
-// SCHOOL LOGO CACHE (bulk preload, name-keyed)
+// SCHOOL LOGO CACHE
 // ==========================================
-// Backs window.sqlite.saveLogoToCache / loadLogoFromCache /
-// loadAllCachedLogos / getCachedLogoKeys, used by src/utils/logoCache.js
-// to warm every school logo into SQLite on login so switching schools in
-// SDODashboard reads from disk instead of Supabase Storage — and keeps
-// working offline once it's been downloaded once on this machine.
 
 ipcMain.handle("logo-cache:save", (_, { schoolKey, filename, dataUrl }) => {
   try {
@@ -478,7 +467,7 @@ ipcMain.handle("logo-cache:keys", () => {
 });
 
 // ==========================================
-// WINDOW INTERACTION ACTIONS (Cross-Platform Fix)
+// WINDOW INTERACTION ACTIONS
 // ==========================================
 ipcMain.on("close-current-window", (event) => {
   const targetWindow = BrowserWindow.fromWebContents(event.sender);

@@ -2,14 +2,13 @@ import React, { useEffect, useState } from "react";
 import { ROLES } from "../utils/auth";
 import "./Sidebar.css";
 
-// Updated: Changed "Settings" label to "Information" to match workspace flow requirements
 const SCHOOL_NAV = [
   { id: "dashboard", icon: "📊", label: "Dashboard" },
   { id: "database", icon: "🎒", label: "Database" },
   { id: "batch", icon: "📋", label: "Baseline Entry" },
   { id: "sbfp", icon: "🍱", label: "SBFP Beneficiaries" },
   { id: "reports", icon: "📄", label: "Reports" },
-  { id: "settings", icon: "⚙️", label: "Information" }, // <-- Changed here
+  { id: "settings", icon: "⚙️", label: "Information" },
 ];
 
 const SDO_NAV = [
@@ -29,6 +28,7 @@ export default function Sidebar({
 }) {
   const [version, setVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState("");
+  const [isChecking, setIsChecking] = useState(false);
 
   useEffect(() => {
     if (window.electronAPI?.getAppVersion) {
@@ -36,6 +36,7 @@ export default function Sidebar({
     }
   }, []);
 
+  // Windows / Global Update Event Messages
   useEffect(() => {
     if (window.electronAPI?.onUpdateMessage) {
       const unsubscribe = window.electronAPI.onUpdateMessage((message) => {
@@ -46,8 +47,7 @@ export default function Sidebar({
     }
   }, []);
 
-  // macOS-only: reports .dmg download progress from app:downloadUpdateMac
-  // so the button area can show "Downloading… 42%" instead of going silent.
+  // macOS Progress listener
   useEffect(() => {
     if (window.electronAPI?.onDownloadProgress) {
       const unsubscribe = window.electronAPI.onDownloadProgress((percent) => {
@@ -59,9 +59,90 @@ export default function Sidebar({
 
   const isSDO = session?.role === ROLES.DIVISION;
   const navItems = isSDO ? SDO_NAV : SCHOOL_NAV;
-
-  // Safe fallback to resolve school name text from state or new sync profile cache layer
   const activeSchoolName = schoolName || session?.school_name || "";
+
+  const handleCheckForUpdates = async () => {
+    if (isChecking) return;
+    setIsChecking(true);
+    setUpdateStatus("Checking for updates…");
+
+    try {
+      if (!window.electronAPI?.checkForUpdates) {
+        alert("Electron API is unavailable.");
+        return;
+      }
+
+      const result = await window.electronAPI.checkForUpdates();
+
+      if (!result?.success) {
+        alert(`Update check failed:\n${result?.error || "Unknown error"}`);
+        setUpdateStatus("");
+        return;
+      }
+
+      // 1. Check if user is already up to date (All Platforms)
+      if (!result.updateAvailable) {
+        alert(
+          `You are already using the latest version (v${result.currentVersion || version}).`,
+        );
+        setUpdateStatus("");
+        return;
+      }
+
+      // 2. macOS Flow (Manual DMG Download)
+      if (result.platform === "darwin") {
+        const wantsDownload = window.confirm(
+          `Update available: v${result.latestVersion} (you're on v${result.currentVersion}).\n\n` +
+            `Download it now? It'll save to your Downloads folder and open automatically.`,
+        );
+        window.electronAPI?.forceRefocusWindow?.();
+        if (!wantsDownload) {
+          setUpdateStatus("");
+          return;
+        }
+
+        if (!result.dmgUrl) {
+          alert(
+            "No DMG download file was found on the release page. Opening browser releases page instead.",
+          );
+          await window.electronAPI?.openReleasesPage?.();
+          setUpdateStatus("");
+          return;
+        }
+
+        setUpdateStatus("Downloading update… 0%");
+        const download = await window.electronAPI.downloadUpdateMac({
+          dmgUrl: result.dmgUrl,
+          dmgName: result.dmgName,
+        });
+        setUpdateStatus("");
+
+        if (download?.success) {
+          alert(
+            "Downloaded! Drag DepEd BMI App into Applications, then relaunch to finish updating.",
+          );
+        } else {
+          alert(
+            `Download failed:\n${download?.error || "Unknown error"}\n\nOpening the releases page so you can download manually.`,
+          );
+          await window.electronAPI?.openReleasesPage?.();
+        }
+      }
+      // 3. Windows Flow (Auto-Updater handles download in background)
+      else {
+        setUpdateStatus("Downloading update in background…");
+        alert(
+          `Update available: v${result.latestVersion}!\n\nThe installer is downloading in the background. You will be prompted to restart once it finishes.`,
+        );
+      }
+    } catch (err) {
+      alert(`Error checking updates:\n${err.message}`);
+      setUpdateStatus("");
+    } finally {
+      setIsChecking(false);
+      window.electronAPI?.forceRefocusWindow?.();
+    }
+  };
 
   return (
     <aside className="sidebar no-print">
@@ -125,70 +206,10 @@ export default function Sidebar({
 
           <button
             className="update-btn"
-            onClick={async () => {
-              try {
-                if (!window.electronAPI?.checkForUpdates) return;
-                const result = await window.electronAPI.checkForUpdates();
-
-                if (!result?.success) {
-                  alert(
-                    `Update check failed:\n${result?.error || "Unknown error"}`,
-                  );
-                  return;
-                }
-
-                // macOS: we're not code-signed/notarized yet, so
-                // electron-updater's silent self-update (Squirrel.Mac)
-                // isn't available here — main.js instead checks GitHub
-                // releases directly and hands back the .dmg to download.
-                // Windows keeps using the existing update-message alerts
-                // (see onUpdateMessage above), so nothing else to do here.
-                if (result.platform === "darwin") {
-                  if (!result.updateAvailable) {
-                    alert("You already have the latest version.");
-                    return;
-                  }
-
-                  const wantsDownload = window.confirm(
-                    `Update available: v${result.latestVersion} (you're on v${result.currentVersion}).\n\n` +
-                      `Download it now? It'll save to your Downloads folder and open automatically — just drag the app into Applications, then relaunch.`,
-                  );
-                  window.electronAPI?.forceRefocusWindow?.();
-                  if (!wantsDownload) return;
-
-                  if (!result.dmgUrl) {
-                    // No .dmg asset found on the release — send her to the
-                    // page directly instead of failing silently.
-                    await window.electronAPI?.openReleasesPage?.();
-                    return;
-                  }
-
-                  setUpdateStatus("Downloading update… 0%");
-                  const download = await window.electronAPI.downloadUpdateMac({
-                    dmgUrl: result.dmgUrl,
-                    dmgName: result.dmgName,
-                  });
-                  setUpdateStatus("");
-
-                  if (download?.success) {
-                    alert(
-                      "Downloaded! Drag DepEd BMI App into Applications, then relaunch to finish updating.",
-                    );
-                  } else {
-                    alert(
-                      `Download failed:\n${download?.error || "Unknown error"}\n\nOpening the releases page so you can download it manually instead.`,
-                    );
-                    await window.electronAPI?.openReleasesPage?.();
-                  }
-                }
-              } catch (err) {
-                alert(`Error checking updates:\n${err.message}`);
-              } finally {
-                window.electronAPI?.forceRefocusWindow?.();
-              }
-            }}
+            disabled={isChecking}
+            onClick={handleCheckForUpdates}
           >
-            🔄 Check for Updates
+            {isChecking ? "⏳ Checking…" : "🔄 Check for Updates"}
           </button>
 
           {updateStatus && (
@@ -196,8 +217,8 @@ export default function Sidebar({
               style={{
                 fontSize: "11px",
                 color: "#cbd5e1",
-                marginTop: "-4px",
-                marginBottom: "10px",
+                marginTop: "6px",
+                marginBottom: "6px",
                 textAlign: "center",
               }}
             >

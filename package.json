@@ -1,7 +1,7 @@
 {
   "name": "deped-bmi-app",
   "private": true,
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "A desktop application for managing and monitoring Body Mass Index (BMI) records for DepEd personnel.",
   "author": "BuzzJay",
   "type": "module",

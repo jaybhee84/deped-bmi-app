@@ -15,20 +15,26 @@ export default function ReleaseNotesModal({
       <div className="release-modal">
         <h2>{version}</h2>
 
-        {safeSections.map((section, sIndex) => (
-          <div key={sIndex} className="release-section">
-            <h3>{section.heading}</h3>
-            <ul>
-              {(section.items || []).map((item, iIndex) => (
-                <li key={iIndex}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        {/* Scrollable container for the notes */}
+        <div className="release-body">
+          {safeSections.map((section, sIndex) => (
+            <div key={sIndex} className="release-section">
+              <h3>{section.heading}</h3>
+              <ul>
+                {(section.items || []).map((item, iIndex) => (
+                  <li key={iIndex}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
 
-        <button className="btn btn-primary" onClick={onClose}>
-          Continue
-        </button>
+        {/* Fixed footer for action button */}
+        <div className="release-footer">
+          <button className="btn btn-primary" onClick={onClose}>
+            Continue
+          </button>
+        </div>
       </div>
     </div>
   );
