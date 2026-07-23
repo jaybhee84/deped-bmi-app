@@ -19,6 +19,28 @@ function getSbfpKey(sy) {
   return "sbfp_settings_" + sy;
 }
 
+// Formats a birthdate string to MM/DD/YYYY for display.
+// Parses "YYYY-MM-DD" manually (rather than `new Date(str)`) to avoid the
+// UTC-midnight timezone shift bug where a bare date string can render as
+// the previous day depending on the user's local timezone.
+function formatBirthdate(birthdate) {
+  if (!birthdate) return "";
+
+  const match = String(birthdate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${month}/${day}/${year}`;
+  }
+
+  const parsed = new Date(birthdate);
+  if (isNaN(parsed.getTime())) return String(birthdate);
+
+  const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+  const dd = String(parsed.getDate()).padStart(2, "0");
+  const yyyy = parsed.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+
 function loadSbfpSettings(sy) {
   try {
     const raw = localStorage.getItem(getSbfpKey(sy));
@@ -395,6 +417,7 @@ export default function Reports({ students = [] }) {
                 <th style={{ padding: "10px" }}>No.</th>
                 <th style={{ padding: "10px" }}>Name</th>
                 <th style={{ padding: "10px" }}>Sex</th>
+                <th style={{ padding: "10px" }}>Birthdate</th>
                 <th style={{ padding: "10px" }}>Age</th>
                 <th style={{ padding: "10px" }}>Weight (kg)</th>
                 <th style={{ padding: "10px" }}>Height (cm)</th>
@@ -414,6 +437,11 @@ export default function Reports({ students = [] }) {
                     <strong>{student.name}</strong>
                   </td>
                   <td style={{ padding: "10px" }}>{student.sex}</td>
+                  <td style={{ padding: "10px" }}>
+                    {student.birthdate
+                      ? formatBirthdate(student.birthdate)
+                      : "—"}
+                  </td>
                   <td style={{ padding: "10px" }}>{student.age}</td>
                   <td style={{ padding: "10px" }}>{student.lastRec?.weight}</td>
                   <td style={{ padding: "10px" }}>{student.lastRec?.height}</td>

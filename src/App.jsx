@@ -42,6 +42,8 @@ function AppContent({
   setPage,
   profileId,
   setProfileId,
+  autoOpenAddRecord,
+  openProfileForMeasurement,
   selectedSchool,
   setSelectedSchool,
   dashboardSchool,
@@ -137,7 +139,11 @@ function AppContent({
               setSelectedSY={setSelectedSY}
             />
           ) : (
-            <Dashboard students={safeStudents} currentUser={session} />
+            <Dashboard
+              students={safeStudents}
+              currentUser={session}
+              onOpenProfile={openProfileForMeasurement}
+            />
           ))}
 
         {page === "database" &&
@@ -165,6 +171,7 @@ function AppContent({
             onBack={() => setPage("database")}
             readOnly={readOnly}
             supabase={supabase}
+            autoOpenAddRecord={autoOpenAddRecord}
           />
         )}
 
@@ -334,6 +341,7 @@ export default function App() {
 
   const [page, setPage] = useState("dashboard");
   const [profileId, setProfileId] = useState(null);
+  const [autoOpenAddRecord, setAutoOpenAddRecord] = useState(false);
   const [students, setStudents] = useState([]);
 
   const [selectedSchool, setSelectedSchool] = useState("ALL SCHOOLS");
@@ -710,12 +718,25 @@ export default function App() {
   function viewProfile(student) {
     if (!student) return;
     setProfileId(student.id);
+    setAutoOpenAddRecord(false);
+    setPage("profile");
+  }
+
+  // Used by Dashboard's "double-click a learner name" shortcut so teachers
+  // can jump straight to adding a missing weight/height measurement.
+  function openProfileForMeasurement(studentId, opts = {}) {
+    if (!studentId) return;
+    setProfileId(studentId);
+    setAutoOpenAddRecord(!!opts.autoOpenAddRecord);
     setPage("profile");
   }
 
   function handleSetPage(id) {
     setPage(id);
-    if (id !== "profile") setProfileId(null);
+    if (id !== "profile") {
+      setProfileId(null);
+      setAutoOpenAddRecord(false);
+    }
   }
 
   const safeStudents = Array.isArray(students) ? students : [];
@@ -766,6 +787,8 @@ export default function App() {
         setPage={setPage}
         profileId={profileId}
         setProfileId={setProfileId}
+        autoOpenAddRecord={autoOpenAddRecord}
+        openProfileForMeasurement={openProfileForMeasurement}
         selectedSchool={selectedSchool}
         setSelectedSchool={setSelectedSchool}
         dashboardSchool={dashboardSchool}

@@ -108,7 +108,7 @@ export default function Sidebar({
           </div>
           <div className="user-position">{session?.position || "Operator"}</div>
           <div className={`user-role-tag ${session?.role || "School-Based"}`}>
-            {isSDO ? "🏥 Division" : "🏫 School"}
+            {isSDO ? "🏥 Division Personnel" : "🏫 School-Based"}
           </div>
           {version && (
             <div

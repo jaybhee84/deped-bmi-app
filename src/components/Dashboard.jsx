@@ -10,12 +10,19 @@ import Badge from "./Badge";
 import "./Dashboard.css";
 import { fetchSchoolById } from "../utils/syncService";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
+import { loadSbfpEnrolment } from "../utils/sbfpConfig";
 
-export default function Dashboard({ students, currentUser }) {
+export default function Dashboard({ students, currentUser, onOpenProfile }) {
   const [filterSY, setFilterSY] = useState("2026–2027");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [schoolLogo, setSchoolLogo] = useState(null);
   const [schoolName, setSchoolName] = useState("");
+  const [schoolId, setSchoolId] = useState(
+    currentUser?.school_id ||
+      window.localStorage.getItem("current_school_id") ||
+      "",
+  );
+  const [totalEnrolment, setTotalEnrolment] = useState(0);
 
   const schoolYears = getSchoolYears();
   const incompleteDataRef = useRef(null);
@@ -27,6 +34,8 @@ export default function Dashboard({ students, currentUser }) {
       const targetSchoolId =
         currentUser?.school_id ||
         window.localStorage.getItem("current_school_id");
+
+      if (targetSchoolId) setSchoolId(targetSchoolId);
 
       if (currentName) {
         setSchoolName(currentName);
@@ -104,6 +113,38 @@ export default function Dashboard({ students, currentUser }) {
     }
     loadSchoolDb();
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!schoolId) {
+      setTotalEnrolment(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchEnrolmentTotal() {
+      try {
+        // loadSbfpEnrolment is already offline-first: it reads local SQLite
+        // immediately, then (if online) refreshes from Supabase and
+        // re-caches that locally. No need to duplicate that logic here.
+        const enrolmentData = await loadSbfpEnrolment(schoolId, filterSY);
+        const total = Object.values(enrolmentData || {}).reduce(
+          (sum, val) => sum + (Number(val) || 0),
+          0,
+        );
+        if (!cancelled) setTotalEnrolment(total);
+      } catch (err) {
+        console.error("[Dashboard] Failed to load enrolment total:", err);
+        if (!cancelled) setTotalEnrolment(0);
+      }
+    }
+
+    fetchEnrolmentTotal();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [schoolId, filterSY]);
 
   const syStudents = students.filter((s) =>
     s.records.some((r) => r.sy === filterSY),
@@ -587,7 +628,7 @@ export default function Dashboard({ students, currentUser }) {
         {[
           {
             label: "Total Students",
-            val: syStudents.length,
+            val: totalEnrolment,
             border: "#cbd5e1",
             color: "#0f172a",
           },
@@ -2233,12 +2274,20 @@ export default function Dashboard({ students, currentUser }) {
         <div style={{ overflowX: "auto", width: "100%" }}>
           <table
             className="data-table"
-            style={{ width: "100%", minWidth: "800px" }}
+            style={{ width: "100%", minWidth: "700px", tableLayout: "fixed" }}
           >
+            <colgroup>
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "32%" }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>LRN</th>
-                <th>Name</th>
+                <th style={{ textAlign: "left" }}>Name</th>
                 <th>Age</th>
                 <th>Gender</th>
                 <th>Grade Level - Section</th>
@@ -2278,19 +2327,63 @@ export default function Dashboard({ students, currentUser }) {
                   return (
                     <tr key={s.id}>
                       <td style={{ fontWeight: "600" }}>{s.lrn}</td>
-                      <td>{s.name}</td>
-                      <td>{s.age}</td>
+                      <td
+                        style={{
+                          textAlign: "left",
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        <span
+                          onDoubleClick={() =>
+                            onOpenProfile?.(s.id, { autoOpenAddRecord: true })
+                          }
+                          title={
+                            onOpenProfile
+                              ? "Double-click to open profile and add measurements"
+                              : undefined
+                          }
+                          style={{
+                            cursor: onOpenProfile ? "pointer" : "default",
+                            color: onOpenProfile ? "#1d4ed8" : "inherit",
+                            textDecoration: onOpenProfile
+                              ? "underline"
+                              : "none",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {s.name}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "center",
+                          verticalAlign: "middle",
+                        }}
+                      >
+                        {s.age}
+                      </td>
                       <td>{s.sex}</td>
-                      <td>{s.section}</td>
+                      <td
+                        style={{
+                          whiteSpace: "normal",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {s.section}
+                      </td>
                       <td>
                         <span
                           style={{
+                            display: "inline-block",
                             color: "#df2c4c",
                             fontWeight: "600",
                             backgroundColor: "#fff1f2",
                             padding: "4px 8px",
                             borderRadius: "6px",
                             fontSize: "12px",
+                            whiteSpace: "normal",
+                            wordBreak: "break-word",
                           }}
                         >
                           {missing.join(", ")}

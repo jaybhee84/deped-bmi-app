@@ -55,7 +55,7 @@ function buildSectionLabel(gradeLevel, teacherName, session) {
 }
 
 function downloadCsvTemplate() {
-  const headers = [["lrn", "name", "birthdate", "sex", "weight", "height"]];
+  const headers = [["lrn", "name", "birthdate", "weight", "height", "sex"]];
   const csvContent = headers.map((row) => row.join(",")).join("\n");
   const blob = new Blob(["\uFEFF" + csvContent], {
     type: "text/csv;charset=utf-8;",
@@ -138,9 +138,19 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
           const weight = row.weight
             ? row.weight.toString().replace(/[^0-9.]/g, "")
             : "";
-          const height = row.height
-            ? row.height.toString().replace(/[^0-9.]/g, "")
-            : "";
+
+          // Height is stored in centimeters. Pasted values may sometimes be
+          // in meters (e.g. "1.20") - no school-age child is under 3m tall,
+          // so anything that low is treated as meters and converted to cm.
+          let height = "";
+          if (row.height) {
+            const rawHeight = row.height.toString().replace(/[^0-9.]/g, "");
+            const numHeight = parseFloat(rawHeight);
+            if (!isNaN(numHeight)) {
+              height =
+                numHeight <= 3 ? (numHeight * 100).toFixed(1) : rawHeight;
+            }
+          }
 
           // --- CLEAN & UPPERCASE NAME ---
           // Strip leading numbers, periods, hyphens, and whitespace (e.g. "1. Bazan, jaybhee A" -> "BAZAN, JAYBHEE A")
@@ -214,7 +224,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
       return;
     }
 
-    const valid = rows.filter((r) => r.name.trim() && r.weight && r.height);
+    const valid = rows.filter((r) => r.name.trim());
     if (!valid.length) return;
 
     const needsRegistry = valid.filter((r) => !r.lrn.trim());
@@ -253,8 +263,10 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
           sy,
           q: quarter,
           date,
-          weight: parseFloat(row.weight),
-          height: parseFloat(row.height),
+          weight:
+            row.weight.toString().trim() !== "" ? parseFloat(row.weight) : null,
+          height:
+            row.height.toString().trim() !== "" ? parseFloat(row.height) : null,
         };
 
         // Ensure name is cleaned and uppercase regardless of input method

@@ -114,6 +114,11 @@
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   overflow-x: auto !important;
+  /* Bound the card's height so its horizontal scrollbar stays within
+     reach — otherwise, with many rows, you'd have to scroll all the way
+     down the page just to grab the scrollbar. */
+  max-height: 75vh;
+  overflow-y: auto;
 }
 
 .data-table {
@@ -121,14 +126,20 @@
   border-collapse: collapse !important;
   table-layout: fixed !important;
   /* Forces strict column sizing rule */
-  width: 1540px !important;
-  /* Comfortable total width for all 13 columns */
-  min-width: 1540px !important;
+  width: 1650px !important;
+  /* Comfortable total width for all 14 columns */
+  min-width: 1650px !important;
   margin: 0 !important;
 }
 
 .data-table thead {
   display: table-header-group !important;
+  /* NOTE: position: sticky was tried here (and on individual th cells)
+     to keep the header pinned while scrolling, but combined with the
+     forced `display: table-header-group` it causes body rows to render
+     both above and below the header instead of staying cleanly behind
+     it. This is a known weak spot for sticky table sections, so the
+     header scrolls normally with the body instead. */
 }
 
 .data-table tbody {
@@ -171,7 +182,7 @@
 }
 
 /* 
-   Rigid Column Width Specifications (13 Columns Total)
+   Rigid Column Width Specifications (14 Columns Total)
 */
 
 /* Col 1: # (Row Counter) */
@@ -197,15 +208,15 @@
   font-weight: 600;
 }
 
-/* Col 4: Age */
+/* Col 4: Birthdate */
 .data-table th:nth-child(4),
 .data-table td:nth-child(4) {
-  width: 55px !important;
-  min-width: 55px !important;
+  width: 110px !important;
+  min-width: 110px !important;
   text-align: center;
 }
 
-/* Col 5: Sex */
+/* Col 5: Age */
 .data-table th:nth-child(5),
 .data-table td:nth-child(5) {
   width: 55px !important;
@@ -213,29 +224,31 @@
   text-align: center;
 }
 
-/* Col 6: Grade */
+/* Col 6: Sex */
 .data-table th:nth-child(6),
 .data-table td:nth-child(6) {
-  width: 95px !important;
-  min-width: 95px !important;
-}
-
-/* Col 7: Section */
-.data-table th:nth-child(7),
-.data-table td:nth-child(7) {
-  width: 180px !important;
-  min-width: 180px !important;
-}
-
-/* Col 8: Weight (kg) */
-.data-table th:nth-child(8),
-.data-table td:nth-child(8) {
-  width: 100px !important;
-  min-width: 100px !important;
+  width: 55px !important;
+  min-width: 55px !important;
   text-align: center;
 }
 
-/* Col 9: Height (cm) */
+/* Col 7: Grade */
+.data-table th:nth-child(7),
+.data-table td:nth-child(7) {
+  width: 95px !important;
+  min-width: 95px !important;
+  text-align: center;
+}
+
+/* Col 8: Section */
+.data-table th:nth-child(8),
+.data-table td:nth-child(8) {
+  width: 180px !important;
+  min-width: 180px !important;
+  text-align: center;
+}
+
+/* Col 9: Weight (kg) */
 .data-table th:nth-child(9),
 .data-table td:nth-child(9) {
   width: 100px !important;
@@ -243,39 +256,51 @@
   text-align: center;
 }
 
-/* Col 10: BMI */
+/* Col 10: Height (cm) */
 .data-table th:nth-child(10),
 .data-table td:nth-child(10) {
+  width: 100px !important;
+  min-width: 100px !important;
+  text-align: center;
+}
+
+/* Col 11: BMI */
+.data-table th:nth-child(11),
+.data-table td:nth-child(11) {
   width: 80px !important;
   min-width: 80px !important;
   text-align: center;
 }
 
-/* Col 11: Nutritional Status (Badge) */
-.data-table th:nth-child(11),
-.data-table td:nth-child(11) {
-  width: 150px !important;
-  min-width: 150px !important;
-}
-
-/* Col 12: Height Status (Badge) */
+/* Col 12: Nutritional Status (Badge) */
 .data-table th:nth-child(12),
 .data-table td:nth-child(12) {
-  width: 130px !important;
-  min-width: 130px !important;
+  width: 150px !important;
+  min-width: 150px !important;
+  text-align: center;
 }
 
-/* Col 13: Reason for Inclusion (Flexible remaining space) */
+/* Col 13: Height Status (Badge) */
 .data-table th:nth-child(13),
 .data-table td:nth-child(13) {
+  width: 130px !important;
+  min-width: 130px !important;
+  text-align: center;
+}
+
+/* Col 14: Reason for Inclusion (Flexible remaining space) */
+.data-table th:nth-child(14),
+.data-table td:nth-child(14) {
   width: 170px !important;
   min-width: 170px !important;
+  text-align: center;
 }
 
 /* ── Reason tags ──────────────────────────────────────────── */
 .reason-tags {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
 }
 

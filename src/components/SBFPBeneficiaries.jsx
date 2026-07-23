@@ -80,6 +80,43 @@ function deriveGrade(s) {
   return REPORT_GRADE_ORDER.includes(g) ? g : "SPED";
 }
 
+// The Section column would otherwise repeat the grade level that's already
+// shown in its own column (e.g. section "Kinder - Caña - Morning" next to
+// a Grade column that already says "Kinder"). This strips that leading
+// "<Grade> - " prefix so Section just reads "Caña - Morning".
+function displaySection(section, grade) {
+  if (!section) return "";
+  if (grade && section.startsWith(`${grade} - `)) {
+    return section.slice(grade.length + 3);
+  }
+  // Fallback: strip whatever the first " - "-delimited segment is, even
+  // if it didn't exactly match the resolved grade.
+  const idx = section.indexOf(" - ");
+  return idx !== -1 ? section.slice(idx + 3) : section;
+}
+
+// Formats a birthdate string to MM/DD/YYYY for display.
+// Parses "YYYY-MM-DD" manually (rather than `new Date(str)`) to avoid the
+// UTC-midnight timezone shift bug where a bare date string can render as
+// the previous day depending on the user's local timezone.
+function formatBirthdate(birthdate) {
+  if (!birthdate) return "";
+
+  const match = String(birthdate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${month}/${day}/${year}`;
+  }
+
+  const parsed = new Date(birthdate);
+  if (isNaN(parsed.getTime())) return String(birthdate);
+
+  const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+  const dd = String(parsed.getDate()).padStart(2, "0");
+  const yyyy = parsed.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+
 function buildNutritionReport(students, filterSY, filterPeriod) {
   const rows = REPORT_GRADE_ORDER.map((grade) => ({
     grade,
@@ -256,6 +293,7 @@ export default function SBFPBeneficiaries({
   const [filterSY, setFilterSY] = useState("2026–2027");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
+  const [filterSection, setFilterSection] = useState("All");
   const [searchQ, setSearchQ] = useState("");
   const [manualEnrolment, setManualEnrolment] = useState({});
   const [isDirty, setIsDirty] = useState(false);
@@ -278,7 +316,6 @@ export default function SBFPBeneficiaries({
     setDialogConfig((prev) => ({ ...prev, isOpen: false }));
   };
 
-  const csvFileInputRef = React.useRef(null);
   const saveTimeoutRef = React.useRef(null);
 
   const initialSchoolId = schoolId || currentUser?.school_id || "";
@@ -539,16 +576,38 @@ export default function SBFPBeneficiaries({
       .filter((s) => s.isBen);
   }, [students, filterSY, filterPeriod, config]);
 
+  // Section is scoped to a specific grade, so reset it whenever the grade
+  // filter changes (e.g. switching from Grade 1 to Grade 2, or back to All).
+  useEffect(() => {
+    setFilterSection("All");
+  }, [filterGrade]);
+
   const filtered = useMemo(() => {
     return beneficiaries.filter((s) => {
       const matchGrade = filterGrade === "All" || s.grade === filterGrade;
+      const matchSection =
+        filterGrade === "All" ||
+        filterSection === "All" ||
+        s.section === filterSection;
       const matchSearch =
         searchQ === "" ||
         (s.name || "").toLowerCase().includes(searchQ.toLowerCase()) ||
         (s.lrn || "").includes(searchQ);
-      return matchGrade && matchSearch;
+      return matchGrade && matchSection && matchSearch;
     });
-  }, [beneficiaries, filterGrade, searchQ]);
+  }, [beneficiaries, filterGrade, filterSection, searchQ]);
+
+  // Only offered once a specific grade is chosen - sections aren't
+  // meaningful to pick from until the list is scoped to one grade.
+  const availableSections = useMemo(() => {
+    if (filterGrade === "All") return [];
+    const secs = new Set(
+      beneficiaries
+        .filter((s) => s.grade === filterGrade && s.section)
+        .map((s) => s.section),
+    );
+    return [...secs].sort();
+  }, [beneficiaries, filterGrade]);
 
   const counts = useMemo(() => {
     const c = {
@@ -670,12 +729,16 @@ export default function SBFPBeneficiaries({
       "LRN",
       "Name",
       "Birthdate",
-      "Sex",
       "Age",
+      "Sex",
       "Grade",
       "Section",
-      "Weight",
-      "Height",
+      "Weight (kg)",
+      "Height (cm)",
+      "BMI",
+      "Nutritional Status",
+      "Height Status",
+      "Reason for Inclusion",
     ];
 
     const csvEscape = (val) => {
@@ -683,18 +746,41 @@ export default function SBFPBeneficiaries({
       return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
     };
 
-    const rows = sortedRows.map((s) => [
-      s.registryNo || "",
-      s.lrn && s.lrn !== "—" ? s.lrn : "",
-      s.name || "",
-      s.birthdate || "",
-      s.sex || "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]);
+    const rows = sortedRows.map((s) => {
+      const gradeInclusion = config.grades?.includes(s.grade);
+
+      const bazInclusion =
+        config.criteria?.includes(s.baz?.label) &&
+        (config.criterionGradeRestrictions?.[s.baz?.label] === undefined ||
+          config.criterionGradeRestrictions[s.baz.label].includes(s.grade));
+
+      const hazInclusion =
+        config.criteria?.includes(s.haz?.label) &&
+        (config.criterionGradeRestrictions?.[s.haz?.label] === undefined ||
+          config.criterionGradeRestrictions[s.haz.label].includes(s.grade));
+
+      const reasons = [];
+      if (gradeInclusion) reasons.push(`Grade (${s.grade})`);
+      if (bazInclusion && s.baz?.label) reasons.push(s.baz.label);
+      if (hazInclusion && s.haz?.label) reasons.push(s.haz.label);
+
+      return [
+        s.registryNo || "",
+        s.lrn && s.lrn !== "—" ? s.lrn : "",
+        s.name || "",
+        s.birthdate ? formatBirthdate(s.birthdate) : "",
+        s.age ?? "",
+        s.sex || "",
+        s.grade || "",
+        displaySection(s.section, s.grade),
+        s.rec ? s.rec.weight : "",
+        s.rec ? s.rec.height : "",
+        s.bmi ? s.bmi.toFixed(2) : "",
+        s.baz?.label || "",
+        s.haz?.label || "",
+        reasons.join("; "),
+      ];
+    });
 
     const csvContent = [headers, ...rows]
       .map((row) => row.map(csvEscape).join(","))
@@ -711,162 +797,6 @@ export default function SBFPBeneficiaries({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }
-
-  function handleImportCsv(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const text = evt.target.result;
-      const lines = text.trim().split("\n").filter(Boolean);
-
-      if (!lines.length) {
-        triggerDialog(
-          "Parsing Failed",
-          "The target CSV file you selected is completely blank. Please load a structured data payload containing record rows.",
-          "error",
-        );
-        return;
-      }
-
-      const headers = lines[0]
-        .split(",")
-        .map((h) => h.trim().toLowerCase().replace(/"/g, ""));
-
-      const hasRegistry =
-        headers.includes("registry no.") || headers.includes("registry_no");
-      const hasLRN = headers.includes("lrn");
-      const hasName = headers.includes("name");
-      const hasWeight = headers.includes("weight");
-      const hasHeight = headers.includes("height");
-
-      if (!hasRegistry && !hasLRN && !hasName) {
-        triggerDialog(
-          "Invalid Column Format",
-          "CSV must contain at least a Registry No., LRN, or Name reference coordinate. Execute an Export structural query to match standard data layouts.",
-          "error",
-        );
-        return;
-      }
-      if (!hasWeight || !hasHeight) {
-        triggerDialog(
-          "Missing Parameters",
-          "The matching engine requires standard numeric weight and height identifier properties to execute synchronization operations.",
-          "error",
-        );
-        return;
-      }
-
-      const registryIdx = headers.includes("registry no.")
-        ? headers.indexOf("registry no.")
-        : headers.indexOf("registry_no");
-      const idx = (h) => headers.indexOf(h);
-      const errs = [];
-      const matches = [];
-
-      lines.slice(1).forEach((line, i) => {
-        const cols = line.split(",").map((c) => c.trim().replace(/"/g, ""));
-        const registryNo = hasRegistry ? cols[registryIdx]?.trim() : "";
-        const lrn = hasLRN ? cols[idx("lrn")]?.trim() : "";
-        const name = hasName ? cols[idx("name")]?.trim() : "";
-        const weight = parseFloat(cols[idx("weight")]);
-        const height = parseFloat(cols[idx("height")]);
-        const label = registryNo || lrn || name;
-
-        if (!registryNo && !lrn && !name) {
-          errs.push(
-            `Row ${i + 2}: structural index missing reference mapping metadata.`,
-          );
-          return;
-        }
-        if (isNaN(weight) || weight <= 0) {
-          errs.push(
-            `Row ${i + 2}: specified tracking weight is incorrect for ${label}.`,
-          );
-          return;
-        }
-        if (isNaN(height) || height <= 0) {
-          errs.push(
-            `Row ${i + 2}: structural stature tracking height is invalid for ${label}.`,
-          );
-          return;
-        }
-
-        let match = null;
-        if (registryNo) {
-          match = students.find((s) => s.registryNo === registryNo);
-        }
-        if (!match && lrn && lrn !== "—") {
-          match = students.find((s) => s.lrn === lrn);
-        }
-        if (!match && name) {
-          const nameLower = name.toLowerCase();
-          match = students.find((s) => s.name?.toLowerCase() === nameLower);
-        }
-
-        if (!match) {
-          errs.push(
-            `Row ${i + 2}: no active local student profile mapped to target sequence identifier "${label}".`,
-          );
-          return;
-        }
-
-        matches.push({ studentId: match.id, weight, height });
-      });
-
-      if (!matches.length) {
-        triggerDialog(
-          "Import Matching Failure",
-          "Could not synchronize row indices.\n\n" +
-            errs.slice(0, 5).join("\n"),
-          "error",
-        );
-        return;
-      }
-
-      const today = new Date().toISOString().slice(0, 10);
-
-      setStudents((prev) =>
-        prev.map((s) => {
-          const row = matches.find((m) => m.studentId === s.id);
-          if (!row) return s;
-          const cleaned = s.records.filter(
-            (r) => !(r.sy === filterSY && r.q === filterPeriod),
-          );
-          return {
-            ...s,
-            records: [
-              ...cleaned,
-              {
-                sy: filterSY,
-                q: filterPeriod,
-                date: today,
-                weight: row.weight,
-                height: row.height,
-              },
-            ],
-          };
-        }),
-      );
-
-      const summary = `Imported ${matches.length} record${
-        matches.length !== 1 ? "s" : ""
-      } for ${filterPeriod} ${filterSY}.${
-        errs.length
-          ? `\n\n${errs.length} record conflict deviations omitted:\n` +
-            errs.slice(0, 5).join("\n")
-          : ""
-      }`;
-      triggerDialog(
-        "Import Finished",
-        summary,
-        errs.length ? "info" : "success",
-      );
-    };
-    reader.readAsText(file);
-    e.target.value = "";
   }
 
   function handlePrintBeneficiaries() {
@@ -1300,6 +1230,37 @@ export default function SBFPBeneficiaries({
             </select>
           </div>
 
+          {filterGrade !== "All" && (
+            <>
+              <div
+                style={{
+                  width: "1px",
+                  alignSelf: "stretch",
+                  background: "#E5E7EB",
+                }}
+              />
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" style={{ marginBottom: "2px" }}>
+                  Section
+                </label>
+                <select
+                  className="form-select"
+                  style={{ minWidth: "140px" }}
+                  value={filterSection}
+                  onChange={(e) => setFilterSection(e.target.value)}
+                >
+                  <option value="All">All Sections</option>
+                  {availableSections.map((sec) => (
+                    <option key={sec} value={sec}>
+                      {displaySection(sec, filterGrade)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
+
           <div
             style={{
               width: "1px",
@@ -1310,21 +1271,8 @@ export default function SBFPBeneficiaries({
 
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
             <button className="btn btn-secondary" onClick={handleExportCsv}>
-              ⬇ Export CSV
+              ⬇ Export Beneficiaries CSV
             </button>
-            <button
-              className="btn btn-secondary"
-              onClick={() => csvFileInputRef.current?.click()}
-            >
-              ⬆ Import CSV
-            </button>
-            <input
-              ref={csvFileInputRef}
-              type="file"
-              accept=".csv"
-              style={{ display: "none" }}
-              onChange={handleImportCsv}
-            />
           </div>
         </div>
 
@@ -1421,6 +1369,7 @@ export default function SBFPBeneficiaries({
                 <th>#</th>
                 <th>LRN</th>
                 <th>Name</th>
+                <th>Birthdate</th>
                 <th>Age</th>
                 <th>Sex</th>
                 <th>Grade</th>
@@ -1463,10 +1412,17 @@ export default function SBFPBeneficiaries({
                     <td>{idx + 1}</td>
                     <td>{s.lrn}</td>
                     <td className="name-cell">{s.name}</td>
+                    <td>
+                      {s.birthdate ? (
+                        formatBirthdate(s.birthdate)
+                      ) : (
+                        <span className="no-data-tag">No data</span>
+                      )}
+                    </td>
                     <td>{s.age}</td>
                     <td>{s.sex}</td>
                     <td>{s.grade}</td>
-                    <td>{s.section}</td>
+                    <td>{displaySection(s.section, s.grade)}</td>
                     <td>{s.rec ? s.rec.weight : "—"}</td>
                     <td>{s.rec ? s.rec.height : "—"}</td>
                     <td>{s.bmi ? s.bmi.toFixed(2) : "—"}</td>

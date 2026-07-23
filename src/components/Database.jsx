@@ -26,6 +26,30 @@ function hasPreviousYearData(student, currentSy) {
   return student.records.some((record) => record.sy === previousSy);
 }
 
+// Formats a birthdate string to MM/DD/YYYY for display.
+// Parses "YYYY-MM-DD" manually (rather than `new Date(str)`) to avoid the
+// UTC-midnight timezone shift bug where a bare date string can render as
+// the previous day depending on the user's local timezone.
+function formatBirthdate(birthdate) {
+  if (!birthdate) return "";
+
+  const match = String(birthdate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${month}/${day}/${year}`;
+  }
+
+  // Fallback for any other format (e.g. already a Date object or a
+  // differently-formatted string) — let the Date parser take a shot.
+  const parsed = new Date(birthdate);
+  if (isNaN(parsed.getTime())) return String(birthdate);
+
+  const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+  const dd = String(parsed.getDate()).padStart(2, "0");
+  const yyyy = parsed.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+
 export default function Database({
   students,
   setStudents,
@@ -458,9 +482,12 @@ export default function Database({
               <colgroup>
                 <col style={{ width: "190px" }} />
                 <col style={{ width: "230px" }} />
+                <col style={{ width: "110px" }} />
                 <col style={{ width: "70px" }} />
                 <col style={{ width: "70px" }} />
                 <col style={{ width: "240px" }} />
+                <col style={{ width: "80px" }} />
+                <col style={{ width: "80px" }} />
                 <col style={{ width: "110px" }} />
                 <col style={{ width: "170px" }} />
                 <col style={{ width: "150px" }} />
@@ -473,9 +500,12 @@ export default function Database({
                 <tr>
                   <th>LRN</th>
                   <th>Name</th>
+                  <th>Birthdate</th>
                   <th>Age</th>
                   <th>Sex</th>
                   <th>Section</th>
+                  <th>Weight</th>
+                  <th>Height</th>
                   <th>Latest BMI</th>
                   <th>Nutritional Status</th>
                   <th>HFA Status</th>
@@ -489,7 +519,7 @@ export default function Database({
                 {sortedFiltered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={12}
+                      colSpan={15}
                       className="muted"
                       style={{ textAlign: "center", padding: "2rem" }}
                     >
@@ -548,12 +578,33 @@ export default function Database({
                             {s.name}
                           </div>
                         </td>
+                        <td style={{ textAlign: "center" }}>
+                          {s.birthdate ? (
+                            formatBirthdate(s.birthdate)
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
                         <td style={{ textAlign: "center" }}>{s.age}</td>
                         <td style={{ textAlign: "center" }}>{s.sex}</td>
                         <td style={{ textAlign: "center" }}>
                           <div className="cell-truncate" title={s.section}>
                             {s.section}
                           </div>
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          {rec && rec.weight != null ? (
+                            `${rec.weight} kg`
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          {rec && rec.height != null ? (
+                            `${rec.height} cm`
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
                         </td>
                         <td style={{ textAlign: "center" }}>
                           {bmi ? (

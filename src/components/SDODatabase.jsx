@@ -31,6 +31,28 @@ function getGradeRank(sectionStr) {
   return index !== -1 ? index : 998;
 }
 
+// Formats a birthdate string to MM/DD/YYYY for display.
+// Parses "YYYY-MM-DD" manually (rather than `new Date(str)`) to avoid the
+// UTC-midnight timezone shift bug where a bare date string can render as
+// the previous day depending on the user's local timezone.
+function formatBirthdate(birthdate) {
+  if (!birthdate) return "";
+
+  const match = String(birthdate).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, year, month, day] = match;
+    return `${month}/${day}/${year}`;
+  }
+
+  const parsed = new Date(birthdate);
+  if (isNaN(parsed.getTime())) return String(birthdate);
+
+  const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+  const dd = String(parsed.getDate()).padStart(2, "0");
+  const yyyy = parsed.getFullYear();
+  return `${mm}/${dd}/${yyyy}`;
+}
+
 function hasPreviousYearData(student, currentSy) {
   if (!student?.records?.length || !currentSy) {
     return false;
@@ -330,6 +352,7 @@ export default function SDOStudents({
               <tr>
                 <th>LRN</th>
                 <th>Name</th>
+                <th style={{ textAlign: "center" }}>Birthdate</th>
                 <th style={{ textAlign: "center" }}>Age</th>
                 <th style={{ textAlign: "center" }}>Sex</th>
                 <th>Section</th>
@@ -346,7 +369,7 @@ export default function SDOStudents({
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={12}
+                    colSpan={13}
                     style={{
                       textAlign: "center",
                       padding: "30px",
@@ -396,6 +419,13 @@ export default function SDOStudents({
                     >
                       <td>{s.lrn || <span className="sdo-muted">—</span>}</td>
                       <td className="sdo-name-cell">{s.name}</td>
+                      <td style={{ textAlign: "center" }}>
+                        {s.birthdate ? (
+                          formatBirthdate(s.birthdate)
+                        ) : (
+                          <span className="sdo-muted">—</span>
+                        )}
+                      </td>
                       <td style={{ textAlign: "center" }}>{s.age}</td>
                       <td style={{ textAlign: "center" }}>{s.sex}</td>
                       <td>{s.section || "—"}</td>

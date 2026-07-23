@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   calcBMI,
   getBMIStatus,
@@ -99,9 +99,17 @@ export default function Profile({
   onBack,
   readOnly,
   supabase,
+  autoOpenAddRecord,
 }) {
   const student = students.find((s) => s.id === studentId);
-  const [addOpen, setAddOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(!!autoOpenAddRecord);
+
+  // Re-open the Add Health Record modal whenever we're navigated here
+  // (e.g. from the Incomplete Data table) with autoOpenAddRecord set,
+  // even if this component instance is already mounted.
+  useEffect(() => {
+    if (autoOpenAddRecord) setAddOpen(true);
+  }, [studentId, autoOpenAddRecord]);
   const [mobileSyncOpen, setMobileSyncOpen] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSavingChanges, setIsSavingChanges] = useState(false);
@@ -111,8 +119,8 @@ export default function Profile({
   const [isInlineSaving, setIsInlineSaving] = useState(false);
   const fileInputRef = useRef(null);
   const [rec, setRec] = useState({
-    sy: "2025–2026",
-    q: "Q1",
+    sy: "2026–2027",
+    q: "Baseline",
     date: "",
     weight: "",
     height: "",
@@ -135,13 +143,25 @@ export default function Profile({
       height: parseFloat(rec.height),
     };
     setStudents((prev) =>
-      prev.map((s) =>
-        s.id === student.id ? { ...s, records: [...s.records, newRec] } : s,
-      ),
+      prev.map((s) => {
+        if (s.id !== student.id) return s;
+        // Replace any existing record for this same school year + period
+        // instead of appending a duplicate alongside it.
+        const cleaned = s.records.filter(
+          (r) => !(r.sy === newRec.sy && r.q === newRec.q),
+        );
+        return { ...s, records: [...cleaned, newRec] };
+      }),
     );
     setAddOpen(false);
     setShowConfirmModal(false);
-    setRec({ sy: "2025–2026", q: "Q1", date: "", weight: "", height: "" });
+    setRec({
+      sy: "2026–2027",
+      q: "Baseline",
+      date: "",
+      weight: "",
+      height: "",
+    });
     triggerStatusFeedback("Measurement added locally.");
   }
 
@@ -311,9 +331,14 @@ export default function Profile({
     rec.weight && rec.height ? calcBMI(rec.weight, rec.height) : null;
   const previewStatus = previewBMI ? getBMIStatus(previewBMI) : null;
 
-  const baselineRec = student.records.find((r) => r.q === "Baseline");
-  const midlineRec = student.records.find((r) => r.q === "Midline");
-  const endlineRec = student.records.find((r) => r.q === "Endline");
+  function findLatestByQuarter(records, q) {
+    const matches = records.filter((r) => r.q === q);
+    return matches.length ? matches[matches.length - 1] : null;
+  }
+
+  const baselineRec = findLatestByQuarter(student.records, "Baseline");
+  const midlineRec = findLatestByQuarter(student.records, "Midline");
+  const endlineRec = findLatestByQuarter(student.records, "Endline");
 
   const fallbackRecords = [...student.records].reverse();
   const hasNamedQuarters = baselineRec || midlineRec || endlineRec;
@@ -322,7 +347,7 @@ export default function Profile({
     <div className="page">
       <div className="profile-back-row">
         <button className="btn btn-secondary" onClick={onBack}>
-          ← Back to Students
+          ← Back to Database
         </button>
       </div>
 

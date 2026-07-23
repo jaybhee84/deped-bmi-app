@@ -150,18 +150,33 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
 
       const registryNo = row[regKey] ? String(row[regKey]).trim() : null;
 
-      const weight = parseFloat(String(row[weightKey] || "").trim());
-      const height = parseFloat(String(row[heightKey] || "").trim());
+      const weightRaw = String(row[weightKey] || "").trim();
+      let heightRaw = String(row[heightKey] || "").trim();
+
+      // Height is stored in centimeters. Pasted values may sometimes be in
+      // meters (e.g. "1.20") - no school-age child is under 3m tall, so
+      // anything that low is treated as meters and converted to cm.
+      if (heightRaw !== "") {
+        const numHeight = parseFloat(heightRaw);
+        if (!isNaN(numHeight) && numHeight <= 3) {
+          heightRaw = (numHeight * 100).toFixed(1);
+        }
+      }
+
+      const weight = weightRaw !== "" ? parseFloat(weightRaw) : null;
+      const height = heightRaw !== "" ? parseFloat(heightRaw) : null;
 
       if (!registryNo) {
         errs.push(`Row ${i + 2}: No registry_no found.`);
         return;
       }
-      if (isNaN(weight) || weight <= 0) {
+      // Weight and height are optional - only flag as an error if a value
+      // was actually provided but isn't a valid positive number.
+      if (weightRaw !== "" && (isNaN(weight) || weight <= 0)) {
         errs.push(`Row ${i + 2}: Invalid weight.`);
         return;
       }
-      if (isNaN(height) || height <= 0) {
+      if (heightRaw !== "" && (isNaN(height) || height <= 0)) {
         errs.push(`Row ${i + 2}: Invalid height.`);
         return;
       }
@@ -1061,7 +1076,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                         fontWeight: "500",
                       }}
                     >
-                      {row.weight} kg
+                      {row.weight != null ? `${row.weight} kg` : "—"}
                     </td>
                     <td
                       style={{
@@ -1072,7 +1087,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                         fontWeight: "500",
                       }}
                     >
-                      {row.height} cm
+                      {row.height != null ? `${row.height} cm` : "—"}
                     </td>
                     <td
                       style={{
