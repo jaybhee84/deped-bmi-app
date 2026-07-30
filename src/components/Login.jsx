@@ -14,7 +14,18 @@ import { supabase } from "../utils/supabase";
 import "./Login.css";
 import logo from "../images/ok-sa-deped.png";
 
-console.log("Logo:", logo);
+// ── Local Background Images (PNG) ─────────────────────────────────────────
+import bg1 from "../images/bg1.png";
+import bg2 from "../images/bg2.png";
+import bg3 from "../images/bg3.png";
+import bg4 from "../images/bg4.png";
+import bg5 from "../images/bg5.png";
+import bg6 from "../images/bg6.png";
+import bg7 from "../images/bg7.png";
+import bg8 from "../images/bg8.png";
+import bg9 from "../images/bg9.png";
+
+const BG_IMAGES = [bg1, bg2, bg3, bg4, bg5, bg6, bg7, bg8, bg9];
 
 // ── Subcomponent: Role picker ─────────────────────────────────────────────
 function RolePicker({ onPick }) {
@@ -46,14 +57,14 @@ function RolePicker({ onPick }) {
   );
 }
 
-//---Forgot Password--------
+// ── Subcomponent: Forgot Password ─────────────────────────────────────────
 function ForgotPassword({ onBack }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   async function handleReset(e) {
-    e.preventDefault(); // Prevents page reload on Enter press
+    e.preventDefault();
     setError("");
     setMessage("");
 
@@ -75,7 +86,6 @@ function ForgotPassword({ onBack }) {
   }
 
   return (
-    // CHANGED TO <form>
     <form className="reg-form" onSubmit={handleReset}>
       <h3>Forgot Password</h3>
 
@@ -94,10 +104,18 @@ function ForgotPassword({ onBack }) {
       {error && <div className="login-error">{error}</div>}
 
       {message && (
-        <div style={{ color: "green", marginBottom: "10px" }}>{message}</div>
+        <div
+          style={{
+            color: "#15803d",
+            marginBottom: "10px",
+            fontSize: "12px",
+            textAlign: "center",
+          }}
+        >
+          {message}
+        </div>
       )}
 
-      {/* CHANGED TO type="submit" */}
       <button type="submit" className="login-btn">
         Send Reset Link
       </button>
@@ -136,7 +154,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
 
   const suggestedUser = suggestUsername(form.firstName, form.lastName);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const finalUsername = form.username.trim();
     if (!finalUsername) {
       setError("Username is required.");
@@ -148,10 +166,10 @@ function RegisterForm({ role, onSuccess, onBack }) {
       );
       return;
     }
-  }, [suggestedUser]);
+  }, [suggestedUser, form.username]);
 
   async function handleRegister(e) {
-    e.preventDefault(); // Prevents page reload on Enter press
+    e.preventDefault();
     const finalUsername = form.username.trim();
 
     if (!form.lastName.trim() || !form.firstName.trim()) {
@@ -242,14 +260,12 @@ function RegisterForm({ role, onSuccess, onBack }) {
   }
 
   return (
-    // CHANGED TO <form>
     <form className="reg-form" onSubmit={handleRegister}>
       <div className="reg-role-banner">
         <span>{isSchool ? "🏫" : "🏥"}</span>
         <span>{isSchool ? "School Based" : "SDO Based"} Registration</span>
       </div>
 
-      {/* Name fields */}
       <div className="reg-name-grid">
         <div className="login-field">
           <label className="form-label">
@@ -337,7 +353,6 @@ function RegisterForm({ role, onSuccess, onBack }) {
         />
       </div>
 
-      {/* Password */}
       <div className="login-field">
         <label className="form-label">
           Password <span className="req">*</span>
@@ -378,7 +393,6 @@ function RegisterForm({ role, onSuccess, onBack }) {
 
       {error && <div className="login-error">{error}</div>}
 
-      {/* CHANGED TO type="submit" */}
       <button type="submit" className="login-btn">
         Register
       </button>
@@ -399,7 +413,30 @@ export default function Login({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
 
+  // Track both active and previous slide index for seamless overlay transitions
+  const [currentBgIndex, setCurrentBgIndex] = useState(0);
+  const [prevBgIndex, setPrevBgIndex] = useState(null);
+
   const usernameInputRef = useRef(null);
+
+  // Preload background images into browser cache to eliminate initial load white/blank spots
+  useEffect(() => {
+    BG_IMAGES.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+  }, []);
+
+  // Background Slideshow Timer (cycles every 5 seconds)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentBgIndex((prevIndex) => {
+        setPrevBgIndex(prevIndex);
+        return (prevIndex + 1) % BG_IMAGES.length;
+      });
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (view !== "login") return;
@@ -439,11 +476,6 @@ export default function Login({ onLogin }) {
     setLoading(true);
     setError("");
 
-    // Try to reach Supabase, and fall back to the local offline cache on
-    // any NETWORK-shaped failure (offline, DNS, timeout, connection
-    // refused). If Supabase is reached but rejects the credentials, we
-    // report that directly instead of silently falling back to
-    // possibly-stale offline creds.
     let email, lookupError;
     try {
       ({ data: email, error: lookupError } = await supabase.rpc(
@@ -462,9 +494,6 @@ export default function Login({ onLogin }) {
     }
 
     if (!email) {
-      // No such username online. Still check the offline cache in case
-      // this is really a connectivity edge case, but otherwise it's just
-      // a bad username.
       if (hasOfflineCredentials(username.trim())) {
         return attemptOfflineFallback(new Error("username not found online"));
       }
@@ -486,7 +515,6 @@ export default function Login({ onLogin }) {
         return;
       }
 
-      // Now that we're authenticated, RLS allows fetching the full profile.
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("*")
@@ -514,12 +542,10 @@ export default function Login({ onLogin }) {
       return attemptOfflineFallback(err);
     }
 
-    // Does this error look like a network/connectivity problem, as opposed
-    // to Supabase actively rejecting the credentials?
     function isNetworkish(err) {
       const msg = (err?.message || "").toLowerCase();
       return (
-        err?.name === "TypeError" || // fetch throws TypeError on network failure
+        err?.name === "TypeError" ||
         msg.includes("fetch") ||
         msg.includes("network") ||
         msg.includes("timeout") ||
@@ -568,6 +594,26 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="login-screen">
+      {/* Dynamic Continuous Animated Background Slider */}
+      <div className="login-bg-slider">
+        {BG_IMAGES.map((imgUrl, index) => {
+          let slideClass = "login-bg-slide";
+          if (index === currentBgIndex) slideClass += " active";
+          else if (index === prevBgIndex) slideClass += " prev";
+
+          return (
+            <div
+              key={index}
+              className={slideClass}
+              style={{ backgroundImage: `url(${imgUrl})` }}
+            />
+          );
+        })}
+        {/* Dark Teal Gradient Overlay */}
+        <div className="login-bg-overlay" />
+      </div>
+
+      {/* Main Login/Register Card */}
       <div className="login-card">
         <div className="login-header">
           <div className="login-logo">
@@ -642,19 +688,7 @@ export default function Login({ onLogin }) {
               </button>
             </div>
 
-            <div
-              style={{
-                marginTop: 14,
-                padding: "10px 14px",
-                background: "#F3F4F6",
-                border: "1px solid #E5E7EB",
-                borderRadius: 8,
-                color: "#6B7280",
-                fontSize: 12.5,
-                textAlign: "center",
-                lineHeight: 1.5,
-              }}
-            >
+            <div className="login-offline-hint">
               💡 You can sign in without internet once you've signed in
               successfully online on this device before.
             </div>
@@ -676,6 +710,7 @@ export default function Login({ onLogin }) {
         )}
       </div>
 
+      {/* Ultra-Subtle Watermark Text */}
       <div className="login-bg-text">Jaybhee Bazan</div>
     </div>
   );
