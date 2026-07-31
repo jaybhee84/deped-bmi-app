@@ -1,5 +1,5 @@
 export const RELEASE_NOTES = {
-  "1.1.4": {
+  "1.1.5": {
     title: "v1.1.5",
     sections: [
       {
