@@ -12,7 +12,7 @@ import {
 } from "../utils/auth";
 import { supabase } from "../utils/supabase";
 import "./Login.css";
-import logo from "../images/ok-sa-deped.png";
+import logo from "../images/sbfp.png";
 
 // ── Local Background Images (PNG) ─────────────────────────────────────────
 import bg1 from "../images/bg1.png";
@@ -46,7 +46,7 @@ function RolePicker({ onPick }) {
           className="role-card"
           onClick={() => onPick(ROLES.DIVISION)}
         >
-          <span className="role-card-icon">🏥</span>
+          <span className="role-card-icon">🏢</span>
           <span className="role-card-label">SDO Based</span>
         </button>
       </div>
@@ -614,7 +614,9 @@ export default function Login({ onLogin }) {
       </div>
 
       {/* Main Login/Register Card */}
-      <div className="login-card">
+      <div
+        className={`login-card ${view === "register" ? "register-card" : ""}`}
+      >
         <div className="login-header">
           <div className="login-logo">
             <img src={logo} alt="OK sa DepEd Logo" className="login-logo-img" />
@@ -623,6 +625,7 @@ export default function Login({ onLogin }) {
           <p className="login-sub">Nutritional Status System</p>
         </div>
 
+        {/* Sign In View (Kept As Is) */}
         {view === "login" && (
           <>
             <form className="login-form" onSubmit={handleLogin}>
@@ -697,12 +700,15 @@ export default function Login({ onLogin }) {
 
         {view === "pick-role" && <RolePicker onPick={handlePickRole} />}
 
+        {/* Only Register Form uses the internal scroll container */}
         {view === "register" && (
-          <RegisterForm
-            role={regRole}
-            onSuccess={() => setView("login")}
-            onBack={() => setView("pick-role")}
-          />
+          <div className="login-body">
+            <RegisterForm
+              role={regRole}
+              onSuccess={() => setView("login")}
+              onBack={() => setView("pick-role")}
+            />
+          </div>
         )}
 
         {view === "forgot-password" && (

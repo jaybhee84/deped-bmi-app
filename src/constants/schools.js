@@ -2,7 +2,7 @@ export const SCHOOL_OPTIONS = [
   "ALL SCHOOLS",
 
   // ELEMENTARY
-  "Isabela East Central Elementary School",
+   "Isabela East Central Elementary School",
   "Isabela Bliss Elementary School",
   "Bishop Querexeta Elementary School",
   "Kaumpurnah Elementary School",
@@ -33,10 +33,13 @@ export const SCHOOL_OPTIONS = [
   "Ajibon Elementary School",
   "Sumagdang Elementary School",
   "Kumalarang Elementary School",
+  "Maligue Elementary School",
+  "Old Camp Elementary School",
   "Menzi Elementary School",
   "Balatanay Elementary School",
   "Balawatin Elementary School",
   "Makiri Elementary School",
+  "NR Hugo Elementary School",
   "Campo Barn Elementary School",
   "Hadji Maulana Primary School",
   "Caro Elementary School",
