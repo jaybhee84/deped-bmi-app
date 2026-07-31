@@ -1,12 +1,12 @@
 export const RELEASE_NOTES = {
-  "1.1.5": {
-    title: "v1.1.5",
+  "1.1.6": {
+    title: "v1.1.6",
     sections: [
       {
         heading: "✨ Improvements",
         items: [
-          "Login Visual Improvements: The login screen has been enhanced with a more visually appealing design, providing a better user experience.",
-          "Enhanced User Interface: The overall user interface has been refined for improved usability and aesthetics, making it easier to navigate and interact with the application.",
+          "Change of icons for better visual representation and clarity for both windows and macOS platforms.",
+          "Minor bug fixes and performance improvements.",
         ],
       },
       
