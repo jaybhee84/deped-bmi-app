@@ -1,23 +1,34 @@
 import React from "react";
+// ── Import images from src/images ──
+import nsImg from "../images/ns.png";
+import sbmiImg from "../images/sbmi.png";
 import "./ReportsLanding.css";
 
 export default function ReportsLanding({ onSelect }) {
   return (
-    <div className="page">
+    <div className="page reports-landing-page">
       <div className="page-header no-print">
         <div>
-          <h1 className="page-title">Reports</h1>
-          <p className="page-sub">Select a report type to continue</p>
+          <h1 className="page-title">Reports Dashboard</h1>
+          <p className="page-sub">
+            Select a report type to view and manage data
+          </p>
         </div>
       </div>
 
       <div className="reports-landing-grid">
         {/* ── Nutritional Status ── */}
         <button
+          type="button"
           className="report-type-card"
-          onClick={() => onSelect("nutritional")}
+          onClick={() => onSelect && onSelect("nutritional")}
         >
-          <img src="/ns.png" alt="" className="rtc-bg" draggable={false} />
+          <img
+            src={nsImg}
+            alt="Nutritional Status"
+            className="rtc-bg"
+            draggable={false}
+          />
           <div className="rtc-overlay" />
           <div className="rtc-content">
             <div className="rtc-glass">
@@ -35,10 +46,16 @@ export default function ReportsLanding({ onSelect }) {
 
         {/* ── School Immunization ── */}
         <button
+          type="button"
           className="report-type-card"
-          onClick={() => onSelect("immunization")}
+          onClick={() => onSelect && onSelect("immunization")}
         >
-          <img src="/sbmi.png" alt="" className="rtc-bg" draggable={false} />
+          <img
+            src={sbmiImg}
+            alt="School Immunization"
+            className="rtc-bg"
+            draggable={false}
+          />
           <div className="rtc-overlay" />
           <div className="rtc-content">
             <div className="rtc-glass">
