@@ -1,6 +1,6 @@
 export const RELEASE_NOTES = {
-  "1.1.7": {
-    title: "v1.1.7",
+  "1.1.8": {
+    title: "v1.1.8",
     sections: [
       {
         heading: "✨ Improvements & Features",
