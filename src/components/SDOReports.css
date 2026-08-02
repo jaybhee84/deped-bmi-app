@@ -123,6 +123,16 @@
     transform: scale(0.98);
 }
 
+.btn-ghost {
+    background: transparent;
+    color: #1a365d;
+    border: 1px solid #cbd5e0 !important;
+}
+
+.btn-ghost:hover {
+    background: #f0f5ff;
+}
+
 /* ── Print Header ── */
 .print-header {
     display: none;

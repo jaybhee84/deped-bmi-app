@@ -98,7 +98,42 @@
 }
 
 /* ==========================================================================
-   MODERN DASHBOARD GRID LAYOUT (Baseline & Midline Row + Endline Row Below)
+   FORCED MODAL & FORM LABEL VISIBILITY FIX
+   ========================================================================== */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* High-specificity override to force visible dark labels regardless of parent themes */
+.form-group label,
+.form-label,
+.modal label,
+label {
+  color: #1e293b !important;
+  /* High-contrast dark slate */
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  display: block !important;
+  margin-bottom: 4px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 1rem;
+}
+
+.full-width {
+  width: 100%;
+}
+
+/* ==========================================================================
+   MODERN DASHBOARD GRID LAYOUT
    ========================================================================== */
 .health-records-container {
   display: flex;
@@ -115,7 +150,6 @@
 
 .records-grid-row.endline-row {
   grid-template-columns: 1fr;
-  /* Forces Endline to stretch all the way across */
 }
 
 .health-records-container.regular-list {
@@ -265,17 +299,7 @@
   border-radius: 6px;
   font-size: 13px;
   margin: 8px 0;
-}
-
-.form-grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 1rem;
-}
-
-.full-width {
-  width: 100%;
+  color: #1e293b !important;
 }
 
 .btn-danger {
@@ -344,7 +368,6 @@
   background-color: #22c55e;
 }
 
-/* Animations */
 .pulse {
   animation: statusPulse 2s infinite ease-in-out;
 }
@@ -361,7 +384,6 @@
   }
 }
 
-/* Success State Styles */
 .sync-success-wrapper {
   padding: 24px 0;
 }

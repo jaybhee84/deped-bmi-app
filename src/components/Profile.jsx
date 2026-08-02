@@ -3,8 +3,10 @@ import {
   calcBMI,
   getBMIStatus,
   getHAZStatus,
+  ageInYears,
   SCHOOL_YEARS,
   QUARTERS,
+  SECTIONS,
 } from "../utils/bmi";
 import Badge from "./Badge";
 import Modal from "./Modal";
@@ -15,7 +17,6 @@ import "./Profile.css";
 function formatDateMMDDYYYY(dateStr) {
   if (!dateStr) return "—";
 
-  // Handle ISO string or YYYY-MM-DD directly without timezone offset shifts
   const parts = dateStr.split("T")[0].split("-");
   if (parts.length === 3) {
     const [year, month, day] = parts;
@@ -43,23 +44,40 @@ function MetricRow({ label, value }) {
   );
 }
 
-function HealthRecordCard({ record, student }) {
+function HealthRecordCard({ record, student, onEdit, readOnly }) {
   const bmi = calcBMI(record.weight, record.height);
   const status = bmi ? getBMIStatus(bmi, student.sex, student.birthdate) : null;
   const haz = getHAZStatus(record.height, student.sex, student.birthdate);
 
   return (
     <div className="modern-record-card">
-      <div className="card-header-modern">
-        <span className="period-badge-label">{record.q}</span>
-        <span className="registry-text">
-          Registry No. {student.registryNo || record.registryNo || "—"}
-        </span>
+      <div
+        className="card-header-modern"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <div>
+          <span className="period-badge-label">{record.q}</span>
+          <span className="registry-text" style={{ marginLeft: "8px" }}>
+            Registry No. {student.registryNo || record.registryNo || "—"}
+          </span>
+        </div>
+        {!readOnly && onEdit && (
+          <button
+            className="btn btn-secondary"
+            style={{ padding: "2px 8px", fontSize: "11px" }}
+            onClick={() => onEdit(record)}
+          >
+            ✏ Edit
+          </button>
+        )}
       </div>
 
       <div className="card-body-modern">
         <MetricRow label="School Year" value={record.sy} />
-        {/* Updated Date Measured to display in MM/DD/YYYY format */}
         <MetricRow
           label="Date Measured"
           value={formatDateMMDDYYYY(record.date)}
@@ -99,17 +117,16 @@ export default function Profile({
   onBack,
   readOnly,
   supabase,
+  currentUser,
   autoOpenAddRecord,
 }) {
   const student = students.find((s) => s.id === studentId);
   const [addOpen, setAddOpen] = useState(!!autoOpenAddRecord);
 
-  // Re-open the Add Health Record modal whenever we're navigated here
-  // (e.g. from the Incomplete Data table) with autoOpenAddRecord set,
-  // even if this component instance is already mounted.
   useEffect(() => {
     if (autoOpenAddRecord) setAddOpen(true);
   }, [studentId, autoOpenAddRecord]);
+
   const [mobileSyncOpen, setMobileSyncOpen] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSavingChanges, setIsSavingChanges] = useState(false);
@@ -117,6 +134,18 @@ export default function Profile({
   const [isUploading, setIsUploading] = useState(false);
   const [saveStatusMessage, setSaveStatusMessage] = useState(null);
   const [isInlineSaving, setIsInlineSaving] = useState(false);
+
+  // Profile Inline Edit States
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    name: "",
+    lrn: "",
+    birthdate: "",
+    age: "",
+    sex: "M",
+    section: "",
+  });
+
   const fileInputRef = useRef(null);
   const [rec, setRec] = useState({
     sy: "2026–2027",
@@ -126,6 +155,22 @@ export default function Profile({
     height: "",
   });
 
+  // Sync edit form when student data loads or changes
+  useEffect(() => {
+    if (student) {
+      setProfileForm({
+        name: student.name || "",
+        lrn: student.lrn || "",
+        birthdate: student.birthdate || "",
+        age:
+          student.age ??
+          (student.birthdate ? ageInYears(student.birthdate) : ""),
+        sex: student.sex || "M",
+        section: student.section || "",
+      });
+    }
+  }, [student]);
+
   if (!student) return null;
 
   const initials =
@@ -134,6 +179,165 @@ export default function Profile({
   const safeRegistryName = student.registryNo
     ? student.registryNo.replace(/[^a-zA-Z0-9-_]/g, "_")
     : `student_${student.id}`;
+
+  function triggerStatusFeedback(msg) {
+    setSaveStatusMessage(msg);
+    setTimeout(() => {
+      setSaveStatusMessage(null);
+    }, 4000);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // HELPER FINDERS FOR EXISTING RECORD DATA
+  // ══════════════════════════════════════════════════════════════════════════
+  function findLatestByQuarter(records, q) {
+    const matches = records.filter((r) => r.q === q);
+    return matches.length ? matches[matches.length - 1] : null;
+  }
+
+  const baselineRec = findLatestByQuarter(student.records, "Baseline");
+  const midlineRec = findLatestByQuarter(student.records, "Midline");
+  const endlineRec = findLatestByQuarter(student.records, "Endline");
+
+  const fallbackRecords = [...student.records].reverse();
+  const hasNamedQuarters = baselineRec || midlineRec || endlineRec;
+
+  // Opens modal pre-populated with selected record, or defaults to Baseline/Latest record
+  function handleOpenRecordModal(
+    targetRecord = null,
+    defaultQuarter = "Baseline",
+  ) {
+    const recordToLoad =
+      targetRecord ||
+      findLatestByQuarter(student.records, defaultQuarter) ||
+      (student.records.length > 0
+        ? student.records[student.records.length - 1]
+        : null);
+
+    if (recordToLoad) {
+      setRec({
+        sy: recordToLoad.sy || "2026–2027",
+        q: recordToLoad.q || defaultQuarter,
+        date: recordToLoad.date || "",
+        weight: recordToLoad.weight ? String(recordToLoad.weight) : "",
+        height: recordToLoad.height ? String(recordToLoad.height) : "",
+      });
+    } else {
+      setRec({
+        sy: "2026–2027",
+        q: defaultQuarter,
+        date: "",
+        weight: "",
+        height: "",
+      });
+    }
+    setAddOpen(true);
+  }
+
+  // Automatically update form values if Quarter selection is switched inside Modal
+  function handleQuarterSelectChange(selectedQuarter) {
+    const existing = findLatestByQuarter(student.records, selectedQuarter);
+    if (existing) {
+      setRec({
+        sy: existing.sy || "2026–2027",
+        q: selectedQuarter,
+        date: existing.date || "",
+        weight: existing.weight ? String(existing.weight) : "",
+        height: existing.height ? String(existing.height) : "",
+      });
+    } else {
+      setRec((r) => ({
+        ...r,
+        q: selectedQuarter,
+        date: "",
+        weight: "",
+        height: "",
+      }));
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PROFILE EDIT & BIRTHDATE RECOMPUTATION HANDLERS
+  // ══════════════════════════════════════════════════════════════════════════
+  function handleBirthdateChange(e) {
+    const newBirthdate = e.target.value;
+    const computedAge = newBirthdate ? ageInYears(newBirthdate) : "";
+
+    setProfileForm((prev) => ({
+      ...prev,
+      birthdate: newBirthdate,
+      age: computedAge,
+    }));
+  }
+
+  async function handleSaveProfileDetails() {
+    setIsInlineSaving(true);
+
+    const updatedData = {
+      ...profileForm,
+      age: profileForm.birthdate
+        ? ageInYears(profileForm.birthdate)
+        : profileForm.age,
+      hasUnsavedChanges: true,
+    };
+
+    setStudents((prev) =>
+      prev.map((s) => (s.id === student.id ? { ...s, ...updatedData } : s)),
+    );
+
+    try {
+      if (window.sqlite?.updateStudentWorkspaceMeta) {
+        await window.sqlite.updateStudentWorkspaceMeta(
+          student.id,
+          {
+            name: updatedData.name,
+            lrn: updatedData.lrn,
+            birthdate: updatedData.birthdate,
+            age: updatedData.age,
+            sex: updatedData.sex,
+            section: updatedData.section,
+          },
+          currentUser?.id,
+        );
+      } else if (window.electronAPI?.saveToSQLite) {
+        await window.electronAPI.saveToSQLite({
+          id: student.id,
+          ...updatedData,
+          sync_status: "pending_sync",
+        });
+      }
+
+      if (supabase && navigator.onLine) {
+        const { error } = await supabase
+          .from("students")
+          .update({
+            name: updatedData.name,
+            lrn: updatedData.lrn,
+            birthdate: updatedData.birthdate,
+            age: updatedData.age,
+            sex: updatedData.sex,
+            section: updatedData.section,
+          })
+          .eq("id", student.id);
+
+        if (error) throw error;
+        triggerStatusFeedback(
+          "✓ Profile details updated in SQLite & Supabase!",
+        );
+      } else {
+        triggerStatusFeedback(
+          "✓ Saved to SQLite! Changes queued for online sync.",
+        );
+      }
+
+      setIsEditingProfile(false);
+    } catch (err) {
+      console.error("Failed to persist updated profile:", err);
+      triggerStatusFeedback("⚠ Saved locally, but failed to update Cloud.");
+    } finally {
+      setIsInlineSaving(false);
+    }
+  }
 
   function saveRecord() {
     if (!rec.date || !rec.weight || !rec.height) return;
@@ -145,8 +349,7 @@ export default function Profile({
     setStudents((prev) =>
       prev.map((s) => {
         if (s.id !== student.id) return s;
-        // Replace any existing record for this same school year + period
-        // instead of appending a duplicate alongside it.
+        // Replaces existing quarter entry if it matches SY and Quarter
         const cleaned = s.records.filter(
           (r) => !(r.sy === newRec.sy && r.q === newRec.q),
         );
@@ -162,14 +365,7 @@ export default function Profile({
       weight: "",
       height: "",
     });
-    triggerStatusFeedback("Measurement added locally.");
-  }
-
-  function triggerStatusFeedback(msg) {
-    setSaveStatusMessage(msg);
-    setTimeout(() => {
-      setSaveStatusMessage(null);
-    }, 4000);
+    triggerStatusFeedback("Measurement updated locally.");
   }
 
   async function handleManualPhotoUpload(e) {
@@ -331,18 +527,6 @@ export default function Profile({
     rec.weight && rec.height ? calcBMI(rec.weight, rec.height) : null;
   const previewStatus = previewBMI ? getBMIStatus(previewBMI) : null;
 
-  function findLatestByQuarter(records, q) {
-    const matches = records.filter((r) => r.q === q);
-    return matches.length ? matches[matches.length - 1] : null;
-  }
-
-  const baselineRec = findLatestByQuarter(student.records, "Baseline");
-  const midlineRec = findLatestByQuarter(student.records, "Midline");
-  const endlineRec = findLatestByQuarter(student.records, "Endline");
-
-  const fallbackRecords = [...student.records].reverse();
-  const hasNamedQuarters = baselineRec || midlineRec || endlineRec;
-
   return (
     <div className="page">
       <div className="profile-back-row">
@@ -385,35 +569,150 @@ export default function Profile({
             style={{ display: "none" }}
             onChange={handleManualPhotoUpload}
           />
-          <div className="profile-name">{student.name}</div>
 
-          <button
-            className="btn btn-secondary"
-            style={{
-              marginBottom: "20px",
-              fontSize: "12px",
-              width: "100%",
-              fontWeight: "600",
-            }}
-            onClick={() => setMobileSyncOpen(true)}
-          >
-            📸 Take Photo via Phone
-          </button>
+          {!isEditingProfile ? (
+            <>
+              <div className="profile-name">{student.name}</div>
 
-          <div className="profile-meta-list">
-            {[
-              ["LRN", student.lrn],
-              ["Age", student.age],
-              ["Sex", student.sex === "M" ? "Male" : "Female"],
-              ["Section", student.section],
-              ["Total Records", student.records.length],
-            ].map(([k, v]) => (
-              <div key={k} className="meta-row">
-                <span className="meta-key">{k}</span>
-                <span className="meta-val">{v}</span>
+              <button
+                className="btn btn-secondary"
+                style={{
+                  marginBottom: "12px",
+                  fontSize: "12px",
+                  width: "100%",
+                  fontWeight: "600",
+                }}
+                onClick={() => setMobileSyncOpen(true)}
+              >
+                📸 Take Photo via Phone
+              </button>
+
+              <div className="profile-meta-list">
+                {[
+                  ["LRN", student.lrn || "—"],
+                  ["Birthdate", formatDateMMDDYYYY(student.birthdate)],
+                  ["Age", student.age ?? "—"],
+                  ["Sex", student.sex === "M" ? "Male" : "Female"],
+                  ["Section", student.section],
+                  ["Total Records", student.records.length],
+                ].map(([k, v]) => (
+                  <div key={k} className="meta-row">
+                    <span className="meta-key">{k}</span>
+                    <span className="meta-val">{v}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+
+              {!readOnly && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ marginTop: "16px", width: "100%" }}
+                  onClick={() => setIsEditingProfile(true)}
+                >
+                  ✏ Edit Profile Details
+                </button>
+              )}
+            </>
+          ) : (
+            /* EDIT PROFILE FORM MODE */
+            <div
+              className="profile-edit-form"
+              style={{ width: "100%", marginTop: "12px" }}
+            >
+              <div className="form-group" style={{ marginBottom: "10px" }}>
+                <label className="form-label">Full Name</label>
+                <input
+                  className="form-input"
+                  value={profileForm.name}
+                  onChange={(e) =>
+                    setProfileForm((p) => ({ ...p, name: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "10px" }}>
+                <label className="form-label">LRN</label>
+                <input
+                  className="form-input"
+                  value={profileForm.lrn}
+                  onChange={(e) =>
+                    setProfileForm((p) => ({ ...p, lrn: e.target.value }))
+                  }
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "10px" }}>
+                <label className="form-label">Birthdate</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={profileForm.birthdate}
+                  onChange={handleBirthdateChange}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "10px" }}>
+                <label className="form-label">Age (Auto-calculated)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={profileForm.age}
+                  readOnly
+                  disabled
+                  style={{ backgroundColor: "#f1f5f9", cursor: "not-allowed" }}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "10px" }}>
+                <label className="form-label">Sex</label>
+                <select
+                  className="form-select full-width"
+                  value={profileForm.sex}
+                  onChange={(e) =>
+                    setProfileForm((p) => ({ ...p, sex: e.target.value }))
+                  }
+                >
+                  <option value="M">Male</option>
+                  <option value="F">Female</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: "14px" }}>
+                <label className="form-label">Section</label>
+                <select
+                  className="form-select full-width"
+                  value={profileForm.section}
+                  onChange={(e) =>
+                    setProfileForm((p) => ({ ...p, section: e.target.value }))
+                  }
+                >
+                  {SECTIONS.map((sec) => (
+                    <option key={sec} value={sec}>
+                      {sec}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  className="btn btn-secondary"
+                  style={{ flex: 1 }}
+                  onClick={() => setIsEditingProfile(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 1 }}
+                  onClick={handleSaveProfileDetails}
+                  disabled={isInlineSaving}
+                >
+                  {isInlineSaving ? "Saving..." : "Save Profile"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="profile-right">
@@ -422,9 +721,9 @@ export default function Profile({
             {!readOnly && (
               <button
                 className="btn btn-primary"
-                onClick={() => setAddOpen(true)}
+                onClick={() => handleOpenRecordModal()}
               >
-                + Add Record
+                ✏ Edit Health Records
               </button>
             )}
           </div>
@@ -432,13 +731,18 @@ export default function Profile({
           <div className="profile-table-scroll-container">
             {student.records.length === 0 ? (
               <div className="card empty-cell" style={{ flex: "1" }}>
-                No records yet. Add a measurement above.
+                No records yet. Add or edit a measurement above.
               </div>
             ) : hasNamedQuarters ? (
               <div className="health-records-container">
                 <div className="records-grid-row">
                   {baselineRec ? (
-                    <HealthRecordCard record={baselineRec} student={student} />
+                    <HealthRecordCard
+                      record={baselineRec}
+                      student={student}
+                      readOnly={readOnly}
+                      onEdit={(r) => handleOpenRecordModal(r)}
+                    />
                   ) : (
                     <div className="empty-period-card">
                       No Baseline record filled.
@@ -446,7 +750,12 @@ export default function Profile({
                   )}
 
                   {midlineRec ? (
-                    <HealthRecordCard record={midlineRec} student={student} />
+                    <HealthRecordCard
+                      record={midlineRec}
+                      student={student}
+                      readOnly={readOnly}
+                      onEdit={(r) => handleOpenRecordModal(r)}
+                    />
                   ) : (
                     <div className="empty-period-card">
                       No Midline record filled.
@@ -456,7 +765,12 @@ export default function Profile({
 
                 <div className="records-grid-row endline-row">
                   {endlineRec ? (
-                    <HealthRecordCard record={endlineRec} student={student} />
+                    <HealthRecordCard
+                      record={endlineRec}
+                      student={student}
+                      readOnly={readOnly}
+                      onEdit={(r) => handleOpenRecordModal(r)}
+                    />
                   ) : (
                     <div className="empty-period-card full-width-empty">
                       No Endline record filled yet.
@@ -467,7 +781,13 @@ export default function Profile({
             ) : (
               <div className="health-records-container regular-list">
                 {fallbackRecords.map((r, i) => (
-                  <HealthRecordCard key={i} record={r} student={student} />
+                  <HealthRecordCard
+                    key={i}
+                    record={r}
+                    student={student}
+                    readOnly={readOnly}
+                    onEdit={(recToEdit) => handleOpenRecordModal(recToEdit)}
+                  />
                 ))}
               </div>
             )}
@@ -544,7 +864,10 @@ export default function Profile({
       </div>
 
       {addOpen && (
-        <Modal title="Add Health Record" onClose={() => setAddOpen(false)}>
+        <Modal
+          title="Edit / Add Health Record"
+          onClose={() => setAddOpen(false)}
+        >
           <div className="form-grid-2">
             <div className="form-group">
               <label className="form-label">School Year</label>
@@ -563,7 +886,7 @@ export default function Profile({
               <select
                 className="form-select full-width"
                 value={rec.q}
-                onChange={(e) => setRec((r) => ({ ...r, q: e.target.value }))}
+                onChange={(e) => handleQuarterSelectChange(e.target.value)}
               >
                 {QUARTERS.map((q) => (
                   <option key={q}>{q}</option>

@@ -233,6 +233,81 @@ async function processPrintRequest(event, payload) {
       ? payload[0]?.reportType
       : payload.reportType;
 
+    // ── Immunization Form — use pre-built HTML directly ──────────────────────
+    if (targetType === "immunization") {
+      const immPayload = isMultiPage ? payload[0] : payload;
+      const immHtml = immPayload.html;
+      const immPrintOptions = {
+        printBackground: true,
+        pageSize: "Legal",
+        landscape: true,
+        margins: { marginType: "none" },
+      };
+      const immPreviewConfig = {
+        width: 1200,
+        height: 850,
+        title: immPayload.title || "School Immunization Report Preview",
+      };
+
+      // Write to temp file — avoids data: URL size limit (logos are base64 data URLs)
+      const immTmpHtml = path.join(os.tmpdir(), `imm_render_${Date.now()}.html`);
+      try {
+        fs.writeFileSync(immTmpHtml, immHtml, "utf-8");
+      } catch (writeErr) {
+        console.error("[Immunization] Failed to write temp HTML:", writeErr);
+        if (workerWindow) workerWindow.destroy();
+        return;
+      }
+
+      console.log("[Immunization] Loading temp file:", immTmpHtml);
+      workerWindow.loadFile(immTmpHtml);
+
+      workerWindow.webContents.on("did-finish-load", async () => {
+        console.log("[Immunization] did-finish-load fired, running printToPDF...");
+        try {
+          const pdfBuffer = await workerWindow.webContents.printToPDF(immPrintOptions);
+          console.log("[Immunization] PDF generated, size:", pdfBuffer.length);
+
+          try { fs.unlinkSync(immTmpHtml); } catch (_) {}
+
+          const previewPath = path.join(os.tmpdir(), "imm_report_preview.pdf");
+          fs.writeFileSync(previewPath, pdfBuffer);
+
+          // Fix Windows file:// path (must be file:///C:/... not file://C:/...)
+          const normalizedPath = previewPath.split(path.sep).join("/");
+          const fileUrl = "file:///" + normalizedPath;
+          console.log("[Immunization] Opening preview:", fileUrl);
+
+          // Safely get parent window — fromWebContents can return null
+          const parentWin = BrowserWindow.fromWebContents(event.sender) || null;
+
+          const previewWindow = new BrowserWindow({
+            ...immPreviewConfig,
+            ...(parentWin ? { parent: parentWin } : {}),
+            modal: false,
+            webPreferences: { plugins: true },
+          });
+          previewWindow.on("page-title-updated", (ev) => ev.preventDefault());
+          previewWindow.setTitle(immPreviewConfig.title);
+          previewWindow.loadURL(fileUrl);
+          workerWindow.destroy();
+        } catch (err) {
+          console.error("[Immunization Print Preview Error]:", err);
+          try { fs.unlinkSync(immTmpHtml); } catch (_) {}
+          if (workerWindow) workerWindow.destroy();
+        }
+      });
+
+      // Catch load failures (e.g. file not found)
+      workerWindow.webContents.on("did-fail-load", (ev, code, desc) => {
+        console.error("[Immunization] did-fail-load:", code, desc);
+        try { fs.unlinkSync(immTmpHtml); } catch (_) {}
+        if (workerWindow) workerWindow.destroy();
+      });
+
+      return; // ← skip the rest of the function
+    }
+
     if (targetType === "landscape") {
       printOptions.landscape = true;
       previewConfig = { width: 1100, height: 800, title: "DepEd SBFP Nutritional Status Report Preview" };

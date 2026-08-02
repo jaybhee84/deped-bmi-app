@@ -642,6 +642,16 @@ export default function SDODashboard({
     <div className="page">
       {/* ── Scoped CSS ── */}
       <style>{`
+        /* Form Label Fix - Strong Contrast */
+        .sdo-controls .form-label {
+          color: #334155 !important;
+          font-weight: 700 !important;
+          font-size: 13px !important;
+          margin-bottom: 6px !important;
+          display: block !important;
+          opacity: 1 !important;
+        }
+
         .sdo-isolated-table {
           display: table !important;
           width: 100% !important;

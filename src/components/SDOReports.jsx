@@ -10,8 +10,11 @@ import {
 } from "../utils/bmi";
 import Badge from "./Badge";
 import "./SDOReports.css";
+import "./ReportsLanding.css";
 import { SCHOOL_OPTIONS } from "../utils/schools.js";
 import { loadSbfpEnrolment } from "../utils/sbfpConfig";
+import ReportsLanding from "./ReportsLanding";
+import Immunization from "./Immunization";
 
 // Normalize strings (replaces en-dashes/em-dashes, trims, converts to lowercase)
 const normalizeStr = (str) =>
@@ -481,6 +484,8 @@ export default function SDOReports({
   selectedSchool: selectedSchoolProp,
   setSelectedSchool: setSelectedSchoolProp,
 }) {
+  const [view, setView] = useState("landing");
+
   const [localSelectedSchool, setLocalSelectedSchool] =
     useState("CONSOLIDATED");
   const selectedSchool = selectedSchoolProp ?? localSelectedSchool;
@@ -1124,9 +1129,34 @@ export default function SDOReports({
     );
   };
 
+  // ── View routing ────────────────────────────────────────────────────────────
+  if (view === "landing") {
+    return <ReportsLanding onSelect={setView} />;
+  }
+
+  if (view === "immunization") {
+    return (
+      <Immunization
+        students={Object.values(allSchoolsData).flat()}
+        onBack={() => setView("landing")}
+      />
+    );
+  }
+
+  // ── Nutritional Status Report ────────────────────────────────────────────────
   return (
     <div className="sdo-reports-page">
       <div className="filter-row no-print">
+        <div className="form-group" style={{ alignSelf: "flex-end" }}>
+          <button
+            className="btn btn-ghost"
+            onClick={() => setView("landing")}
+            style={{ height: "38px", padding: "0 14px", fontWeight: 600, fontSize: 13 }}
+          >
+            ← Back
+          </button>
+        </div>
+
         <div className="form-group" style={{ flexGrow: 2, minWidth: "220px" }}>
           <label className="form-label">School</label>
           <select
