@@ -1,12 +1,12 @@
 export const RELEASE_NOTES = {
-  "1.1.9": {
-    title: "v1.1.9",
+  "1.1.10": {
+    title: "v1.1.10",
     sections: [
       
       {
         heading: "🐛 Bug Fixes",
         items: [
-          "Fixed Missing Images in Reports.",
+          "Fixed Auto Update not working.",
           
         ],
       },
