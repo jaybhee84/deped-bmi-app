@@ -1,7 +1,7 @@
 {
   "name": "deped-bmi-app",
   "private": true,
-  "version": "1.1.10",
+  "version": "1.2.0",
   "description": "A desktop application for managing and monitoring Body Mass Index (BMI) records for DepEd personnel.",
   "author": "BuzzJay",
   "type": "module",
@@ -9,7 +9,6 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-   
     "postinstall": "electron-builder install-app-deps",
     "lint": "oxlint",
     "preview": "vite preview",
@@ -17,7 +16,6 @@
     "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "dist": "npm run build && electron-builder",
     "release": "npm run build && electron-builder"
-  
   },
   "build": {
     "appId": "com.deped.bmiapp",
@@ -25,8 +23,6 @@
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true,
     "generateUpdatesFilesForAllChannels": true,
-
-   
     "directories": {
       "output": "release"
     },

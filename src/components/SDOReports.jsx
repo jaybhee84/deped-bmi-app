@@ -1149,9 +1149,14 @@ export default function SDOReports({
       <div className="filter-row no-print">
         <div className="form-group" style={{ alignSelf: "flex-end" }}>
           <button
-            className="btn btn-ghost"
+            className="btn btn-primary"
             onClick={() => setView("landing")}
-            style={{ height: "38px", padding: "0 14px", fontWeight: 600, fontSize: 13 }}
+            style={{
+              height: "38px",
+              padding: "0 14px",
+              fontWeight: 600,
+              fontSize: 13,
+            }}
           >
             ← Back
           </button>

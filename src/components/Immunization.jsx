@@ -3,47 +3,30 @@ import React, { useState, useEffect, useMemo } from "react";
 // ─── Local Image Import ────────────────────────────────────────────────────
 import swabeLogo from "../images/swabe.png";
 
-// Supabase client (Import from your project's supabaseClient if available)
+// Supabase client
 import { supabase } from "../utils/supabaseClient";
 
 import { SCHOOL_YEARS } from "../utils/bmi";
 import { SCHOOL_OPTIONS } from "../utils/schools";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 import { getCachedLogoSrc, useLogoCacheHydrated } from "../utils/logoCache";
+import { exportImmunizationExcel } from "../utils/exportImmunizationExcel";
 import "./Immunization.css";
 
-// ─── DepEd Isabela City Official School-to-District Directory Mapping ─────
-const DEPED_ISABELA_DISTRICTS = [
-  "East District 1",
-  "East District 2",
-  "West District 1",
-  "West District 2",
-  "West District 3",
-  "North District 1",
-  "North District 2",
-  "Island District 1",
-  "Island District 2",
+// ─── Default District Options (Fallback Options) ───────────────────────────
+const DISTRICT_OPTIONS = [
+  "East District I",
+  "East District II",
+  "West District I",
+  "West District II",
+  "West District III",
+  "North District I",
+  "North District II",
+  "North District III",
+  "Island District I",
+  "Island District II",
+  "Island District III",
 ];
-
-const ISABELA_SCHOOL_DISTRICT_MAP = {
-  "Isabela Central Elementary Pilot School": "East District 1",
-  "Isabela East Central Elementary School": "East District 1",
-  "Begang Central Elementary School": "West District 1",
-  "Westside Elementary School": "West District 2",
-  "Sunset Elementary School": "West District 3",
-  "Malamawi Central Elementary School": "Island District 1",
-  "Diki Elementary School": "Island District 1",
-  "Tampalan Elementary School": "Island District 1",
-  "Lampinigan Elementary School": "Island District 2",
-  "Lukbuton Elementary School": "Island District 2",
-  "Marang-Marang Elementary School": "Island District 2",
-  "Badjao Floating Integrated School": "Island District 2",
-  "Panigayan Elementary School": "Island District 2",
-  "Busay Elementary School": "West District 1",
-  "Calvario Elementary School": "West District 1",
-  "Tabiawan Elementary School": "North District 1",
-  "Kumalarang Elementary School": "North District 2",
-};
 
 // ─── Default Hardcoded Regions Fallback ────────────────────────────────────
 const DEFAULT_REGIONS = [
@@ -305,18 +288,15 @@ function makeBlankRows(count, startId = 1) {
 
 function sortStudents(arr) {
   return [...arr].sort((a, b) => {
-    // 1. Group by section alphabetically
     const secA = (a.section || "").toLowerCase();
     const secB = (b.section || "").toLowerCase();
     if (secA < secB) return -1;
     if (secA > secB) return 1;
 
-    // 2. Within same section: Males first (0), Females second (1)
     const isMaleA = (a.sex || "").toUpperCase().startsWith("M") ? 0 : 1;
     const isMaleB = (b.sex || "").toUpperCase().startsWith("M") ? 0 : 1;
     if (isMaleA !== isMaleB) return isMaleA - isMaleB;
 
-    // 3. Within same sex group: alphabetical by name
     return (a.name || "").localeCompare(b.name || "");
   });
 }
@@ -357,7 +337,7 @@ export default function Immunization({
   const [selectedCityCode, setSelectedCityCode] = useState("Isabela City");
   const [selectedBarangay, setSelectedBarangay] = useState("");
 
-  const [district, setDistrict] = useState("East District 1");
+  const [district, setDistrict] = useState("");
   const [vaxDate, setVaxDate] = useState(
     () => new Date().toISOString().split("T")[0],
   );
@@ -379,17 +359,47 @@ export default function Immunization({
     VACCINE_PROGRAMS[selectedProgramKey] || VACCINE_PROGRAMS["MR & Td"];
   const targetGrade = activeProgram.gradeLevel;
 
-  // ─── Auto-Detect District when School Changes ──────────────────────────────
+  // ─── Dynamic School Lookup ────────────────────────────────────────────────
   useEffect(() => {
-    if (selectedSchool) {
-      setSchoolName(selectedSchool);
-      const mappedDistrict = ISABELA_SCHOOL_DISTRICT_MAP[selectedSchool];
-      if (mappedDistrict) {
-        setDistrict(mappedDistrict);
+    async function fetchSchoolDistrict() {
+      if (!selectedSchool) {
+        setSchoolName("Division-wide (All Schools)");
+        setDistrict("");
+        return;
       }
-    } else {
-      setSchoolName("Division-wide (All Schools)");
+
+      setSchoolName(selectedSchool);
+
+      try {
+        let schoolData = null;
+
+        if (window.electron?.ipcRenderer) {
+          schoolData = await window.electron.ipcRenderer.invoke(
+            "get-school-by-name",
+            selectedSchool.trim(),
+          );
+        }
+
+        if (!schoolData && navigator.onLine && supabase) {
+          const { data } = await supabase
+            .from("schools")
+            .select("*")
+            .eq("name", selectedSchool.trim())
+            .maybeSingle();
+          schoolData = data;
+        }
+
+        if (schoolData && schoolData.district) {
+          setDistrict(schoolData.district);
+        } else {
+          setDistrict("");
+        }
+      } catch (err) {
+        console.error("Error looking up school district:", err);
+      }
     }
+
+    fetchSchoolDistrict();
   }, [selectedSchool]);
 
   // ─── Load Regions On Mount ────────────────────────────────────────────────
@@ -491,6 +501,44 @@ export default function Immunization({
     loadBarangays();
   }, [selectedCityCode]);
 
+  // ─── Excel Export Function ────────────────────────────────────────────────
+  const handleDownloadExcel = async () => {
+    const selectedRegionObj = regionsList.find(
+      (r) => r.code === selectedRegionCode,
+    );
+    const regionNameStr = selectedRegionObj
+      ? selectedRegionObj.regionName || selectedRegionObj.name
+      : selectedRegionCode || "Region IX";
+
+    // Pass the active student row data directly into 'students'
+    const filledRows = rows.filter((r) => r.name && r.name.trim() !== "");
+
+    await exportImmunizationExcel({
+      students: filledRows,
+      selectedSchool: schoolName || selectedSchool || "CONSOLIDATED",
+      sy: sy,
+      selectedProgramKey: selectedProgramKey,
+      activeProgram: activeProgram,
+      section: section === "All" ? targetGrade : section,
+      region: regionNameStr,
+      province: selectedProvinceCode || "N/A",
+      city: selectedCityCode,
+      barangay: selectedBarangay,
+      district: district,
+      vaxDate: vaxDate,
+      vax1Received: vax1Received,
+      vax1Used: vax1Used,
+      vax1Unused: vax1Unused,
+      vax2Received: vax2Received,
+      vax2Used: vax2Used,
+      vax2Unused: vax2Unused,
+      metadata: {
+        title: activeProgram.formTitle,
+        schoolName: schoolName || selectedSchool,
+      },
+    });
+  };
+
   // ─── Save to SQLite & Supabase table school_info_sbmi ────────────────────
   async function handleSaveFormData() {
     setIsSaving(true);
@@ -534,7 +582,7 @@ export default function Immunization({
     // 1. Save Locally
     await saveLocalSbmi(payload);
 
-    // 2. Save Online to Supabase Table: school_info_sbmi
+    // 2. Save Online to Supabase
     let supabaseSuccess = false;
     if (supabase) {
       try {
@@ -562,7 +610,7 @@ export default function Immunization({
     setTimeout(() => setSaveMessage(""), 4000);
   }
 
-  // ─── Dynamic HTML Generation for Immunization Print / PDF Preview ─────────
+  // ─── Dynamic HTML Generation for Print / Preview ─────────────────────────
   const generateImmunizationHtml = () => {
     const selectedRegionObj = regionsList.find(
       (r) => r.code === selectedRegionCode,
@@ -748,7 +796,6 @@ export default function Immunization({
         </div>
 
         <div class="grid-container">
-          <!-- Col 1: Location fields -->
           <div class="grid-col">
             <div class="field-row"><span class="field-label">Region:</span> <span class="field-val">${regionNameStr}</span></div>
             ${provincesList.length > 0 ? `<div class="field-row"><span class="field-label">Province:</span> <span class="field-val">${selectedProvinceCode || "N/A"}</span></div>` : ""}
@@ -756,7 +803,6 @@ export default function Immunization({
             <div class="field-row"><span class="field-label">Barangay:</span> <span class="field-val">${selectedBarangay || "N/A"}</span></div>
           </div>
 
-          <!-- Col 2: School, Section, District, Date -->
           <div class="grid-col">
             <div class="field-row"><span class="field-label">Name of School:</span> <span class="field-val">${schoolName || "N/A"}</span></div>
             <div class="field-row"><span class="field-label">Section:</span> <span class="field-val">${section === "All" ? targetGrade : section}</span></div>
@@ -764,7 +810,6 @@ export default function Immunization({
             <div class="field-row"><span class="field-label">Date:</span> <span class="field-val">${vaxDate || "N/A"}</span></div>
           </div>
 
-          <!-- Col 3: Both vaccine inventories side by side -->
           <div class="grid-col">
             <div class="vials-row">
               <div class="vial-group">
@@ -878,7 +923,6 @@ export default function Immunization({
       return;
     }
 
-    // Fallback: open in new browser tab/window
     const printWin = window.open("", "_blank");
     if (printWin) {
       printWin.document.write(fullHtml);
@@ -987,7 +1031,7 @@ export default function Immunization({
       {/* ── Top Header Bar ── */}
       <div className="page-header no-print">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button className="btn btn-ghost" onClick={onBack}>
+          <button className="btn btn-primary" onClick={onBack}>
             ← Back
           </button>
           <div>
@@ -998,6 +1042,30 @@ export default function Immunization({
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {saveMessage && <span className="imm-save-badge">{saveMessage}</span>}
+
+          {/* Download Excel Button */}
+          <button
+            type="button"
+            className="btn btn-success"
+            onClick={handleDownloadExcel}
+            style={{
+              height: "38px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              backgroundColor: "#16a34a",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "6px",
+              padding: "0 16px",
+              fontWeight: "600",
+              cursor: "pointer",
+            }}
+          >
+            📊 Download Excel
+          </button>
+
+          {/* Save Form Data Button */}
           <button
             className="btn btn-primary"
             onClick={handleSaveFormData}
@@ -1005,7 +1073,8 @@ export default function Immunization({
           >
             💾 {isSaving ? "Saving..." : "Save Form Data"}
           </button>
-          <button className="btn btn-secondary" onClick={handlePdfPreview}>
+
+          <button className="btn btn-primary" onClick={handlePdfPreview}>
             👁 Preview Report
           </button>
         </div>
@@ -1100,9 +1169,8 @@ export default function Immunization({
           </div>
         </div>
 
-        {/* ── Official Header Grid: 3 columns ── */}
+        {/* ── Official Header Grid ── */}
         <div className="imm-header-grid">
-
           {/* Column 1: Cascading PSGC Locations */}
           <div className="imm-grid-col">
             <div className="imm-grid-field">
@@ -1184,7 +1252,7 @@ export default function Immunization({
             </div>
           </div>
 
-          {/* Column 2: School Name (inline with Region row), District, Date */}
+          {/* Column 2: School Name, Section, Dynamic District, Date */}
           <div className="imm-grid-col">
             <div className="imm-grid-field">
               <span className="imm-grid-label">Name of School:</span>
@@ -1209,8 +1277,11 @@ export default function Immunization({
                 value={district}
                 onChange={(e) => setDistrict(e.target.value)}
               >
-                <option value="">-- Select DepEd District --</option>
-                {DEPED_ISABELA_DISTRICTS.map((d) => (
+                <option value="">-- Select District --</option>
+                {district && !DISTRICT_OPTIONS.includes(district) && (
+                  <option value={district}>{district}</option>
+                )}
+                {DISTRICT_OPTIONS.map((d) => (
                   <option key={d} value={d}>
                     {d}
                   </option>
@@ -1232,7 +1303,9 @@ export default function Immunization({
           <div className="imm-grid-col imm-grid-col--vials">
             <div className="imm-vials-row">
               <div className="imm-vial-group">
-                <div className="imm-grid-vax-title">{activeProgram.vax1Label}:</div>
+                <div className="imm-grid-vax-title">
+                  {activeProgram.vax1Label}:
+                </div>
                 <div className="imm-grid-field">
                   <span className="imm-grid-label">Received (in vials):</span>
                   <input
@@ -1259,7 +1332,9 @@ export default function Immunization({
                 </div>
               </div>
               <div className="imm-vial-group">
-                <div className="imm-grid-vax-title">{activeProgram.vax2Label}:</div>
+                <div className="imm-grid-vax-title">
+                  {activeProgram.vax2Label}:
+                </div>
                 <div className="imm-grid-field">
                   <span className="imm-grid-label">Received (in vials):</span>
                   <input
@@ -1287,7 +1362,6 @@ export default function Immunization({
               </div>
             </div>
           </div>
-
         </div>
 
         {/* ── Masterlist Table Section ── */}
@@ -1540,7 +1614,7 @@ export default function Immunization({
         </div>
 
         <div className="no-print" style={{ marginTop: 12 }}>
-          <button className="btn btn-ghost" onClick={addRow}>
+          <button className="btn btn-primary" onClick={addRow}>
             + Add Row
           </button>
         </div>
