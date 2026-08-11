@@ -8,39 +8,55 @@ console.log("PRELOAD LOADED");
 contextBridge.exposeInMainWorld("sqlite", {
   test: () => "SQLite Ready",
 
+  // USER & OFFLINE AUTH
+  saveUserLocally: (user, password) =>
+    ipcRenderer.invoke("user:saveLocally", { user, password }),
+
+  offlineLoginCheck: (email, password) =>
+    ipcRenderer.invoke("offline-login-check", { email, password }),
+
+  updateLocalProfile: (profileData) =>
+    ipcRenderer.invoke("update-local-profile", profileData),
+
+  // GLOBAL SCHOOL REGISTRY
+  getSchoolById: (schoolId) => ipcRenderer.invoke("get-school-by-id", schoolId),
+
+  getSchoolByName: (schoolName) =>
+    ipcRenderer.invoke("get-school-by-name", schoolName),
+
+  saveSchoolLocally: (school) =>
+    ipcRenderer.invoke("save-school-locally", school),
+
   // STUDENTS
-  saveStudents: (students) =>
-    ipcRenderer.invoke("students:save", students),
+  saveStudents: (students, isDirty = false) =>
+    ipcRenderer.invoke("students:save", { students, isDirty }),
 
-  loadStudents: () =>
-    ipcRenderer.invoke("students:load"),
+  loadStudents: () => ipcRenderer.invoke("students:load"),
 
-  // SCHOOLS
+  getDirtyStudents: () => ipcRenderer.invoke("students:getDirty"),
+
+  markStudentsClean: () => ipcRenderer.invoke("students:markClean"),
+
+  // SCHOOLS (LOCAL ACTIVE INSTANCE)
   saveSchool: (school, userId) =>
     ipcRenderer.invoke("school:save", { school, userId }),
 
-  loadSchool: (userId) =>
-    ipcRenderer.invoke("school:load", userId),
+  loadSchool: (userId) => ipcRenderer.invoke("school:load", userId),
 
   loadSchoolWithLogo: (userId) =>
     ipcRenderer.invoke("school:loadWithLogo", userId),
-  
-  clearSchool: () =>
-    ipcRenderer.invoke("school:clear"),
+
+  clearSchool: () => ipcRenderer.invoke("school:clear"),
 
   // SBFP CONFIG
-  loadSbfpConfig: () =>
-    ipcRenderer.invoke("sbfpConfig:load"),
+  loadSbfpConfig: () => ipcRenderer.invoke("sbfpConfig:load"),
 
-  saveSbfpConfig: (config) =>
-    ipcRenderer.invoke("sbfpConfig:save", config),
+  saveSbfpConfig: (config) => ipcRenderer.invoke("sbfpConfig:save", config),
 
   // SCHOOL LOGO
-  saveSchoolLogo: (payload) =>
-    ipcRenderer.invoke("school:saveLogo", payload),
+  saveSchoolLogo: (payload) => ipcRenderer.invoke("school:saveLogo", payload),
 
-  loadSchoolLogo: (schoolId) =>
-    ipcRenderer.invoke("school:loadLogo", schoolId),
+  loadSchoolLogo: (schoolId) => ipcRenderer.invoke("school:loadLogo", schoolId),
 
   deleteSchoolLogo: (schoolId) =>
     ipcRenderer.invoke("school:deleteLogo", schoolId),
@@ -55,11 +71,9 @@ contextBridge.exposeInMainWorld("sqlite", {
   markEnrolmentClean: (schoolId, sy) =>
     ipcRenderer.invoke("sbfp-enrolment:markClean", schoolId, sy),
 
-  getDirtyEnrolment: () =>
-    ipcRenderer.invoke("sbfp-enrolment:dirty"),
+  getDirtyEnrolment: () => ipcRenderer.invoke("sbfp-enrolment:dirty"),
 
-  getEnrolmentTotals: (sy) =>
-    ipcRenderer.invoke("sbfp-enrolment:totals", sy),
+  getEnrolmentTotals: (sy) => ipcRenderer.invoke("sbfp-enrolment:totals", sy),
 
   // SCHOOL LOGO CACHE
   saveLogoToCache: (schoolKey, filename, dataUrl) =>
@@ -68,11 +82,9 @@ contextBridge.exposeInMainWorld("sqlite", {
   loadLogoFromCache: (schoolKey) =>
     ipcRenderer.invoke("logo-cache:load", schoolKey),
 
-  loadAllCachedLogos: () =>
-    ipcRenderer.invoke("logo-cache:loadAll"),
+  loadAllCachedLogos: () => ipcRenderer.invoke("logo-cache:loadAll"),
 
-  getCachedLogoKeys: () =>
-    ipcRenderer.invoke("logo-cache:keys"),
+  getCachedLogoKeys: () => ipcRenderer.invoke("logo-cache:keys"),
 });
 
 // =========================
@@ -89,32 +101,31 @@ contextBridge.exposeInMainWorld("electron", {
 // =========================
 contextBridge.exposeInMainWorld("electronAPI", {
   // Generates print preview
-  generatePrintPreview: (payload) => ipcRenderer.send("generate-pdf-preview", payload),
-  
+  generatePrintPreview: (payload) =>
+    ipcRenderer.send("generate-pdf-preview", payload),
+
   // Triggers final printed hardcopies
   printReport: () => ipcRenderer.invoke("print-report"),
 
   // Application Details & Updater Callbacks
-  getAppVersion: () =>
-    ipcRenderer.invoke("app:getVersion"),
-  
-  checkForUpdates: () =>
-    ipcRenderer.invoke("app:checkForUpdates"),
+  getAppVersion: () => ipcRenderer.invoke("app:getVersion"),
+
+  checkForUpdates: () => ipcRenderer.invoke("app:checkForUpdates"),
 
   downloadUpdateMac: (payload) =>
     ipcRenderer.invoke("app:downloadUpdateMac", payload),
 
-  openReleasesPage: () =>
-    ipcRenderer.invoke("app:openReleasesPage"),
+  openReleasesPage: () => ipcRenderer.invoke("app:openReleasesPage"),
 
   onDownloadProgress: (callback) => {
     const listener = (_, percent) => callback(percent);
     ipcRenderer.on("update-download-progress", listener);
-    return () => ipcRenderer.removeListener("update-download-progress", listener);
+    return () =>
+      ipcRenderer.removeListener("update-download-progress", listener);
   },
 
   forceRefocusWindow: () => ipcRenderer.send("force-refocus-window"),
-  
+
   // WINDOW ACTIONS
   closeWindow: () => ipcRenderer.send("close-current-window"),
 

@@ -19,6 +19,8 @@ const GITHUB_REPO = "jaybhee84/deped-bmi-app";
 import {
   saveStudents,
   loadStudents,
+  getDirtyStudents,
+  markStudentsClean,
   saveSchool,
   loadSchool,
   clearSchool,
@@ -26,10 +28,10 @@ import {
   loadSchoolLogo,
   deleteSchoolLogo,
   initDatabase,
-  getSchoolById,     
+  getSchoolById,
   getSchoolByName,
-  saveSchoolLocally, 
-  updateLocalProfile, 
+  saveSchoolLocally,
+  updateLocalProfile,
   offlineLoginCheck,
   saveEnrolmentLocally,
   loadEnrolmentLocally,
@@ -39,7 +41,7 @@ import {
   saveLogoToCache,
   loadLogoFromCache,
   loadAllCachedLogos,
-  getCachedLogoKeys
+  getCachedLogoKeys,
 } from "./database.js";
 
 // IMPORT UNIFIED PRINT HANDLER
@@ -67,7 +69,7 @@ autoUpdater.on("update-available", (info) => {
   console.log("[Updater] Update available:", info.version);
   mainWindow?.webContents.send(
     "update-message",
-    `Update available: v${info.version}. Downloading in background...`
+    `Update available: v${info.version}. Downloading in background...`,
   );
 });
 
@@ -75,7 +77,7 @@ autoUpdater.on("update-not-available", (info) => {
   console.log("[Updater] No update available");
   mainWindow?.webContents.send(
     "update-message",
-    "You already have the latest version."
+    "You already have the latest version.",
   );
 });
 
@@ -106,7 +108,7 @@ autoUpdater.on("error", (err) => {
   console.error("[Updater] Error:", err);
   mainWindow?.webContents.send(
     "update-message",
-    `Update failed: ${err.message}`
+    `Update failed: ${err.message}`,
   );
 });
 
@@ -186,7 +188,7 @@ function githubGetJson(urlPath) {
               reject(e);
             }
           });
-        }
+        },
       )
       .on("error", reject);
   });
@@ -199,8 +201,12 @@ function downloadFile(url, destPath, onProgress, redirectsLeft = 5) {
         const isRedirect = [301, 302, 303, 307, 308].includes(res.statusCode);
         if (isRedirect && res.headers.location && redirectsLeft > 0) {
           res.resume();
-          downloadFile(res.headers.location, destPath, onProgress, redirectsLeft - 1)
-            .then(resolve, reject);
+          downloadFile(
+            res.headers.location,
+            destPath,
+            onProgress,
+            redirectsLeft - 1,
+          ).then(resolve, reject);
           return;
         }
         if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -271,8 +277,25 @@ ipcMain.handle("app:openReleasesPage", async () => {
 });
 
 // ==========================================
-// HYBRID ARCHITECTURE REGISTRIES
+// HYBRID ARCHITECTURE REGISTRIES & USER AUTH
 // ==========================================
+
+ipcMain.handle("user:saveLocally", async (event, { user, password }) => {
+  try {
+    updateLocalProfile({
+      id: user.id,
+      email: user.email,
+      username: user.username || user.firstname || "",
+      role: user.role,
+      school_id: user.school_id,
+      password_hash: password,
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("IPC user:saveLocally error:", error);
+    return { success: false, error: error.message };
+  }
+});
 
 ipcMain.handle("get-school-by-id", async (event, schoolId) => {
   try {
@@ -327,13 +350,24 @@ ipcMain.handle("offline-login-check", async (event, { email, password }) => {
 // STUDENTS & LEGACY SCHOOL IPC
 // ==========================================
 
-ipcMain.handle("students:save", (_, students) => {
-  saveStudents(students);
+ipcMain.handle("students:save", (_, payload) => {
+  const students = Array.isArray(payload) ? payload : payload.students;
+  const isDirty = Array.isArray(payload) ? false : payload.isDirty;
+  saveStudents(students, isDirty);
   return true;
 });
 
 ipcMain.handle("students:load", () => {
   return loadStudents();
+});
+
+ipcMain.handle("students:getDirty", () => {
+  return getDirtyStudents();
+});
+
+ipcMain.handle("students:markClean", () => {
+  markStudentsClean();
+  return true;
 });
 
 ipcMain.handle("school:save", (_, { school, userId }) => {
@@ -351,7 +385,7 @@ ipcMain.handle("school:loadWithLogo", (_, userId) => {
   const logoUrl = loadSchoolLogo(schoolData.school_id);
   return {
     ...schoolData,
-    logo_url: logoUrl || null
+    logo_url: logoUrl || null,
   };
 });
 
@@ -529,8 +563,8 @@ ipcMain.on("force-refocus-window", () => {
 // LIFECYCLE INITIALIZER
 // ==========================================
 app.whenReady().then(() => {
-  initDatabase(); 
-  createWindow();   
+  initDatabase();
+  createWindow();
 
   if (app.isPackaged && !isMac) {
     autoUpdater.checkForUpdatesAndNotify();

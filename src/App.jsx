@@ -300,6 +300,21 @@ function AppContent({
                 "sb_current_session",
                 JSON.stringify(freshUserSession),
               );
+
+              // Synchronize local database profile
+              if (window.sqlite?.updateLocalProfile) {
+                window.sqlite.updateLocalProfile({
+                  id: freshUserSession.id,
+                  email: freshUserSession.email,
+                  username:
+                    freshUserSession.username ||
+                    freshUserSession.firstname ||
+                    "",
+                  role: freshUserSession.role,
+                  school_id: freshUserSession.school_id,
+                });
+              }
+
               setSession(freshUserSession);
               setShowOnboarding(false);
               window.dispatchEvent(
@@ -381,6 +396,8 @@ export default function App() {
         let localSchool = null;
         if (window.sqlite?.loadSchool) {
           localSchool = await window.sqlite.loadSchool(session.id);
+        } else if (window.sqlite?.getSchoolById) {
+          localSchool = await window.sqlite.getSchoolById(session.school_id);
         } else if (window.electron?.ipcRenderer) {
           localSchool = await window.electron.ipcRenderer.invoke(
             "get-school-by-id",
@@ -404,6 +421,17 @@ export default function App() {
               "sb_current_session",
               JSON.stringify(updated),
             );
+
+            if (window.sqlite?.updateLocalProfile) {
+              window.sqlite.updateLocalProfile({
+                id: updated.id,
+                email: updated.email,
+                username: updated.username || updated.firstname || "",
+                role: updated.role,
+                school_id: resolvedSchoolId,
+              });
+            }
+
             return updated;
           });
 
@@ -430,6 +458,17 @@ export default function App() {
                 "sb_current_session",
                 JSON.stringify(updated),
               );
+
+              if (window.sqlite?.updateLocalProfile) {
+                window.sqlite.updateLocalProfile({
+                  id: updated.id,
+                  email: updated.email,
+                  username: updated.username || updated.firstname || "",
+                  role: updated.role,
+                  school_id: resolvedSchoolId,
+                });
+              }
+
               return updated;
             });
 
@@ -502,14 +541,6 @@ export default function App() {
     checkReleaseNotes();
   }, []);
 
-  // Warm the local school-logo cache after login — SDO users only, since
-  // they're the ones who browse between all ~65 schools in SDODashboard.
-  // School-based users only ever see their own school's logo, which is
-  // already persisted locally via saveSchool()'s logo_url handling.
-  // hydrateLogoCache() pulls whatever's already on this machine into memory
-  // (instant if returning); preloadAllSchoolLogos() then quietly downloads
-  // anything still missing (real work only the first time on a new machine,
-  // or when a new school logo gets added later). Neither call blocks the UI.
   useEffect(() => {
     const normalizedRole = String(session?.role || "")
       .toLowerCase()
@@ -546,7 +577,11 @@ export default function App() {
   useEffect(() => {
     async function saveStudentsToDb() {
       if (students.length > 0) {
-        await localSaveStudents(students);
+        if (window.sqlite?.saveStudents) {
+          await window.sqlite.saveStudents(students, true);
+        } else {
+          await localSaveStudents(students);
+        }
       }
     }
     saveStudentsToDb();
@@ -557,7 +592,11 @@ export default function App() {
       if (!isOnline() || !isSupabaseConfigured() || students.length === 0)
         return;
       const schoolId = await getLocalSchoolId();
-      syncToServer(students, schoolId);
+      await syncToServer(students, schoolId);
+
+      if (window.sqlite?.markStudentsClean) {
+        await window.sqlite.markStudentsClean();
+      }
     }
     pushToServer();
   }, [students]);
@@ -565,9 +604,20 @@ export default function App() {
   useEffect(() => {
     async function handleOnline() {
       if (!isSupabaseConfigured()) return;
-      const latestStudents = await localLoadStudents();
+
+      let latestStudents = [];
+      if (window.sqlite?.loadStudents) {
+        latestStudents = await window.sqlite.loadStudents();
+      } else {
+        latestStudents = await localLoadStudents();
+      }
+
       const schoolId = await getLocalSchoolId();
       await syncToServer(latestStudents, schoolId);
+
+      if (window.sqlite?.markStudentsClean) {
+        await window.sqlite.markStudentsClean();
+      }
     }
     window.addEventListener("online", handleOnline);
     return () => window.removeEventListener("online", handleOnline);
@@ -581,10 +631,26 @@ export default function App() {
         const normalizedRole = String(session.role || "")
           .toLowerCase()
           .trim();
+
+        let localStudents = [];
+        if (window.sqlite?.loadStudents) {
+          localStudents = await window.sqlite.loadStudents();
+        } else {
+          localStudents = await localLoadStudents();
+        }
+
+        if (localStudents && localStudents.length > 0) {
+          setStudents(localStudents);
+        }
+
         if (normalizedRole === "division") {
           const serverData = await syncFromServer(null);
           if (serverData.success && Array.isArray(serverData.students)) {
-            await localSaveStudents(serverData.students);
+            if (window.sqlite?.saveStudents) {
+              await window.sqlite.saveStudents(serverData.students, false);
+            } else {
+              await localSaveStudents(serverData.students);
+            }
             setStudents(serverData.students);
           }
           return;
@@ -592,19 +658,23 @@ export default function App() {
 
         const targetId = session.school_id || (await getLocalSchoolId());
         if (!targetId) {
-          setStudents([]);
-          await localSaveStudents([]);
+          if (!localStudents || localStudents.length === 0) {
+            setStudents([]);
+          }
           return;
         }
 
         const serverData = await syncFromServer(targetId);
         if (serverData.success && Array.isArray(serverData.students)) {
-          await localSaveStudents(serverData.students);
+          if (window.sqlite?.saveStudents) {
+            await window.sqlite.saveStudents(serverData.students, false);
+          } else {
+            await localSaveStudents(serverData.students);
+          }
           setStudents(serverData.students);
         }
       } catch (err) {
         console.error(err);
-        setStudents([]);
       }
     }
     startupSync();
@@ -619,7 +689,6 @@ export default function App() {
       const safeNext = Array.isArray(next) ? next : [];
       const safePrev = Array.isArray(prev) ? prev : [];
 
-      // --- Deduplicate next state to clean duplicate IDs ---
       const uniqueMap = new Map();
       safeNext.forEach((s) => {
         if (s && s.id) {
@@ -634,6 +703,11 @@ export default function App() {
           queueStudentForSync(student.id);
         }
       });
+
+      if (window.sqlite?.saveStudents) {
+        window.sqlite.saveStudents(deduplicatedNext, true);
+      }
+
       return deduplicatedNext;
     });
   }
@@ -641,12 +715,20 @@ export default function App() {
   async function loadSchoolStudents(schoolId) {
     if (!schoolId) {
       setStudents([]);
-      await localSaveStudents([]);
+      if (window.sqlite?.saveStudents) {
+        await window.sqlite.saveStudents([], false);
+      } else {
+        await localSaveStudents([]);
+      }
       return;
     }
     const result = await syncFromServer(schoolId);
     if (result.success && Array.isArray(result.students)) {
-      await localSaveStudents(result.students);
+      if (window.sqlite?.saveStudents) {
+        await window.sqlite.saveStudents(result.students, false);
+      } else {
+        await localSaveStudents(result.students);
+      }
       setStudents(result.students);
     }
   }
@@ -654,6 +736,16 @@ export default function App() {
   async function handleLogin(sess) {
     if (sess) {
       sessionStorage.setItem("sb_current_session", JSON.stringify(sess));
+
+      if (window.sqlite?.updateLocalProfile) {
+        window.sqlite.updateLocalProfile({
+          id: sess.id,
+          email: sess.email,
+          username: sess.username || sess.firstname || "",
+          role: sess.role,
+          school_id: sess.school_id || null,
+        });
+      }
     }
     setSession(sess);
     setPage("dashboard");
@@ -676,12 +768,27 @@ export default function App() {
           school_name: boundSchoolName || prev.school_name,
         };
         sessionStorage.setItem("sb_current_session", JSON.stringify(updated));
+
+        if (window.sqlite?.updateLocalProfile) {
+          window.sqlite.updateLocalProfile({
+            id: updated.id,
+            email: updated.email,
+            username: updated.username || updated.firstname || "",
+            role: updated.role,
+            school_id: updated.school_id,
+          });
+        }
+
         return updated;
       });
 
       if (!schoolId) {
         setStudents([]);
-        await localSaveStudents([]);
+        if (window.sqlite?.saveStudents) {
+          await window.sqlite.saveStudents([], false);
+        } else {
+          await localSaveStudents([]);
+        }
         return;
       }
       await loadSchoolStudents(schoolId);
@@ -694,7 +801,6 @@ export default function App() {
     logout();
     sessionStorage.clear();
 
-    // Explicitly clean up active session keys only, DO NOT call localStorage.clear()
     localStorage.removeItem("sb_auth_token");
     localStorage.removeItem("sb_user_session");
     localStorage.removeItem("deped_bmi_session");
@@ -704,7 +810,6 @@ export default function App() {
     setSchoolName("");
     setPage("dashboard");
 
-    // Reset school-scoped view state
     setSelectedSchool("ALL SCHOOLS");
     setDashboardSchool("ALL SCHOOLS");
     setReportsSchool("CONSOLIDATED");
@@ -722,8 +827,6 @@ export default function App() {
     setPage("profile");
   }
 
-  // Used by Dashboard's "double-click a learner name" shortcut so teachers
-  // can jump straight to adding a missing weight/height measurement.
   function openProfileForMeasurement(studentId, opts = {}) {
     if (!studentId) return;
     setProfileId(studentId);

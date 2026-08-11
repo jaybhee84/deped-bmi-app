@@ -2,31 +2,38 @@ import Database from "better-sqlite3";
 import { app } from "electron";
 import path from "path";
 
-const dbPath = path.join(
-  app.getPath("userData"),
-  "students.db"
-);
+const dbPath = path.join(app.getPath("userData"), "students.db");
 
-console.log("SQLite DB:", dbPath);
+console.log("SQLite DB Path:", dbPath);
 
 const db = new Database(dbPath);
 
+// Enable WAL mode for better offline performance and concurrent write handling
+db.pragma("journal_mode = WAL");
+
 // ==========================================
-// INITIALIZE EXTRA SYNC SCHEMA (New Tables)
+// INITIALIZE EXTRA SYNC SCHEMA (New Tables & Migrations)
 // ==========================================
 export function initDatabase() {
-  // Create Profiles Table (Caching users for offline login matching)
+  // Profiles Table (Caching users for offline login matching)
   db.exec(`
     CREATE TABLE IF NOT EXISTS profiles (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
+      username TEXT,
       password_hash TEXT,
       role TEXT,
       school_id TEXT
     );
   `);
 
-  // Ensure our new global schema for school binding exists
+  // Ensure username column exists if upgrading from an older schema version
+  const profileCols = db.prepare("PRAGMA table_info(profiles)").all();
+  if (!profileCols.some((c) => c.name === "username")) {
+    db.exec("ALTER TABLE profiles ADD COLUMN username TEXT");
+  }
+
+  // Global Schools Table for offline binding/autocomplete
   db.exec(`
     CREATE TABLE IF NOT EXISTS global_schools (
       school_id TEXT PRIMARY KEY,
@@ -39,16 +46,26 @@ export function initDatabase() {
   `);
 }
 
+// Call initialization upon module import
+initDatabase();
+
 // =========================
-// STUDENTS TABLE
+// STUDENTS TABLE (With Dirty Track Flag)
 // =========================
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS students (
   id TEXT PRIMARY KEY,
-  data TEXT NOT NULL
+  data TEXT NOT NULL,
+  dirty INTEGER DEFAULT 0
 );
 `);
+
+// Migration: Ensure existing students table has the dirty status flag
+const studentCols = db.prepare("PRAGMA table_info(students)").all();
+if (!studentCols.some((c) => c.name === "dirty")) {
+  db.exec("ALTER TABLE students ADD COLUMN dirty INTEGER DEFAULT 0");
+}
 
 // =========================
 // SCHOOLS TABLE
@@ -66,15 +83,14 @@ CREATE TABLE IF NOT EXISTS schools (
 );
 `);
 
-// Migration: older installs may already have a `schools` table without
-// `bound_user_id`. Add it if missing so upgrades don't crash.
+// Migration: ensure `bound_user_id` exists
 const schoolColumns = db.prepare("PRAGMA table_info(schools)").all();
 if (!schoolColumns.some((c) => c.name === "bound_user_id")) {
   db.exec("ALTER TABLE schools ADD COLUMN bound_user_id TEXT");
 }
 
 // =========================
-// SCHOOL LOGOS TABLE (separate from schools, keyed by school_id)
+// LOGO TABLES
 // =========================
 
 db.exec(`
@@ -86,14 +102,6 @@ CREATE TABLE IF NOT EXISTS school_logos (
 );
 `);
 
-// =========================
-// SCHOOL LOGO CACHE TABLE (bulk preload, keyed by school NAME not id —
-// this lets us cache every school's logo from schoolLogoMap.js without
-// needing a Supabase round trip to resolve name -> school_id first. Kept
-// separate from `school_logos` above, which is keyed by the real
-// school_id and only ever holds the currently-bound school's logo.)
-// =========================
-
 db.exec(`
 CREATE TABLE IF NOT EXISTS school_logo_cache (
   school_key TEXT PRIMARY KEY,
@@ -104,7 +112,7 @@ CREATE TABLE IF NOT EXISTS school_logo_cache (
 `);
 
 // =========================
-// SBFP ENROLMENT TABLE (offline-first, mirrors sbfp_enrolment in Supabase)
+// SBFP ENROLMENT TABLE
 // =========================
 
 db.exec(`
@@ -120,49 +128,72 @@ CREATE TABLE IF NOT EXISTS sbfp_enrolment (
 `);
 
 // ==========================================
-// NEW ARCHITECTURE SYNC ENGINE FUNCTIONS
+// SYNC ENGINE & USER AUTH FUNCTIONS
 // ==========================================
 
 export function getSchoolById(schoolId) {
-  return db.prepare("SELECT * FROM global_schools WHERE school_id = ?").get(schoolId);
+  return db
+    .prepare("SELECT * FROM global_schools WHERE school_id = ?")
+    .get(schoolId);
 }
 
-// Case-insensitive lookup by name, used for offline autocomplete during
-// onboarding (district/address auto-fill when a school is picked while
-// the app has no network connection).
 export function getSchoolByName(schoolName) {
   return db
-    .prepare("SELECT * FROM global_schools WHERE school_name = ? COLLATE NOCASE")
+    .prepare(
+      "SELECT * FROM global_schools WHERE school_name = ? COLLATE NOCASE",
+    )
     .get(schoolName);
 }
 
 export function saveSchoolLocally(school) {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR REPLACE INTO global_schools (school_id, school_name, district, address, created_by)
     VALUES (?, ?, ?, ?, ?)
-  `).run(school.school_id, school.school_name, school.district, school.address, school.created_by);
+  `,
+  ).run(
+    school.school_id,
+    school.school_name,
+    school.district,
+    school.address,
+    school.created_by,
+  );
 }
 
 export function updateLocalProfile(profile) {
-  db.prepare(`
-    INSERT INTO profiles (id, email, role, school_id, password_hash)
-    VALUES (?, ?, ?, ?, ?)
+  db.prepare(
+    `
+    INSERT INTO profiles (id, email, username, role, school_id, password_hash)
+    VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       email = excluded.email,
+      username = COALESCE(excluded.username, username),
       role = excluded.role,
       school_id = excluded.school_id,
       password_hash = COALESCE(excluded.password_hash, password_hash)
-  `).run(profile.id, profile.email, profile.role, profile.school_id, profile.password_hash);
+  `,
+  ).run(
+    profile.id,
+    profile.email,
+    profile.username || "",
+    profile.role,
+    profile.school_id,
+    profile.password_hash,
+  );
 }
 
 export function offlineLoginCheck(email, password) {
   const user = db.prepare("SELECT * FROM profiles WHERE email = ?").get(email);
-  if (!user) return { success: false, message: "User credentials do not exist locally." };
-  
+  if (!user)
+    return {
+      success: false,
+      message: "No local profile found. Connect online to log in.",
+    };
+
   if (user.password_hash === password) {
     return { success: true, user };
   } else {
-    return { success: false, message: "Invalid credentials matched offline." };
+    return { success: false, message: "Invalid credentials." };
   }
 }
 
@@ -170,23 +201,17 @@ export function offlineLoginCheck(email, password) {
 // STUDENT FUNCTIONS
 // =========================
 
-export function saveStudents(students) {
+export function saveStudents(students, isDirty = false) {
   db.prepare("DELETE FROM students").run();
 
   const stmt = db.prepare(`
-    INSERT INTO students (
-      id,
-      data
-    )
-    VALUES (?, ?)
+    INSERT INTO students (id, data, dirty)
+    VALUES (?, ?, ?)
   `);
 
   const tx = db.transaction((rows) => {
     rows.forEach((student) => {
-      stmt.run(
-        String(student.id),
-        JSON.stringify(student)
-      );
+      stmt.run(String(student.id), JSON.stringify(student), isDirty ? 1 : 0);
     });
   });
 
@@ -200,15 +225,27 @@ export function loadStudents() {
     .map((r) => JSON.parse(r.data));
 }
 
+export function getDirtyStudents() {
+  return db
+    .prepare("SELECT data FROM students WHERE dirty = 1")
+    .all()
+    .map((r) => JSON.parse(r.data));
+}
+
+export function markStudentsClean() {
+  db.prepare("UPDATE students SET dirty = 0 WHERE dirty = 1").run();
+}
+
 // ==========================================
-// SCHOOL FUNCTIONS (With Automatic Logo Bind)
+// SCHOOL & LOGO FUNCTIONS
 // ==========================================
 
 export function saveSchool(school, userId) {
   const finalName = school.school_name || school.name || null;
   const finalId = school.school_id || school.id || null;
 
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR REPLACE INTO schools (
       id,
       school_name,
@@ -219,24 +256,20 @@ export function saveSchool(school, userId) {
       bound_user_id
     )
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `,
+  ).run(
     "current",
     finalName,
     finalId,
     school.division || null,
     school.district || null,
     school.address || null,
-    userId ? String(userId) : null
+    userId ? String(userId) : null,
   );
 
-  // AUTOMATIC INTEGRATION LINK:
-  // The renderer (OnboardingModal) already resolves the correct logo URL
-  // via SCHOOL_LOGO_MAP and passes it in as school.logo_url. We just persist
-  // that here instead of re-deriving our own acronym locally — keeping a
-  // second acronym generator in sync with the renderer's map was the source
-  // of drift (and pointed at a mistyped Supabase subdomain).
   if (finalId && school.logo_url) {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT OR REPLACE INTO school_logos (
         school_id,
         filename,
@@ -244,39 +277,30 @@ export function saveSchool(school, userId) {
         updated_at
       )
       VALUES (?, ?, ?, ?)
-    `).run(
+    `,
+    ).run(
       String(finalId),
       school.logo_url.split("/").pop() || null,
       school.logo_url,
-      new Date().toISOString()
+      new Date().toISOString(),
     );
   }
 }
 
 export function loadSchool(userId) {
-  const row = db
-    .prepare("SELECT * FROM schools WHERE id = 'current'")
-    .get();
+  const row = db.prepare("SELECT * FROM schools WHERE id = 'current'").get();
 
-  if (!row) return null;
-  if (!userId) return null;
-  if (row.bound_user_id !== String(userId)) return null;
-
+  if (!row || !userId || row.bound_user_id !== String(userId)) return null;
   return row;
 }
 
 export function clearSchool() {
-  db.prepare(
-    "DELETE FROM schools WHERE id = 'current'"
-  ).run();
+  db.prepare("DELETE FROM schools WHERE id = 'current'").run();
 }
 
-// =========================
-// SCHOOL LOGO FUNCTIONS
-// =========================
-
 export function saveSchoolLogo(schoolId, filename, dataUrl) {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR REPLACE INTO school_logos (
       school_id,
       filename,
@@ -284,36 +308,27 @@ export function saveSchoolLogo(schoolId, filename, dataUrl) {
       updated_at
     )
     VALUES (?, ?, ?, ?)
-  `).run(
-    String(schoolId),
-    filename,
-    dataUrl,
-    new Date().toISOString()
-  );
+  `,
+  ).run(String(schoolId), filename, dataUrl, new Date().toISOString());
 }
 
 export function loadSchoolLogo(schoolId) {
   const row = db
-    .prepare(
-      "SELECT data_url FROM school_logos WHERE school_id = ?"
-    )
+    .prepare("SELECT data_url FROM school_logos WHERE school_id = ?")
     .get(String(schoolId));
 
   return row ? row.data_url : null;
 }
 
 export function deleteSchoolLogo(schoolId) {
-  db.prepare(
-    "DELETE FROM school_logos WHERE school_id = ?"
-  ).run(String(schoolId));
+  db.prepare("DELETE FROM school_logos WHERE school_id = ?").run(
+    String(schoolId),
+  );
 }
 
-// =========================
-// SCHOOL LOGO CACHE FUNCTIONS (bulk preload, name-keyed)
-// =========================
-
 export function saveLogoToCache(schoolKey, filename, dataUrl) {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR REPLACE INTO school_logo_cache (
       school_key,
       filename,
@@ -321,12 +336,8 @@ export function saveLogoToCache(schoolKey, filename, dataUrl) {
       updated_at
     )
     VALUES (?, ?, ?, ?)
-  `).run(
-    String(schoolKey),
-    filename || null,
-    dataUrl,
-    new Date().toISOString()
-  );
+  `,
+  ).run(String(schoolKey), filename || null, dataUrl, new Date().toISOString());
 }
 
 export function loadLogoFromCache(schoolKey) {
@@ -337,11 +348,10 @@ export function loadLogoFromCache(schoolKey) {
   return row ? row.data_url : null;
 }
 
-// Returns everything in one shot as { schoolKey: dataUrl } so the renderer
-// can hydrate its in-memory lookup with a single IPC call instead of one
-// round trip per school.
 export function loadAllCachedLogos() {
-  const rows = db.prepare("SELECT school_key, data_url FROM school_logo_cache").all();
+  const rows = db
+    .prepare("SELECT school_key, data_url FROM school_logo_cache")
+    .all();
   return rows.reduce((acc, row) => {
     acc[row.school_key] = row.data_url;
     return acc;
@@ -356,13 +366,12 @@ export function getCachedLogoKeys() {
 }
 
 // =========================
-// SBFP ENROLMENT FUNCTIONS (offline-first)
+// SBFP ENROLMENT FUNCTIONS
 // =========================
 
-// Saves locally immediately (always works offline) and marks the row dirty
-// so it can be flushed to Supabase once the app is back online.
 export function saveEnrolmentLocally(schoolId, sy, data, total) {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR REPLACE INTO sbfp_enrolment (
       school_id,
       sy,
@@ -372,12 +381,13 @@ export function saveEnrolmentLocally(schoolId, sy, data, total) {
       dirty
     )
     VALUES (?, ?, ?, ?, ?, 1)
-  `).run(
+  `,
+  ).run(
     String(schoolId),
     sy,
     JSON.stringify(data || {}),
     Number(total) || 0,
-    new Date().toISOString()
+    new Date().toISOString(),
   );
 }
 
@@ -395,16 +405,12 @@ export function loadEnrolmentLocally(schoolId, sy) {
   };
 }
 
-// Sums totals across every school for a given SY — powers the ALL SCHOOLS
-// view in SDODashboard when offline.
 export function loadEnrolmentTotalsForSY(sy) {
   return db
     .prepare("SELECT school_id, total FROM sbfp_enrolment WHERE sy = ?")
     .all(sy);
 }
 
-// Returns every row still marked dirty (saved locally but not yet pushed to
-// Supabase) so the sync engine can flush them once online.
 export function getDirtyEnrolmentRows() {
   return db
     .prepare("SELECT * FROM sbfp_enrolment WHERE dirty = 1")
@@ -420,7 +426,7 @@ export function getDirtyEnrolmentRows() {
 
 export function markEnrolmentClean(schoolId, sy) {
   db.prepare(
-    "UPDATE sbfp_enrolment SET dirty = 0 WHERE school_id = ? AND sy = ?"
+    "UPDATE sbfp_enrolment SET dirty = 0 WHERE school_id = ? AND sy = ?",
   ).run(String(schoolId), sy);
 }
 
