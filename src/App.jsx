@@ -853,7 +853,8 @@ export default function App() {
     }
     return safeStudents.reduce((acc, student) => {
       if (!student) return acc;
-      const school = student.schoolName || "Unknown School";
+      const school =
+        student.schoolName || student.school_name || "Unknown School";
       if (!acc[school]) acc[school] = [];
       acc[school].push(student);
       return acc;

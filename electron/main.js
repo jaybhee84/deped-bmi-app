@@ -32,6 +32,7 @@ import {
   getSchoolByName,
   saveSchoolLocally,
   updateLocalProfile,
+  deleteLocalProfile,
   offlineLoginCheck,
   saveEnrolmentLocally,
   loadEnrolmentLocally,
@@ -334,6 +335,15 @@ ipcMain.handle("update-local-profile", async (event, profileData) => {
   } catch (error) {
     console.error("IPC update-local-profile error:", error);
     throw error;
+  }
+});
+
+ipcMain.handle("profile:deleteLocal", async (event, identity) => {
+  try {
+    return { success: true, deleted: deleteLocalProfile(identity) };
+  } catch (error) {
+    console.error("IPC profile:deleteLocal error:", error);
+    return { success: false, error: error.message };
   }
 });
 

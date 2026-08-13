@@ -145,16 +145,19 @@ export default function OnboardingModal({ user, onComplete }) {
       }
 
       const { data: updatedProfile, error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          school_id: targetSchoolId,
-          school_name: targetName,
-        })
+        .from("bmi_profiles")
+        .update({ school_id: targetSchoolId })
         .eq("id", user.id)
         .select()
         .single();
 
       if (profileError) throw profileError;
+
+      const boundProfile = {
+        ...updatedProfile,
+        school_id: targetSchoolId,
+        school_name: targetName,
+      };
 
       const localSchoolPayload = {
         school_id: targetSchoolId,
@@ -171,16 +174,16 @@ export default function OnboardingModal({ user, onComplete }) {
           localSchoolPayload,
         );
         await window.electron.ipcRenderer.invoke("update-local-profile", {
-          id: updatedProfile.id,
-          email: updatedProfile.email,
-          role: updatedProfile.role,
+          id: boundProfile.id,
+          email: boundProfile.email,
+          role: boundProfile.role,
           school_id: targetSchoolId,
           school_name: targetName,
           password_hash: null,
         });
       }
 
-      onComplete(updatedProfile);
+      onComplete(boundProfile);
     } catch (err) {
       setMsg(
         err.message || "An error occurred during verification configurations.",

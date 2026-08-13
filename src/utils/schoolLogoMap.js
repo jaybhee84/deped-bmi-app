@@ -1,3 +1,11 @@
+import { SUPABASE_URL } from './supabaseClient';
+
+export const SCHOOL_LOGO_BUCKET = 'school-logo';
+
+export function normalizeSchoolLogoUrl(url) {
+  return url ? String(url).replace('/school-logos/', `/${SCHOOL_LOGO_BUCKET}/`) : null;
+}
+
 export const SCHOOL_LOGO_MAP = {
   "Isabela East Central Elementary School": "ieces.png",
   "Isabela Bliss Elementary School": "ibes.png",
@@ -59,5 +67,5 @@ export function getSchoolLogoUrl(schoolName) {
 
   if (!file) return null;
 
-  return `https://usbqwedfhmceasrepjnb.supabase.co/storage/v1/object/public/school-logos/${file}`;
+  return `${SUPABASE_URL}/storage/v1/object/public/${SCHOOL_LOGO_BUCKET}/${file}`;
 }

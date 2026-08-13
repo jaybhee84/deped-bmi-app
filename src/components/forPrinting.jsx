@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-import { loadSupabaseConfig } from "../utils/syncService";
+import { supabase } from '../utils/supabaseClient';
 import "./Reports.css";
 
 export default function ForPrinting({
@@ -18,16 +17,12 @@ export default function ForPrinting({
 
   async function loadSchoolName() {
     try {
-      const config = loadSupabaseConfig();
-
-      if (config?.url && config?.key) {
-        const supabase = createClient(config.url, config.key);
-
+      if (supabase) {
         const { data, error } = await supabase
-          .from("school_settings")
+          .from("schools")
           .select("*")
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (!error && data) {
           setSchoolName(data.school_name || data.name || "");

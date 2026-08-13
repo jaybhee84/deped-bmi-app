@@ -2,7 +2,8 @@
 // Saves data locally first (always works offline).
 // When Supabase is configured and internet is available, auto-syncs to server.
 
-import { supabase } from './supabaseClient';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient';
+import { SCHOOL_LOGO_BUCKET } from './schoolLogoMap';
 
 const KEYS = {
   STUDENTS:     'deped_bmi_students',
@@ -33,7 +34,7 @@ export async function localLoadStudents() {
 
 export async function unbindSchoolFromUser(userId) {
   const { data, error } = await supabase
-    .from("profiles")
+    .from("bmi_profiles")
     .update({ school_id: null })
     .eq("id", userId)
     .select();
@@ -50,14 +51,32 @@ export function saveSupabaseConfig(url, key) {
   } catch {}
 }
 
-const SUPABASE_URL = 'https://usbqwedfhmceasrepjnb.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_SsMtcj2eu7PZnSRg3geAXQ_X425usO5';
-
 export function loadSupabaseConfig() {
   return {
     url: SUPABASE_URL,
-    key: SUPABASE_KEY,
+    key: SUPABASE_ANON_KEY,
   };
+}
+
+async function getSupabaseAccessToken(cfg) {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token || cfg.key;
+}
+
+function normalizeStudentRecords(records) {
+  if (Array.isArray(records)) return records;
+  if (!records) return [];
+
+  if (typeof records === 'string') {
+    try {
+      const parsed = JSON.parse(records);
+      return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return typeof records === 'object' ? [records] : [];
 }
 
 export async function saveSchoolInfo(school) {
@@ -76,7 +95,7 @@ export async function saveSchoolInfo(school) {
     method: "POST",
     headers: {
       apikey: cfg.key,
-      Authorization: `Bearer ${cfg.key}`,
+      Authorization: `Bearer ${await getSupabaseAccessToken(cfg)}`,
       "Content-Type": "application/json",
       Prefer: "resolution=merge-duplicates",
     },
@@ -96,7 +115,7 @@ export async function saveSchoolInfo(school) {
 
 export async function bindSchoolToUser(schoolId, userId) {
   const { data, error } = await supabase
-    .from("profiles")
+    .from("bmi_profiles")
     .update({ school_id: schoolId })
     .eq("id", userId)
     .select();
@@ -114,11 +133,11 @@ export async function fetchSchoolForUser(userId) {
   const cfg = loadSupabaseConfig();
 
   const profileRes = await fetch(
-    `${cfg.url}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}&select=school_id`,
+    `${cfg.url}/rest/v1/bmi_profiles?id=eq.${encodeURIComponent(userId)}&select=school_id`,
     {
       headers: {
         apikey: cfg.key,
-        Authorization: `Bearer ${cfg.key}`,
+        Authorization: `Bearer ${await getSupabaseAccessToken(cfg)}`,
       },
     }
   );
@@ -139,7 +158,7 @@ export async function fetchSchoolForUser(userId) {
     {
       headers: {
         apikey: cfg.key,
-        Authorization: `Bearer ${cfg.key}`,
+        Authorization: `Bearer ${await getSupabaseAccessToken(cfg)}`,
       },
     }
   );
@@ -175,7 +194,7 @@ export async function fetchSchoolById(schoolId) {
     {
       headers: {
         apikey: cfg.key,
-        Authorization: `Bearer ${cfg.key}`,
+        Authorization: `Bearer ${await getSupabaseAccessToken(cfg)}`,
       },
     }
   );
@@ -210,7 +229,7 @@ export async function saveSchoolLogoToSupabase({ schoolId, filename, dataUrl }) 
   const storagePath = `${schoolId}/${filename}`;
 
   const { error: uploadError } = await supabase.storage
-    .from('school-logos')
+    .from(SCHOOL_LOGO_BUCKET)
     .upload(storagePath, blob, {
       contentType: blob.type || 'image/png',
       upsert: true,
@@ -221,7 +240,14 @@ export async function saveSchoolLogoToSupabase({ schoolId, filename, dataUrl }) 
     throw uploadError;
   }
 
+  const { data: publicUrlData } = supabase.storage
+    .from(SCHOOL_LOGO_BUCKET)
+    .getPublicUrl(storagePath);
   const logoUrl = publicUrlData?.publicUrl;
+
+  if (!logoUrl) {
+    throw new Error('Supabase did not return a public URL for the school logo.');
+  }
 
   const cfg = loadSupabaseConfig();
   const patchRes = await fetch(
@@ -230,7 +256,7 @@ export async function saveSchoolLogoToSupabase({ schoolId, filename, dataUrl }) 
       method: 'PATCH',
       headers: {
         apikey: cfg.key,
-        Authorization: `Bearer ${cfg.key}`,
+        Authorization: `Bearer ${await getSupabaseAccessToken(cfg)}`,
         'Content-Type': 'application/json',
         Prefer: 'return=minimal',
       },
@@ -257,7 +283,7 @@ export async function fetchAllSchools() {
   const res = await fetch(`${cfg.url}/rest/v1/schools?select=*&order=name.asc`, {
     headers: {
       apikey: cfg.key,
-      Authorization: `Bearer ${cfg.key}`,
+      Authorization: `Bearer ${await getSupabaseAccessToken(cfg)}`,
     },
   });
 
@@ -344,7 +370,7 @@ export async function getSchoolByName(name) {
     {
       headers: {
         apikey: cfg.key,
-        Authorization: `Bearer ${cfg.key}`,
+        Authorization: `Bearer ${await getSupabaseAccessToken(cfg)}`,
       },
     }
   );
@@ -399,6 +425,7 @@ export function isOnline() {
 // ── Supabase API Calls ────────────────────────────────────────────────────
 
 async function supabaseUpsert(cfg, students) {
+  const accessToken = await getSupabaseAccessToken(cfg);
   // 1. Deduplicate by unique student ID to prevent PostgreSQL "ON CONFLICT DO UPDATE" 500 error
   const uniqueMap = new Map();
   students.forEach((student) => {
@@ -430,7 +457,7 @@ async function supabaseUpsert(cfg, students) {
     method: 'POST',
     headers: {
       'apikey':        cfg.key,
-      'Authorization': `Bearer ${cfg.key}`,
+      'Authorization': `Bearer ${accessToken}`,
       'Content-Type':  'application/json',
       'Prefer':        'resolution=merge-duplicates',
     },
@@ -447,13 +474,15 @@ async function supabaseUpsert(cfg, students) {
 async function supabaseDelete(cfg, ids) {
   if (!ids.length) return true;
 
+  const accessToken = await getSupabaseAccessToken(cfg);
+
   const idList = ids.map(id => String(id)).join(',');
 
   const res = await fetch(`${cfg.url}/rest/v1/students?id=in.(${idList})`, {
     method: 'DELETE',
     headers: {
       apikey: cfg.key,
-      Authorization: `Bearer ${cfg.key}`,
+      Authorization: `Bearer ${accessToken}`,
     },
   });
 
@@ -466,6 +495,7 @@ async function supabaseDelete(cfg, ids) {
 }
 
 async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
+  const accessToken = await getSupabaseAccessToken(cfg);
   let url = `${cfg.url}/rest/v1/students?select=*&order=name.asc`;
 
   if (schoolId) {
@@ -474,7 +504,7 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
 
   const headers = {
     'apikey':        cfg.key,
-    'Authorization': `Bearer ${cfg.key}`,
+    'Authorization': `Bearer ${accessToken}`,
   };
 
   let res = await fetch(url, { headers });
@@ -505,7 +535,7 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
     section: r.section,
     parentConsent: r.parent_consent || 'N',
     member4ps: r.member_4ps || 'N',
-    records: Array.isArray(r.records) ? r.records : [],
+    records: normalizeStudentRecords(r.records),
     photo: r.photo_url || null,
   }));
 }

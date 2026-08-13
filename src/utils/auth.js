@@ -140,6 +140,19 @@ function loadOfflineCache() {
   } catch { return {}; }
 }
 
+export function deleteOfflineCredentials(username) {
+  try {
+    const cache = loadOfflineCache();
+    const key = (username || '').toLowerCase();
+    if (!key || !cache[key]) return false;
+
+    delete cache[key];
+    localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(cache));
+    return true;
+  } catch {
+    return false;
+  }
+}
 export function attemptOfflineLogin(username, password) {
   const cache = loadOfflineCache();
   const entry = cache[(username || '').toLowerCase()];

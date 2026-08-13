@@ -15,9 +15,25 @@ db.pragma("journal_mode = WAL");
 // INITIALIZE EXTRA SYNC SCHEMA (New Tables & Migrations)
 // ==========================================
 export function initDatabase() {
-  // Profiles Table (Caching users for offline login matching)
+  // Migrate the legacy offline user cache without touching the students table.
+  const legacyProfilesTable = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'profiles'",
+    )
+    .get();
+  const bmiProfilesTable = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'bmi_profiles'",
+    )
+    .get();
+
+  if (legacyProfilesTable && !bmiProfilesTable) {
+    db.exec("ALTER TABLE profiles RENAME TO bmi_profiles");
+  }
+
+  // BMI Profiles Table (Caching users for offline login matching)
   db.exec(`
-    CREATE TABLE IF NOT EXISTS profiles (
+    CREATE TABLE IF NOT EXISTS bmi_profiles (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
       username TEXT,
@@ -28,9 +44,9 @@ export function initDatabase() {
   `);
 
   // Ensure username column exists if upgrading from an older schema version
-  const profileCols = db.prepare("PRAGMA table_info(profiles)").all();
+  const profileCols = db.prepare("PRAGMA table_info(bmi_profiles)").all();
   if (!profileCols.some((c) => c.name === "username")) {
-    db.exec("ALTER TABLE profiles ADD COLUMN username TEXT");
+    db.exec("ALTER TABLE bmi_profiles ADD COLUMN username TEXT");
   }
 
   // Global Schools Table for offline binding/autocomplete
@@ -161,29 +177,67 @@ export function saveSchoolLocally(school) {
 }
 
 export function updateLocalProfile(profile) {
-  db.prepare(
-    `
-    INSERT INTO profiles (id, email, username, role, school_id, password_hash)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
-      email = excluded.email,
-      username = COALESCE(excluded.username, username),
-      role = excluded.role,
-      school_id = excluded.school_id,
-      password_hash = COALESCE(excluded.password_hash, password_hash)
-  `,
-  ).run(
-    profile.id,
-    profile.email,
-    profile.username || "",
-    profile.role,
-    profile.school_id,
-    profile.password_hash,
-  );
+  const reconcileProfile = db.transaction((nextProfile) => {
+    const cached = db
+      .prepare(
+        "SELECT password_hash FROM bmi_profiles WHERE id = ? OR email = ? LIMIT 1",
+      )
+      .get(nextProfile.id, nextProfile.email);
+
+    // A legacy cache can contain this email under an obsolete auth user ID.
+    // Reconcile both keys before inserting so the UNIQUE(email) constraint
+    // cannot block onboarding, while retaining offline login credentials.
+    db.prepare("DELETE FROM bmi_profiles WHERE id = ? OR email = ?").run(
+      nextProfile.id,
+      nextProfile.email,
+    );
+
+    db.prepare(
+      `
+      INSERT INTO bmi_profiles (id, email, username, role, school_id, password_hash)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `,
+    ).run(
+      nextProfile.id,
+      nextProfile.email,
+      nextProfile.username || "",
+      nextProfile.role,
+      nextProfile.school_id,
+      nextProfile.password_hash ?? cached?.password_hash ?? null,
+    );
+  });
+
+  reconcileProfile(profile);
+}
+
+export function deleteLocalProfile({ id, email, username } = {}) {
+  const conditions = [];
+  const values = [];
+
+  if (id) {
+    conditions.push("id = ?");
+    values.push(String(id));
+  }
+  if (email) {
+    conditions.push("email = ? COLLATE NOCASE");
+    values.push(String(email));
+  }
+  if (username) {
+    conditions.push("username = ? COLLATE NOCASE");
+    values.push(String(username));
+  }
+
+  if (conditions.length === 0) return 0;
+
+  return db
+    .prepare(`DELETE FROM bmi_profiles WHERE ${conditions.join(" OR ")}`)
+    .run(...values).changes;
 }
 
 export function offlineLoginCheck(email, password) {
-  const user = db.prepare("SELECT * FROM profiles WHERE email = ?").get(email);
+  const user = db
+    .prepare("SELECT * FROM bmi_profiles WHERE email = ?")
+    .get(email);
   if (!user)
     return {
       success: false,

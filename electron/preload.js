@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld("sqlite", {
   updateLocalProfile: (profileData) =>
     ipcRenderer.invoke("update-local-profile", profileData),
 
+  deleteLocalProfile: (identity) =>
+    ipcRenderer.invoke("profile:deleteLocal", identity),
+
   // GLOBAL SCHOOL REGISTRY
   getSchoolById: (schoolId) => ipcRenderer.invoke("get-school-by-id", schoolId),
 

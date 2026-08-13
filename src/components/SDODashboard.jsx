@@ -16,6 +16,8 @@ import { getCachedLogoSrc, useLogoCacheHydrated } from "../utils/logoCache";
 import DataAndTables from "./DataAndTables";
 
 // ── Multi-Segment SVG Donut Chart Component ──────────────────────────────────
+import { SCHOOL_OPTIONS } from '../utils/schools';
+
 function MultiSegmentDonut({ segments, total, centerNumber, centerLabel }) {
   let currentOffset = 25; // 12 o'clock position
 
@@ -89,6 +91,16 @@ function MultiSegmentDonut({ segments, total, centerNumber, centerLabel }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function isElementarySchoolName(name) {
+  const normalized = String(name || '').toUpperCase();
+  return (
+    normalized !== 'ALL SCHOOLS' &&
+    !normalized.includes('HIGH SCHOOL') &&
+    !normalized.includes('NATIONAL HIGH') &&
+    !normalized.includes('NHS')
   );
 }
 
@@ -217,7 +229,7 @@ export default function SDODashboard({
   }, [selectedSchool, filterSY, schools]);
 
   const schoolNames = useMemo(() => {
-    const rawSchools = [
+    const fallbackSchools = [
       "Isabela East Central Elementary School",
       "Isabela Bliss Elementary School",
       "Bishop Querexeta Elementary School",
@@ -273,8 +285,24 @@ export default function SDODashboard({
       "Geras Integrated School",
     ];
 
-    return [...rawSchools].sort((a, b) => a.localeCompare(b));
-  }, []);
+    const registeredSchools = schools
+      .map((school) => school.name)
+      .filter(isElementarySchoolName);
+    const schoolsWithStudentData = Object.keys(allSchoolsData).filter(
+      (name) => name && name !== "Unknown School",
+    );
+    const canonicalSchools = SCHOOL_OPTIONS.filter(isElementarySchoolName);
+    const names = [
+      ...canonicalSchools,
+      ...fallbackSchools,
+      ...registeredSchools,
+      ...schoolsWithStudentData,
+    ];
+
+    return [...new Set(names)]
+      .filter(isElementarySchoolName)
+      .sort((a, b) => a.localeCompare(b));
+  }, [schools, allSchoolsData]);
 
   const students = useMemo(() => {
     if (selectedSchool === "ALL SCHOOLS") {

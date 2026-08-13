@@ -1,6 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
-import { loadSupabaseConfig } from "../utils/syncService";
+import { supabase } from '../utils/supabaseClient';
 import {
   calcBMI,
   getBMIStatus,
@@ -366,11 +365,7 @@ export default function SBFPBeneficiaries({
       if (!navigator.onLine) return;
 
       try {
-        const config = loadSupabaseConfig();
-        if (!config?.url || !config?.key) return;
-
-        const supabaseInstance = createClient(config.url, config.key);
-        const { data, error } = await supabaseInstance
+        const { data, error } = await supabase
           .from("schools")
           .select("school_name, school_id")
           .limit(1)
@@ -424,13 +419,9 @@ export default function SBFPBeneficiaries({
 
         if (!navigator.onLine) return;
 
-        const config = loadSupabaseConfig();
-        if (!config?.url || !config?.key) return;
-
         const textSchoolId = String(resolvedSchool.id).trim();
 
-        const supabaseInstance = createClient(config.url, config.key);
-        const { data, error } = await supabaseInstance
+        const { data, error } = await supabase
           .from("sbfp_enrolment")
           .select("data")
           .eq("school_id", textSchoolId)

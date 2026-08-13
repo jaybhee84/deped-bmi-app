@@ -10,7 +10,7 @@ import Badge from "./Badge";
 import Modal from "./Modal";
 import "./SDODatabase.css";
 import { queueStudentForDelete } from "../utils/syncService";
-import { SCHOOL_OPTIONS } from "../constants/schools";
+import { SCHOOL_OPTIONS } from '../utils/schools';
 
 const GRADE_ORDER = [
   "Kinder",

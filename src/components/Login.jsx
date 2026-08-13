@@ -7,6 +7,7 @@ import {
   DIVISION_POSITIONS,
   saveSession,
   cacheOfflineCredentials,
+  deleteOfflineCredentials,
   attemptOfflineLogin,
   hasOfflineCredentials,
 } from "../utils/auth";
@@ -215,7 +216,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
         return;
       }
 
-      const { error: profileError } = await supabase.from("profiles").insert({
+      const { error: profileError } = await supabase.from("bmi_profiles").insert({
         id: data.user.id,
         username: finalUsername,
         email: form.email,
@@ -494,9 +495,19 @@ export default function Login({ onLogin }) {
     }
 
     if (!email) {
-      if (hasOfflineCredentials(username.trim())) {
-        return attemptOfflineFallback(new Error("username not found online"));
+      const normalizedUsername = username.trim();
+
+      // A completed remote lookup is authoritative: remove an account that
+      // no longer exists in Supabase from both offline caches.
+      deleteOfflineCredentials(normalizedUsername);
+      try {
+        await window.sqlite?.deleteLocalProfile?.({
+          username: normalizedUsername,
+        });
+      } catch (deleteError) {
+        console.error("Failed deleting stale local profile:", deleteError);
       }
+
       setLoading(false);
       setError("Invalid username or password.");
       return;
@@ -516,12 +527,29 @@ export default function Login({ onLogin }) {
       }
 
       const { data: profile, error: profileError } = await supabase
-        .from("profiles")
+        .from("bmi_profiles")
         .select("*")
         .eq("id", data.user.id)
         .single();
 
       setLoading(false);
+
+      if (!profile && (!profileError || profileError.code === "PGRST116")) {
+        const normalizedUsername = username.trim();
+        deleteOfflineCredentials(normalizedUsername);
+        try {
+          await window.sqlite?.deleteLocalProfile?.({
+            id: data.user.id,
+            email,
+            username: normalizedUsername,
+          });
+        } catch (deleteError) {
+          console.error("Failed deleting stale local profile:", deleteError);
+        }
+        await supabase.auth.signOut();
+        setError("This account no longer exists.");
+        return;
+      }
 
       if (profileError || !profile) {
         setError(
