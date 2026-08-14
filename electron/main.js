@@ -3,7 +3,7 @@ import os from "os";
 import fs from "fs";
 import https from "https";
 import { fileURLToPath } from "url";
-import { app, BrowserWindow, ipcMain, shell, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, shell, dialog, Menu } from "electron";
 import { PDFDocument } from "pdf-lib";
 import pkg from "electron-updater";
 
@@ -560,6 +560,135 @@ function createWindow() {
 }
 
 // ==========================================
+// MENU BAR
+// ==========================================
+function buildMenu() {
+  const template = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: "about" },
+              { type: "separator" },
+              { role: "services" },
+              { type: "separator" },
+              { role: "hide" },
+              { role: "hideOthers" },
+              { role: "unhide" },
+              { type: "separator" },
+              { role: "quit" },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: "File",
+      submenu: [isMac ? { role: "close" } : { role: "quit" }],
+    },
+    {
+      label: "View",
+      submenu: [
+        { role: "reload" },
+        { role: "forceReload" },
+        { type: "separator" },
+        { role: "resetZoom" },
+        { role: "zoomIn" },
+        { role: "zoomOut" },
+        { type: "separator" },
+        { role: "togglefullscreen" },
+        ...(!app.isPackaged ? [{ type: "separator" }, { role: "toggleDevTools" }] : []),
+      ],
+    },
+    {
+      label: "Help",
+      submenu: [
+        {
+          label: "Check for Updates\u2026",
+          click: async () => {
+            if (!mainWindow) return;
+            mainWindow.webContents.send("update-message", "Checking for updates\u2026");
+            try {
+              if (isMac) {
+                const result = await checkForUpdatesMac();
+                if (!result.success) {
+                  dialog.showMessageBox(mainWindow, {
+                    type: "error",
+                    title: "Update Check Failed",
+                    message: `Could not check for updates: ${result.error || "Unknown error"}`,
+                    buttons: ["OK"],
+                  });
+                  return;
+                }
+                if (!result.updateAvailable) {
+                  dialog.showMessageBox(mainWindow, {
+                    type: "info",
+                    title: "No Updates Available",
+                    message: `You are already on the latest version (v${result.currentVersion}).`,
+                    buttons: ["OK"],
+                  });
+                  return;
+                }
+                const { response } = await dialog.showMessageBox(mainWindow, {
+                  type: "info",
+                  title: "Update Available",
+                  message: `Version v${result.latestVersion} is available (you have v${result.currentVersion}).`,
+                  detail: result.dmgUrl
+                    ? "Click Download to save the installer, or View Release to open the releases page."
+                    : "Click View Release to download the latest version.",
+                  buttons: result.dmgUrl
+                    ? ["Download", "View Release", "Later"]
+                    : ["View Release", "Later"],
+                  defaultId: 0,
+                  cancelId: result.dmgUrl ? 2 : 1,
+                });
+                if (result.dmgUrl && response === 0) {
+                  mainWindow.webContents.send("update-message", "Downloading update\u2026");
+                } else if (
+                  (result.dmgUrl && response === 1) ||
+                  (!result.dmgUrl && response === 0)
+                ) {
+                  shell.openExternal(`https://github.com/${GITHUB_REPO}/releases/latest`);
+                }
+              } else {
+                const checkResult = await autoUpdater.checkForUpdates();
+                const currentVersion = app.getVersion();
+                const latestVersion = checkResult?.updateInfo?.version || currentVersion;
+                if (latestVersion === currentVersion) {
+                  dialog.showMessageBox(mainWindow, {
+                    type: "info",
+                    title: "No Updates Available",
+                    message: `You are already on the latest version (v${currentVersion}).`,
+                    buttons: ["OK"],
+                  });
+                }
+              }
+            } catch (err) {
+              console.error("[Menu] Check for updates failed:", err);
+              dialog.showMessageBox(mainWindow, {
+                type: "error",
+                title: "Update Check Failed",
+                message: `Could not check for updates: ${err.message}`,
+                buttons: ["OK"],
+              });
+            }
+          },
+        },
+        { type: "separator" },
+        {
+          label: "View Release Notes",
+          click: () => {
+            shell.openExternal(`https://github.com/${GITHUB_REPO}/releases/latest`);
+          },
+        },
+      ],
+    },
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+
+// ==========================================
 // FOCUS RECOVERY
 // ==========================================
 ipcMain.on("force-refocus-window", () => {
@@ -575,6 +704,7 @@ ipcMain.on("force-refocus-window", () => {
 app.whenReady().then(() => {
   initDatabase();
   createWindow();
+  buildMenu();
 
   if (app.isPackaged && !isMac) {
     autoUpdater.checkForUpdatesAndNotify();

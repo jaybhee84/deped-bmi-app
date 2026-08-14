@@ -17,6 +17,7 @@ import Login from "./components/Login";
 import SBFPBeneficiaries from "./components/SBFPBeneficiaries";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import OnboardingModal from "./components/OnboardingModal";
+import SplashScreen from "./components/SplashScreen";
 import { SchoolProvider } from "./context/SchoolContext";
 import { RELEASE_NOTES } from "./data/releaseNotes";
 import { getSession, logout, canEdit, ROLES } from "./utils/auth";
@@ -371,6 +372,8 @@ export default function App() {
 
   const [checkingSchoolBinding, setCheckingSchoolBinding] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showSplash, setShowSplash] = useState(false);
+  const [pendingSession, setPendingSession] = useState(null);
 
   useEffect(() => {
     async function verifySchoolBinding() {
@@ -489,7 +492,7 @@ export default function App() {
     }
 
     verifySchoolBinding();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.school_id, session?.role]);
 
   useEffect(() => {
@@ -520,7 +523,7 @@ export default function App() {
     if (session && !checkingSchoolBinding) {
       loadSchoolName();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.school_name, checkingSchoolBinding]);
 
   const [updateReady, setUpdateReady] = useState(false);
@@ -701,7 +704,7 @@ export default function App() {
       }
     }
     startupSync();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.role, session?.school_id, checkingSchoolBinding]);
 
   function updateStudents(updaterOrValue) {
@@ -771,8 +774,16 @@ export default function App() {
         });
       }
     }
-    setSession(sess);
+    // Show splash animation, then commit the session when it finishes
+    setPendingSession(sess);
+    setShowSplash(true);
+  }
+
+  function handleSplashDone() {
+    setShowSplash(false);
+    setSession(pendingSession);
     setPage("dashboard");
+    setPendingSession(null);
   }
 
   useEffect(() => {
@@ -885,7 +896,14 @@ export default function App() {
     }, {});
   }, [safeStudents, session, schoolName]);
 
-  if (!session) return <Login onLogin={handleLogin} />;
+  if (!session) {
+    return (
+      <>
+        <Login onLogin={handleLogin} />
+        {showSplash && <SplashScreen onDone={handleSplashDone} />}
+      </>
+    );
+  }
 
   if (checkingSchoolBinding) {
     return (
