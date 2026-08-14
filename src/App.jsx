@@ -31,6 +31,7 @@ import {
   isOnline,
   isSupabaseConfigured,
   fetchSchoolForUser,
+  fetchAllSchools,
 } from "./utils/syncService";
 import "./App.css";
 
@@ -548,9 +549,29 @@ export default function App() {
     if (!session?.id || normalizedRole !== "division") return;
 
     let cancelled = false;
-    hydrateLogoCache().then(() => {
-      if (!cancelled) preloadAllSchoolLogos();
-    });
+
+    async function preloadData() {
+      // Pre-load logos and schools for SDO users
+      try {
+        await hydrateLogoCache();
+        if (!cancelled) {
+          await preloadAllSchoolLogos();
+        }
+      } catch (e) {
+        console.warn("[App] Failed to preload logos:", e);
+      }
+
+      // Pre-load schools list so it's immediately available when SDODashboard mounts
+      try {
+        await fetchAllSchools();
+      } catch (e) {
+        console.warn("[App] Failed to preload schools list:", e);
+        // This is non-critical; fetchAllSchools will handle caching fallback
+      }
+    }
+
+    preloadData();
+
     return () => {
       cancelled = true;
     };

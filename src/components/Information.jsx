@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
-import { fetchSchoolForUser } from "../utils/syncService";
+import {
+  fetchSchoolForUserOfflineFirst,
+  fetchAllSchools,
+} from "../utils/syncService";
 import { RELEASE_NOTES } from "../data/releaseNotes";
 import "./Information.css";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
@@ -94,48 +97,48 @@ export default function Information({
           isMissing(localSchool.district) ||
           isMissing(localSchool.address);
 
-        // 2. If the local cache is missing district/address, pull the
-        // current record from Supabase and use it to both update what's
-        // on screen AND repair the local cache, so this doesn't have to
-        // re-fetch from the network every time the page loads.
-        if (localIncomplete && currentUser?.id && navigator.onLine) {
-          const boundSchool = await fetchSchoolForUser(currentUser.id);
+        // 2. Try to fetch the current record from Supabase (if online) and use it to
+        // both update what's on screen AND repair the local cache. If offline, use the
+        // offline-first function which will return local cache.
+        if (localIncomplete && currentUser?.id) {
+          try {
+            const boundSchool = await fetchSchoolForUserOfflineFirst(currentUser.id);
 
-          if (boundSchool) {
-            // fetchSchoolForUser returns the school id under `id`, but
-            // guard against either key so a rename on either side can't
-            // silently blank this field again.
-            const schoolId = boundSchool.school_id || boundSchool.id || "";
+            if (boundSchool) {
+              // fetchSchoolForUserOfflineFirst returns the school id under `id`
+              const schoolId = boundSchool.school_id || boundSchool.id || "";
 
-            setSchool({
-              name: boundSchool.name || "",
-              id: schoolId,
-              division: boundSchool.division || "",
-              district: boundSchool.district || "",
-              address: boundSchool.address || "",
-            });
+              setSchool({
+                name: boundSchool.name || "",
+                id: schoolId,
+                division: boundSchool.division || "",
+                district: boundSchool.district || "",
+                address: boundSchool.address || "",
+              });
 
-            const logoUrl = getSchoolLogoUrl(boundSchool.name);
-            setSchoolLogo(logoUrl);
+              const logoUrl = getSchoolLogoUrl(boundSchool.name);
+              setSchoolLogo(logoUrl);
 
-            // Resave to SQLite to correct the local storage record file
-            if (window.sqlite?.saveSchool) {
-              await window.sqlite.saveSchool(
-                {
-                  school_name: boundSchool.name,
-                  school_id: schoolId,
-                  division: boundSchool.division || "",
-                  district: boundSchool.district,
-                  address: boundSchool.address,
-                },
-                currentUser.id,
-              );
+              // Resave to SQLite to correct the local storage record file
+              if (window.sqlite?.saveSchool) {
+                await window.sqlite.saveSchool(
+                  {
+                    school_name: boundSchool.name,
+                    school_id: schoolId,
+                    division: boundSchool.division || "",
+                    district: boundSchool.district,
+                    address: boundSchool.address,
+                  },
+                  currentUser.id,
+                );
+              }
+
+              setSchoolName(boundSchool.name);
+              setSchoolLoaded(true);
             }
-
-            setSchoolName(boundSchool.name);
-            setSchoolLoaded(true);
+          } catch (e) {
+            console.warn("[Information] Failed to fetch school data:", e.message);
           }
-        }
       } catch (e) {
         console.error("[SQLite] Failed to load school context info:", e);
       }

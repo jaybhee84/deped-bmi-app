@@ -11,6 +11,8 @@ const KEYS = {
   DELETE_QUEUE: 'deped_bmi_delete_queue',
   SUPABASE:     'deped_bmi_supabase',
   LAST_SYNC:    'deped_bmi_last_sync',
+  SCHOOLS_CACHE: 'deped_bmi_schools_cache',
+  SCHOOLS_CACHE_TIME: 'deped_bmi_schools_cache_time',
 };
 
 // ── Local Storage Helpers ─────────────────────────────────────────────────
@@ -184,6 +186,86 @@ export async function fetchSchoolForUser(userId) {
   };
 }
 
+// ── Offline-First School Fetching ───────────────────────────────────────────
+
+export async function fetchSchoolForUserOfflineFirst(userId) {
+  if (!userId) return null;
+
+  // 1. Try to get from local SQLite first (works offline)
+  if (window.sqlite?.loadSchool) {
+    try {
+      const localSchool = await window.sqlite.loadSchool(userId);
+      if (localSchool && (localSchool.school_id || localSchool.id)) {
+        return {
+          id: localSchool.school_id || localSchool.id,
+          name: localSchool.school_name || localSchool.name || "",
+          logo_url: localSchool.logo_url || null,
+          division: localSchool.division || "",
+          district: localSchool.district || "",
+          address: localSchool.address || "",
+          source: 'local',
+        };
+      }
+    } catch (e) {
+      console.error("[SQLite] Failed to load school locally:", e);
+    }
+  }
+
+  // 2. If online, fetch from Supabase to get latest data
+  if (navigator.onLine) {
+    try {
+      const remote = await fetchSchoolForUser(userId);
+      if (remote && window.sqlite?.saveSchool) {
+        // Cache it locally for next time offline
+        await window.sqlite.saveSchool(
+          {
+            school_id: remote.id,
+            school_name: remote.name,
+            division: remote.division,
+            district: remote.district,
+            address: remote.address,
+            logo_url: remote.logo_url,
+          },
+          userId
+        ).catch(e => console.warn("[SQLite] Failed to cache school:", e));
+      }
+      return remote ? { ...remote, source: 'remote' } : null;
+    } catch (e) {
+      console.error("[Sync] Failed to fetch school from Supabase:", e);
+      return null;
+    }
+  }
+
+  return null;
+}
+
+export async function saveSchoolsCache(schools) {
+  try {
+    localStorage.setItem(KEYS.SCHOOLS_CACHE, JSON.stringify(schools));
+    localStorage.setItem(KEYS.SCHOOLS_CACHE_TIME, new Date().toISOString());
+  } catch (e) {
+    console.warn("[Cache] Failed to save schools cache:", e);
+  }
+}
+
+export function loadSchoolsCache() {
+  try {
+    const raw = localStorage.getItem(KEYS.SCHOOLS_CACHE);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function getSchoolsCacheTime() {
+  try {
+    const raw = localStorage.getItem(KEYS.SCHOOLS_CACHE_TIME);
+    return raw ? new Date(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchSchoolById(schoolId) {
   if (!schoolId) return null;
 
@@ -278,29 +360,57 @@ export function isSupabaseConfigured() {
 }
 
 export async function fetchAllSchools() {
-  const cfg = loadSupabaseConfig();
-
-  const res = await fetch(`${cfg.url}/rest/v1/schools?select=*&order=name.asc`, {
-    headers: {
-      apikey: cfg.key,
-      Authorization: `Bearer ${await getSupabaseAccessToken(cfg)}`,
-    },
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Failed fetching schools: ${res.status} — ${err}`);
+  // If offline, return cached schools
+  if (!navigator.onLine) {
+    const cached = loadSchoolsCache();
+    if (cached.length > 0) {
+      console.log("[Sync] Using cached schools (offline)");
+      return cached;
+    }
+    throw new Error("No internet connection and no cached schools available");
   }
 
-  const rows = await res.json();
-  return rows.map((r) => ({
-    id: r.school_id,
-    name: r.name || r.school_name, 
-    division: r.division,
-    district: r.district,
-    address: r.address,
-    logo: r.logo_url || null,
-  }));
+  const cfg = loadSupabaseConfig();
+
+  try {
+    const res = await fetch(`${cfg.url}/rest/v1/schools?select=*&order=name.asc`, {
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${await getSupabaseAccessToken(cfg)}`,
+      },
+    });
+
+    if (!res.ok) {
+      const cached = loadSchoolsCache();
+      if (cached.length > 0) {
+        console.warn("[Sync] Failed to fetch schools, using cache. Error:", res.status);
+        return cached;
+      }
+      throw new Error(`Failed fetching schools: ${res.status}`);
+    }
+
+    const rows = await res.json();
+    const schools = rows.map((r) => ({
+      id: r.school_id,
+      name: r.name || r.school_name, 
+      division: r.division,
+      district: r.district,
+      address: r.address,
+      logo: r.logo_url || null,
+    }));
+
+    // Cache the schools for offline use
+    await saveSchoolsCache(schools);
+    return schools;
+  } catch (e) {
+    console.error("[Sync] Error fetching schools:", e.message);
+    const cached = loadSchoolsCache();
+    if (cached.length > 0) {
+      console.log("[Sync] Falling back to cached schools");
+      return cached;
+    }
+    throw e;
+  }
 }
 
 // ── Sync Queue ────────────────────────────────────────────────────────────

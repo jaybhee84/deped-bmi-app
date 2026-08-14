@@ -16,7 +16,7 @@ import { getCachedLogoSrc, useLogoCacheHydrated } from "../utils/logoCache";
 import DataAndTables from "./DataAndTables";
 
 // ── Multi-Segment SVG Donut Chart Component ──────────────────────────────────
-import { SCHOOL_OPTIONS } from '../utils/schools';
+import { SCHOOL_OPTIONS } from "../utils/schools";
 
 function MultiSegmentDonut({ segments, total, centerNumber, centerLabel }) {
   let currentOffset = 25; // 12 o'clock position
@@ -95,12 +95,12 @@ function MultiSegmentDonut({ segments, total, centerNumber, centerLabel }) {
 }
 
 function isElementarySchoolName(name) {
-  const normalized = String(name || '').toUpperCase();
+  const normalized = String(name || "").toUpperCase();
   return (
-    normalized !== 'ALL SCHOOLS' &&
-    !normalized.includes('HIGH SCHOOL') &&
-    !normalized.includes('NATIONAL HIGH') &&
-    !normalized.includes('NHS')
+    normalized !== "ALL SCHOOLS" &&
+    !normalized.includes("HIGH SCHOOL") &&
+    !normalized.includes("NATIONAL HIGH") &&
+    !normalized.includes("NHS")
   );
 }
 
@@ -140,7 +140,10 @@ export default function SDODashboard({
         if (!cancelled) setSchools(rows);
       } catch (e) {
         console.error("[SDODashboard] Failed to fetch schools:", e);
-        if (!cancelled) setSchoolsError(e.message || "Failed to load schools.");
+        const errorMsg = !navigator.onLine
+          ? "Offline mode: Using cached schools. Some data may not be current."
+          : e.message || "Failed to load schools.";
+        if (!cancelled) setSchoolsError(errorMsg);
       } finally {
         if (!cancelled) setSchoolsLoading(false);
       }
