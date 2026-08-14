@@ -489,7 +489,8 @@ export default function App() {
     }
 
     verifySchoolBinding();
-  }, [session]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id, session?.school_id, session?.role]);
 
   useEffect(() => {
     async function loadSchoolName() {
@@ -519,7 +520,8 @@ export default function App() {
     if (session && !checkingSchoolBinding) {
       loadSchoolName();
     }
-  }, [session, checkingSchoolBinding]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id, session?.school_name, checkingSchoolBinding]);
 
   const [updateReady, setUpdateReady] = useState(false);
 
@@ -699,7 +701,8 @@ export default function App() {
       }
     }
     startupSync();
-  }, [session, checkingSchoolBinding]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id, session?.role, session?.school_id, checkingSchoolBinding]);
 
   function updateStudents(updaterOrValue) {
     setStudents((prev) => {

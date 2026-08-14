@@ -156,6 +156,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
   const suggestedUser = suggestUsername(form.firstName, form.lastName);
 
   useEffect(() => {
+    if (!form.usernameTouched) return;
     const finalUsername = form.username.trim();
     if (!finalUsername) {
       setError("Username is required.");
@@ -167,7 +168,8 @@ function RegisterForm({ role, onSuccess, onBack }) {
       );
       return;
     }
-  }, [suggestedUser, form.username]);
+    setError("");
+  }, [suggestedUser, form.username, form.usernameTouched]);
 
   async function handleRegister(e) {
     e.preventDefault();
@@ -216,17 +218,19 @@ function RegisterForm({ role, onSuccess, onBack }) {
         return;
       }
 
-      const { error: profileError } = await supabase.from("bmi_profiles").insert({
-        id: data.user.id,
-        username: finalUsername,
-        email: form.email,
-        lastname: form.lastName,
-        firstname: form.firstName,
-        middleinitial: form.middleInitial,
-        fullname: fullName,
-        role,
-        position: form.position,
-      });
+      const { error: profileError } = await supabase
+        .from("bmi_profiles")
+        .insert({
+          id: data.user.id,
+          username: finalUsername,
+          email: form.email,
+          lastname: form.lastName,
+          firstname: form.firstName,
+          middleinitial: form.middleInitial,
+          fullname: fullName,
+          role,
+          position: form.position,
+        });
 
       if (profileError) {
         console.error("PROFILE ERROR", profileError);

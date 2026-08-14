@@ -102,7 +102,9 @@ export default function Information({
         // offline-first function which will return local cache.
         if (localIncomplete && currentUser?.id) {
           try {
-            const boundSchool = await fetchSchoolForUserOfflineFirst(currentUser.id);
+            const boundSchool = await fetchSchoolForUserOfflineFirst(
+              currentUser.id,
+            );
 
             if (boundSchool) {
               // fetchSchoolForUserOfflineFirst returns the school id under `id`
@@ -137,8 +139,12 @@ export default function Information({
               setSchoolLoaded(true);
             }
           } catch (e) {
-            console.warn("[Information] Failed to fetch school data:", e.message);
+            console.warn(
+              "[Information] Failed to fetch school data:",
+              e.message,
+            );
           }
+        }
       } catch (e) {
         console.error("[SQLite] Failed to load school context info:", e);
       }
