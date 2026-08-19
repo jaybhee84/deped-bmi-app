@@ -1,4 +1,7 @@
 export const RELEASE_NOTES = {
+  '2.0.2': {
+    silent: true,
+  },
   '2.0.1': {
     silent: true,
   },

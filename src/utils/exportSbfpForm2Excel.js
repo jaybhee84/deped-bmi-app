@@ -45,13 +45,13 @@ function summarize(label, sex, students) {
     stunted: count(students, (s) => s.haz?.label === "Stunted"),
     hNormal: count(students, (s) => s.haz?.label === "Normal"),
     tall: count(students, (s) => s.haz?.label === "Tall"),
-    adolescent: 0,
-    pardo: 0,
-    stuntedTotal: count(students, (s) =>
-      ["Severely Stunted", "Stunted"].includes(s.haz?.label),
-    ),
-    indigent: 0,
-    indigenous: 0,
+    // This application contains elementary learners only. Secondary-target
+    // fields do not apply and must remain blank on screen and in the export.
+    adolescent: "",
+    pardo: "",
+    stuntedTotal: "",
+    indigent: "",
+    indigenous: "",
     dewormed: count(students, (s) => yes(s.dewormed)),
     fourPs: count(students, (s) => yes(s.member4ps)),
     repeaters: count(students, (s) => yes(s.previousSbfpBeneficiary)),
