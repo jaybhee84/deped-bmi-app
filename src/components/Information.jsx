@@ -49,7 +49,10 @@ export default function Information({
 
   // Pull the real release notes for whatever version is actually running,
   // instead of hardcoded mock content.
-  const releaseNotes = RELEASE_NOTES[appVersion] || null;
+  const versionNotes = RELEASE_NOTES[appVersion] || null;
+  const releaseNotes = versionNotes?.silent
+    ? RELEASE_NOTES["2.0.0"]
+    : versionNotes;
 
   // Dynamic calculations monitoring real-time total student profiles tracking context
   const totalLearnersEnrolled = useMemo(() => {

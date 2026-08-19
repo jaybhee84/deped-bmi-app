@@ -559,6 +559,7 @@ async function supabaseUpsert(cfg, students) {
     section: s.section,
     parent_consent: s.parentConsent || 'N',
     member_4ps: s.member4ps || 'N',
+    previous_sbfp_beneficiary: s.previousSbfpBeneficiary || 'N',
     records: s.records,
     updated_at: new Date().toISOString(),
   }));
@@ -645,6 +646,7 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
     section: r.section,
     parentConsent: r.parent_consent || 'N',
     member4ps: r.member_4ps || 'N',
+    previousSbfpBeneficiary: r.previous_sbfp_beneficiary || 'N',
     records: normalizeStudentRecords(r.records),
     photo: r.photo_url || null,
   }));

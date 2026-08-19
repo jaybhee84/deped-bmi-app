@@ -5,7 +5,10 @@ import { RELEASE_NOTES } from "../data/releaseNotes";
 
 export default function SDOInformation() {
   const [version, setVersion] = useState("");
-  const latestRelease = RELEASE_NOTES[version];
+  const versionNotes = RELEASE_NOTES[version];
+  const latestRelease = versionNotes?.silent
+    ? RELEASE_NOTES["2.0.0"]
+    : versionNotes;
 
   useEffect(() => {
     if (window.electronAPI?.getAppVersion) {

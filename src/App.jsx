@@ -547,7 +547,11 @@ export default function App() {
       const version = await window.electronAPI.getAppVersion();
       const lastSeen = localStorage.getItem("last_seen_version");
 
-      if (version !== lastSeen && RELEASE_NOTES[version]) {
+      if (
+        version !== lastSeen &&
+        RELEASE_NOTES[version] &&
+        !RELEASE_NOTES[version].silent
+      ) {
         setReleaseData(RELEASE_NOTES[version]);
         setShowReleaseNotes(true);
         localStorage.setItem("last_seen_version", version);

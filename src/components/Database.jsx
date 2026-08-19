@@ -11,7 +11,10 @@ import {
 } from "../utils/bmi";
 import Badge from "./Badge";
 import Modal from "./Modal";
-import { queueStudentForDelete } from "../utils/syncService";
+import {
+  queueStudentForDelete,
+  queueStudentForSync,
+} from "../utils/syncService";
 import { getStudentIdentifier } from "../utils/registry";
 
 const PERIODS = ["Baseline", "Midline", "Endline"];
@@ -177,16 +180,18 @@ export default function Database({
 
   async function saveStudentChanges(student) {
     try {
-      if (window.sqlite?.updateStudentWorkspaceMeta) {
-        await window.sqlite.updateStudentWorkspaceMeta(
-          student.id,
-          {
-            parentConsent: student.parentConsent,
-            member4ps: student.member4ps,
-          },
-          currentUser?.id,
+      if (window.sqlite?.saveStudents) {
+        await window.sqlite.saveStudents(
+          students.map((s) =>
+            s.id === student.id
+              ? { ...s, hasUnsavedChanges: false }
+              : s,
+          ),
+          true,
         );
       }
+
+      queueStudentForSync(student.id);
 
       setStudents((prev) =>
         prev.map((s) =>
@@ -551,6 +556,14 @@ export default function Database({
                       filterSy === "All" ? "2026–2027" : filterSy,
                     );
 
+                    const previousSbfpValue =
+                      s.previousSbfpBeneficiary === "Y" ||
+                      s.previousSbfpBeneficiary === "N"
+                        ? s.previousSbfpBeneficiary
+                        : previousSbfp
+                          ? "Y"
+                          : "N";
+
                     return (
                       <tr
                         key={s.id}
@@ -693,14 +706,31 @@ export default function Database({
                           </select>
                         </td>
                         <td style={{ textAlign: "center" }}>
-                          <span
+                          <select
+                            value={previousSbfpValue}
+                            disabled={readOnly}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) =>
+                              updateStudentField(
+                                s.id,
+                                "previousSbfpBeneficiary",
+                                e.target.value,
+                              )
+                            }
                             style={{
-                              color: previousSbfp ? "#16a34a" : "#dc2626",
+                              color:
+                                previousSbfpValue === "Y"
+                                  ? "#16a34a"
+                                  : "#dc2626",
                               fontWeight: "bold",
+                              maxWidth: "60px",
+                              margin: "0 auto",
+                              display: "block",
                             }}
                           >
-                            {previousSbfp ? "Y" : "N"}
-                          </span>
+                            <option value="Y">Y</option>
+                            <option value="N">N</option>
+                          </select>
                         </td>
                         <td>
                           {!readOnly &&
