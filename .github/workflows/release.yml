@@ -2,6 +2,7 @@ name: Build and Release
 permissions:
   contents: write
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -68,6 +69,8 @@ jobs:
           pattern: release-*
           path: release
           merge-multiple: true
+      - name: Validate updater metadata
+        run: node scripts/validate-release-assets.mjs release
       - name: Create GitHub release and upload packages
         uses: softprops/action-gh-release@v2
         with:
@@ -76,6 +79,7 @@ jobs:
           body_path: RELEASE_BODY.md
           files: release/*
           fail_on_unmatched_files: true
+          overwrite_files: true
           draft: false
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
