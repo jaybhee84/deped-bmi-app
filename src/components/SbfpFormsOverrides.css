@@ -1,0 +1,239 @@
+.sbfp-form-sheet-wrap {
+  overflow: hidden;
+}
+.sbfp-forms-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid #b7d6c4;
+  border-radius: 8px;
+  background: #f0f8f3;
+}
+.sbfp-forms-filters label {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 150px;
+  white-space: nowrap;
+  color: #0f5132;
+}
+.sbfp-forms-filters select {
+  width: 160px;
+  min-width: 160px;
+  height: 38px;
+  border-color: #86b99d;
+}
+.sbfp-forms-filters select:focus {
+  border-color: #0f5132;
+  outline: 2px solid rgba(15, 81, 50, 0.18);
+  outline-offset: 1px;
+}
+.sbfp-inline-detail {
+  width: 220px;
+  padding: 1px 2px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+}
+.sbfp-inline-detail:focus {
+  background: #f0fdf4;
+  box-shadow: inset 0 0 0 1px #86b99d;
+}
+.sbfp-inline-detail[readonly] {
+  cursor: default;
+}
+.sbfp-yes-no-cell.read-only {
+  cursor: default !important;
+  user-select: text !important;
+}
+.sbfp-table-scroll {
+  max-height: calc(100vh - 330px);
+  min-height: 220px;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+.sbfp-form-table {
+  table-layout: fixed;
+}
+.sbfp-form-table th {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.15;
+}
+.sbfp-form-table thead th {
+  text-align: center !important;
+  vertical-align: middle;
+}
+.sbfp-form-table col:nth-child(1) {
+  width: 42px;
+}
+.sbfp-form-table col:nth-child(2) {
+  width: 240px;
+}
+.sbfp-form-table col:nth-child(3) {
+  width: 48px;
+}
+.sbfp-form-table col:nth-child(4) {
+  width: 170px;
+}
+.sbfp-form-table col:nth-child(5),
+.sbfp-form-table col:nth-child(6),
+.sbfp-form-table col:nth-child(7),
+.sbfp-form-table col:nth-child(10),
+.sbfp-form-table col:nth-child(n + 13) {
+  width: 92px;
+}
+.sbfp-form-table col:nth-child(8),
+.sbfp-form-table col:nth-child(9) {
+  width: 68px;
+}
+.sbfp-form-table col:nth-child(11),
+.sbfp-form-table col:nth-child(12) {
+  width: 72px;
+}
+.sbfp-form-table tbody td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.sbfp-form-table tbody td:nth-child(2),
+.sbfp-form-table tbody td:nth-child(4) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+.sbfp-form-table tbody td.sbfp-yes-no-cell {
+  cursor: text;
+  user-select: none;
+}
+.sbfp-form-table tbody td.sbfp-yes-no-cell.selected {
+  background: #bbf7d0;
+  box-shadow: inset 0 0 0 2px #167a45;
+}
+.sbfp-form-table tbody td.sbfp-yes-no-cell:focus {
+  outline: 2px solid #167a45;
+  outline-offset: -2px;
+  background: #f0fdf4;
+}
+.sbfp-form2-sheet {
+  min-width: 1495px;
+}
+.form2-details {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  margin: 6px 0 2px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 11px;
+}
+.form2-details label,
+.form2-details span {
+  min-height: 16px;
+  line-height: 16px;
+}
+.sbfp-form2-sheet h2 {
+  margin: 0;
+}
+.sbfp-form2-sheet h3 {
+  margin: 7px 0 5px;
+}
+.sbfp-form2-sheet .sbfp-inline-detail {
+  width: 190px;
+  padding-block: 0;
+}
+.form2-details select {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: inherit;
+}
+.form2-details input,
+.form2-details select {
+  font-size: 11px;
+  line-height: 16px;
+}
+.form2-scroll {
+  max-height: calc(100vh - 390px);
+}
+.sbfp-form2-table {
+  min-width: 1495px;
+  table-layout: fixed;
+}
+.sbfp-form2-table th,
+.sbfp-form2-table td {
+  white-space: normal;
+  text-align: center;
+}
+.sbfp-form2-table col:nth-child(1) {
+  width: 150px;
+}
+.sbfp-form2-table col:nth-child(2) {
+  width: 62px;
+}
+.sbfp-form2-table col:nth-child(n + 3):nth-child(-n + 12) {
+  width: 66px;
+}
+.sbfp-form2-table col:nth-child(n + 13):nth-child(-n + 17) {
+  width: 65px;
+}
+.sbfp-form2-table col:nth-child(n + 18):nth-child(-n + 20) {
+  width: 70px;
+}
+.sbfp-form2-table col:nth-child(21) {
+  width: 85px;
+}
+.sbfp-form2-table .form2-grade-cell {
+  vertical-align: middle;
+  font-weight: 700;
+}
+.sbfp-form2-table thead th {
+  padding: 4px 3px;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+.sbfp-form2-table tbody td {
+  cursor: default;
+  text-align: center !important;
+  vertical-align: middle;
+}
+.sbfp-form2-table .form2-total-row td {
+  background: #eef2f7;
+  font-weight: 700;
+}
+.form2-signatures {
+  display: grid;
+  grid-template-columns: 872px 325px 1fr;
+  gap: 0;
+  margin-top: 28px;
+  text-align: center;
+  font-weight: 700;
+}
+.form2-signatures span:first-child {
+  text-align: left;
+}
+.form2-signatures span:last-child {
+  grid-column: 2;
+  text-align: center;
+}
+@media (max-width: 760px) {
+  .sbfp-forms-filters {
+    width: 100%;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+  }
+  .sbfp-forms-filters label,
+  .sbfp-forms-filters select {
+    flex: 1 1 150px;
+    width: 100%;
+    min-width: 0;
+  }
+}
+.sbfp-form-table th:nth-child(n + 3),
+.sbfp-form-table td:nth-child(n + 3) {
+  text-align: center;
+}

@@ -40,8 +40,16 @@ export const HAZ_CLASSIFICATIONS = Object.entries(HAZ_META).map(([label, meta]) 
 
 // ── Basic calculations ────────────────────────────────────────────────────
 
+export function normalizeHeightCm(height) {
+  const value = parseFloat(height);
+  if (!value || value <= 0) return null;
+  // Learner height is stored in centimetres. Support older/imported records
+  // that were entered in metres (for example, 1.28 instead of 128).
+  return value <= 3 ? value * 100 : value;
+}
+
 export function calcBMI(weight, height) {
-  const h = parseFloat(height) / 100;
+  const h = normalizeHeightCm(height) / 100;
   const w = parseFloat(weight);
   if (!h || !w || h <= 0 || w <= 0) return null;
   return w / (h * h);
@@ -105,7 +113,7 @@ export function getHAZStatus(heightCm, sex, birthdate, fallbackMonths) {
   const months = birthdate ? ageInMonths(birthdate) : fallbackMonths;
   if (months == null) return null;
 
-  const h           = parseFloat(heightCm);
+  const h           = normalizeHeightCm(heightCm);
   const table       = sex === 'F' ? HAZ_TABLE_GIRLS : HAZ_TABLE_BOYS;
   const clampMonths = Math.max(36, Math.min(228, months));
   const row         = table[clampMonths];

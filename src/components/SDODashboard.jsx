@@ -863,13 +863,17 @@ export default function SDODashboard({
         </div>
         <div className="sdo-controls">
           <div className="form-group">
-            <label className="form-label">School</label>
+            <label className="form-label">
+              School ({schoolNames.length} schools)
+            </label>
             <select
               className="form-select sdo-school-select"
               value={selectedSchool}
               onChange={(e) => setSelectedSchool(e.target.value)}
             >
-              <option value="ALL SCHOOLS">ALL SCHOOLS</option>
+              <option value="ALL SCHOOLS">
+                ALL SCHOOLS ({schoolNames.length})
+              </option>
               <optgroup label="ELEMENTARY SCHOOLS">
                 {schoolNames.map((name) => (
                   <option key={name} value={name}>

@@ -60,7 +60,21 @@ app.disableHardwareAcceleration();
 // AUTO UPDATER Configuration (Windows / Linux)
 // ==========================================
 autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
+// Download silently, but only install after the user explicitly confirms.
+autoUpdater.autoInstallOnAppQuit = false;
+
+let downloadedUpdate = null;
+let updatePromptOpen = false;
+let updateInstallStarted = false;
+
+function installDownloadedUpdate() {
+  if (!downloadedUpdate || updateInstallStarted) return;
+
+  updateInstallStarted = true;
+  mainWindow?.webContents.send("update-installing", downloadedUpdate);
+  // Run the downloaded NSIS installer silently, then launch the updated app.
+  autoUpdater.quitAndInstall(true, true);
+}
 
 autoUpdater.on("checking-for-update", () => {
   console.log("[Updater] Checking for updates...");
@@ -84,24 +98,34 @@ autoUpdater.on("update-not-available", (info) => {
 
 autoUpdater.on("update-downloaded", (info) => {
   console.log("[Updater] Update downloaded, prompting restart.");
+  downloadedUpdate = info;
   if (mainWindow) {
     mainWindow.webContents.send("update-ready", info);
   }
 
-  // Native prompt asking the user to restart and install immediately
+  if (updatePromptOpen) return;
+  updatePromptOpen = true;
+
+  // Prompt only after the complete installer is safely downloaded.
   dialog
     .showMessageBox(mainWindow, {
       type: "info",
-      title: "Update Ready",
-      message: `Version v${info.version} has been downloaded. Restart the application now to apply the update?`,
-      buttons: ["Restart & Install", "Later"],
+      title: "Update Ready to Install",
+      message: `Version v${info.version} is ready to install.`,
+      detail:
+        "Install now? The app will close, install the update, and relaunch automatically.",
+      buttons: ["Install & Restart", "Later"],
       defaultId: 0,
       cancelId: 1,
+      noLink: true,
     })
     .then((result) => {
       if (result.response === 0) {
-        autoUpdater.quitAndInstall(false, true);
+        installDownloadedUpdate();
       }
+    })
+    .finally(() => {
+      updatePromptOpen = false;
     });
 });
 
@@ -114,7 +138,7 @@ autoUpdater.on("error", (err) => {
 });
 
 ipcMain.on("restart-app-for-update", () => {
-  autoUpdater.quitAndInstall(false, true);
+  installDownloadedUpdate();
 });
 
 ipcMain.handle("app:getVersion", () => {
@@ -707,7 +731,10 @@ app.whenReady().then(() => {
   buildMenu();
 
   if (app.isPackaged && !isMac) {
-    autoUpdater.checkForUpdatesAndNotify();
+    // autoDownload handles the transfer; no OS notification is shown here.
+    autoUpdater.checkForUpdates().catch((error) => {
+      console.error("[Updater] Startup update check failed:", error);
+    });
   }
 
   app.on("activate", () => {

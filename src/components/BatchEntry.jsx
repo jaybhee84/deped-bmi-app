@@ -263,6 +263,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
           sy,
           q: quarter,
           date,
+          section: sectionLabel,
           weight:
             row.weight.toString().trim() !== "" ? parseFloat(row.weight) : null,
           height:

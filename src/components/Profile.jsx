@@ -35,6 +35,61 @@ function formatDateMMDDYYYY(dateStr) {
   return `${month}/${day}/${year}`;
 }
 
+const HISTORY_GRADES = [
+  "Kinder",
+  "Grade 1",
+  "Grade 2",
+  "Grade 3",
+  "Grade 4",
+  "Grade 5",
+  "Grade 6",
+];
+
+function normalizedHistoryGrade(value) {
+  const text = String(value || "").trim();
+  if (/^kinder/i.test(text)) return "Kinder";
+  const match = text.match(/^grade\s*([1-6])/i);
+  return match ? `Grade ${match[1]}` : null;
+}
+
+function schoolYearStart(value) {
+  const match = String(value || "").match(/\d{4}/);
+  return match ? Number(match[0]) : null;
+}
+
+function buildNutritionalHistory(student) {
+  const records = student.records || [];
+  const currentGrade = normalizedHistoryGrade(student.section || student.grade);
+  const currentGradeIndex = HISTORY_GRADES.indexOf(currentGrade);
+  const latestYear = Math.max(
+    ...records.map((record) => schoolYearStart(record.sy) || 0),
+  );
+  const grouped = new Map();
+
+  records.forEach((record) => {
+    let grade = normalizedHistoryGrade(record.section || record.grade);
+    const recordYear = schoolYearStart(record.sy);
+    if (!grade && currentGradeIndex >= 0 && recordYear && latestYear) {
+      const inferredIndex = currentGradeIndex - (latestYear - recordYear);
+      if (inferredIndex >= 0 && inferredIndex < HISTORY_GRADES.length) {
+        grade = HISTORY_GRADES[inferredIndex];
+      }
+    }
+    if (!grade || !["Baseline", "Midline", "Endline"].includes(record.q))
+      return;
+    const bmi = calcBMI(record.weight, record.height);
+    if (!bmi) return;
+    const status = getBMIStatus(bmi, student.sex, student.birthdate);
+    if (!grouped.has(grade)) grouped.set(grade, {});
+    grouped.get(grade)[record.q] = status;
+  });
+
+  return HISTORY_GRADES.filter((grade) => grouped.has(grade)).map((grade) => ({
+    grade,
+    periods: grouped.get(grade),
+  }));
+}
+
 function MetricRow({ label, value }) {
   return (
     <div className="metric-item-row">
@@ -201,6 +256,7 @@ export default function Profile({
 
   const fallbackRecords = [...student.records].reverse();
   const hasNamedQuarters = baselineRec || midlineRec || endlineRec;
+  const nutritionalHistory = buildNutritionalHistory(student);
 
   // Opens modal pre-populated with selected record, or defaults to Baseline/Latest record
   function handleOpenRecordModal(
@@ -343,6 +399,7 @@ export default function Profile({
     if (!rec.date || !rec.weight || !rec.height) return;
     const newRec = {
       ...rec,
+      section: student.section,
       weight: parseFloat(rec.weight),
       height: parseFloat(rec.height),
     };
@@ -530,7 +587,7 @@ export default function Profile({
   return (
     <div className="page">
       <div className="profile-back-row">
-        <button className="btn btn-secondary" onClick={onBack}>
+        <button className="btn btn-primary" onClick={onBack}>
           ← Back to Database
         </button>
       </div>
@@ -860,6 +917,56 @@ export default function Profile({
               </div>
             </div>
           )}
+
+          {nutritionalHistory.length > 0 && (
+            <div className="card learner-history-card">
+              <h3 className="card-title">Learner Nutritional History</h3>
+              <p className="learner-history-note">
+                BMI-for-age status by grade level and assessment period.
+              </p>
+              <div className="learner-history-scroll">
+                <table className="learner-history-table">
+                  <thead>
+                    <tr>
+                      <th>Grade Level</th>
+                      <th>Baseline</th>
+                      <th>Midline</th>
+                      <th>Endline</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nutritionalHistory.map(({ grade, periods }) => (
+                      <tr key={grade}>
+                        <td>{grade}</td>
+                        {["Baseline", "Midline", "Endline"].map(
+                          (periodName) => {
+                            const status = periods[periodName];
+                            return (
+                              <td key={periodName}>
+                                {status ? (
+                                  <span
+                                    className="history-status"
+                                    style={{
+                                      color: status.color,
+                                      backgroundColor: `${status.color}18`,
+                                    }}
+                                  >
+                                    {status.label}
+                                  </span>
+                                ) : (
+                                  <span className="history-empty">—</span>
+                                )}
+                              </td>
+                            );
+                          },
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -867,6 +974,7 @@ export default function Profile({
         <Modal
           title="Edit / Add Health Record"
           onClose={() => setAddOpen(false)}
+          closeOnOverlay={false}
         >
           <div className="form-grid-2">
             <div className="form-group">

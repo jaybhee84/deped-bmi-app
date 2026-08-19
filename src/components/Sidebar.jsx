@@ -7,7 +7,8 @@ const SCHOOL_NAV = [
   { id: "database", icon: "🎒", label: "Database" },
   { id: "batch", icon: "📋", label: "Baseline Entry" },
   { id: "sbfp", icon: "🍱", label: "SBFP Beneficiaries" },
-  { id: "reports", icon: "📄", label: "Reports" },
+  { id: "sbfp-forms", icon: "📋", label: "SBFP Forms" },
+  { id: "reports", icon: "📄", label: "Nutritional Status" },
   { id: "settings", icon: "⚙️", label: "Information" },
 ];
 
@@ -40,8 +41,7 @@ export default function Sidebar({
   useEffect(() => {
     if (window.electronAPI?.onUpdateMessage) {
       const unsubscribe = window.electronAPI.onUpdateMessage((message) => {
-        alert(message);
-        window.electronAPI?.forceRefocusWindow?.();
+        setUpdateStatus(message);
       });
       return unsubscribe;
     }

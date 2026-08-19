@@ -10,7 +10,21 @@ import Badge from "./Badge";
 import Modal from "./Modal";
 import "./SDODatabase.css";
 import { queueStudentForDelete } from "../utils/syncService";
-import { SCHOOL_OPTIONS } from '../utils/schools';
+import { SCHOOL_OPTIONS } from "../utils/schools";
+
+const ELEMENTARY_SCHOOL_OPTIONS = [
+  "ALL SCHOOLS",
+  ...SCHOOL_OPTIONS.filter((school) => {
+    if (school === "ALL SCHOOLS") return false;
+    const name = school.toLowerCase();
+    return (
+      !name.includes("high school") &&
+      !name.includes("national high school") &&
+      !name.includes("nhs")
+    );
+  }).sort((a, b) => a.localeCompare(b)),
+];
+const ELEMENTARY_SCHOOL_COUNT = ELEMENTARY_SCHOOL_OPTIONS.length - 1;
 
 const GRADE_ORDER = [
   "Kinder",
@@ -266,9 +280,11 @@ export default function SDOStudents({
           value={filterSchool}
           onChange={(e) => setFilterSchool(e.target.value)}
         >
-          {SCHOOL_OPTIONS.map((school) => (
+          {ELEMENTARY_SCHOOL_OPTIONS.map((school) => (
             <option key={school} value={school}>
-              {school}
+              {school === "ALL SCHOOLS"
+                ? `ALL SCHOOLS (${ELEMENTARY_SCHOOL_COUNT})`
+                : school}
             </option>
           ))}
         </select>

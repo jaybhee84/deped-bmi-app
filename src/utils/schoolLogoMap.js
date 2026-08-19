@@ -69,3 +69,8 @@ export function getSchoolLogoUrl(schoolName) {
 
   return `${SUPABASE_URL}/storage/v1/object/public/${SCHOOL_LOGO_BUCKET}/${file}`;
 }
+
+export function getSchoolAbbreviation(schoolName) {
+  const file = SCHOOL_LOGO_MAP[schoolName];
+  return file ? file.replace(/\.[^.]+$/, '').toUpperCase() : null;
+}

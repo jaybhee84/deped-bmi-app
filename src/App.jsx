@@ -15,6 +15,7 @@ import ExportImport from "./components/ExportImport";
 import SyncStatus from "./components/SyncStatus";
 import Login from "./components/Login";
 import SBFPBeneficiaries from "./components/SBFPBeneficiaries";
+import SbfpForms from "./components/SbfpForms";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import OnboardingModal from "./components/OnboardingModal";
 import SplashScreen from "./components/SplashScreen";
@@ -94,14 +95,13 @@ function AppContent({
               fontWeight: 600,
             }}
           >
-            ✅ Update downloaded —
+            ✅ Update ready to install —
             <button
-              onClick={() => window.electronAPI.restartForUpdate()}
+              onClick={() => window.electronAPI?.restartForUpdate?.()}
               style={{ marginLeft: 8, cursor: "pointer" }}
             >
-              Restart Now
-            </button>{" "}
-            (or it'll install automatically when you close the app)
+              Install & Restart
+            </button>
           </div>
         )}
 
@@ -234,12 +234,21 @@ function AppContent({
           />
         )}
 
+        {page === "sbfp-forms" && !isSDO && (
+          <SbfpForms
+            students={safeStudents}
+            currentUser={session}
+            schoolName={schoolName}
+          />
+        )}
+
         {page === "reports" &&
           (isSDO ? (
             <SDOReports
               allSchoolsData={allSchoolsData}
               selectedSchool={reportsSchool}
               setSelectedSchool={setReportsSchool}
+              currentUser={session}
             />
           ) : (
             <Reports students={safeStudents} selectedSchool={selectedSchool} />
@@ -492,7 +501,7 @@ export default function App() {
     }
 
     verifySchoolBinding();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.school_id, session?.role]);
 
   useEffect(() => {
@@ -523,7 +532,7 @@ export default function App() {
     if (session && !checkingSchoolBinding) {
       loadSchoolName();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.school_name, checkingSchoolBinding]);
 
   const [updateReady, setUpdateReady] = useState(false);
@@ -704,7 +713,7 @@ export default function App() {
       }
     }
     startupSync();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.role, session?.school_id, checkingSchoolBinding]);
 
   function updateStudents(updaterOrValue) {

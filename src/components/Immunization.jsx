@@ -1098,13 +1098,17 @@ export default function Immunization({
         </div>
 
         <div className="form-group">
-          <label className="form-label">School</label>
+          <label className="form-label">
+            School ({ELEMENTARY_SCHOOLS.length} schools)
+          </label>
           <select
             className="form-select"
             value={selectedSchool}
             onChange={(e) => setSelectedSchool(e.target.value)}
           >
-            <option value="">All Schools (Division-wide)</option>
+            <option value="">
+              All Schools ({ELEMENTARY_SCHOOLS.length}) — Division-wide
+            </option>
             {ELEMENTARY_SCHOOLS.map((s) => (
               <option key={s} value={s}>
                 {s}

@@ -15,6 +15,7 @@ import { SCHOOL_OPTIONS } from "../utils/schools.js";
 import { loadSbfpEnrolment } from "../utils/sbfpConfig";
 import ReportsLanding from "./ReportsLanding";
 import Immunization from "./Immunization";
+import SbfpForms from "./SbfpForms";
 
 // Normalize strings (replaces en-dashes/em-dashes, trims, converts to lowercase)
 const normalizeStr = (str) =>
@@ -483,6 +484,7 @@ export default function SDOReports({
   allSchoolsData = {},
   selectedSchool: selectedSchoolProp,
   setSelectedSchool: setSelectedSchoolProp,
+  currentUser,
 }) {
   const [view, setView] = useState("landing");
 
@@ -505,6 +507,26 @@ export default function SDOReports({
     }
     return allSchoolsData[selectedSchool] || [];
   }, [selectedSchool, allSchoolsData]);
+  const availableSchools = useMemo(
+    () =>
+      SCHOOL_OPTIONS.filter((school) => {
+        const name = school.toLowerCase();
+        return (
+          !name.includes("high school") &&
+          !name.includes("national high school") &&
+          !name.includes("nhs") &&
+          school !== "ALL SCHOOLS"
+        );
+      }).sort((a, b) => a.localeCompare(b)),
+    [],
+  );
+  const selectedSchoolId = students.find(
+    (student) => student?.schoolId || student?.school_id,
+  );
+  const sbfpSchoolUser = {
+    division: currentUser?.division || "",
+    school_id: selectedSchoolId?.schoolId || selectedSchoolId?.school_id || "",
+  };
 
   // Load enrolment data via loadSbfpEnrolment + local Storage fallbacks
   useEffect(() => {
@@ -1143,10 +1165,62 @@ export default function SDOReports({
     );
   }
 
+  if (view === "sbfp-forms") {
+    return (
+      <div className="sdo-reports-page">
+        <div className="filter-row filter-row-compact sbfp-sdo-toolbar no-print">
+          <div className="form-group filter-back-group">
+            <button
+              className="btn btn-primary"
+              onClick={() => setView("nutritional")}
+            >
+              ← Back
+            </button>
+          </div>
+          <div className="form-group filter-school-group">
+            <label className="form-label">
+              School ({availableSchools.length} schools)
+            </label>
+            <select
+              className="form-select"
+              value={selectedSchool}
+              onChange={(event) => setSelectedSchool(event.target.value)}
+            >
+              {(selectedSchool === "CONSOLIDATED" ||
+                selectedSchool === "ALL SCHOOLS") && (
+                <option value={selectedSchool}>Select a school</option>
+              )}
+              {availableSchools.map((school) => (
+                <option key={school} value={school}>
+                  {school}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {selectedSchool === "CONSOLIDATED" ||
+        selectedSchool === "ALL SCHOOLS" ? (
+          <div className="sbfp-school-prompt">
+            Select a school above to view its SBFP forms.
+          </div>
+        ) : (
+          <SbfpForms
+            students={students}
+            currentUser={sbfpSchoolUser}
+            schoolName={selectedSchool}
+            readOnly
+            initialSchoolYear={sy}
+            initialPeriod={period}
+          />
+        )}
+      </div>
+    );
+  }
+
   // ── Nutritional Status Report ────────────────────────────────────────────────
   return (
     <div className="sdo-reports-page">
-      <div className="filter-row no-print">
+      <div className="filter-row filter-row-compact no-print">
         <div className="form-group" style={{ alignSelf: "flex-end" }}>
           <button
             className="btn btn-primary"
@@ -1162,34 +1236,30 @@ export default function SDOReports({
           </button>
         </div>
 
-        <div className="form-group" style={{ flexGrow: 2, minWidth: "220px" }}>
-          <label className="form-label">School</label>
+        <div className="form-group filter-school-group">
+          <label className="form-label">
+            School ({availableSchools.length} schools)
+          </label>
           <select
             className="form-select"
             value={selectedSchool}
             onChange={(e) => setSelectedSchool(e.target.value)}
           >
-            <option value="CONSOLIDATED">Consolidated Report</option>
-            <option value="ALL SCHOOLS">All Schools (Print Per Page)</option>
-            {SCHOOL_OPTIONS.filter((school) => {
-              const s = school.toLowerCase();
-              return (
-                !s.includes("high school") &&
-                !s.includes("national high school") &&
-                !s.includes("nhs") &&
-                school !== "ALL SCHOOLS"
-              );
-            })
-              .sort((a, b) => a.localeCompare(b))
-              .map((school) => (
-                <option key={school} value={school}>
-                  {school}
-                </option>
-              ))}
+            <option value="CONSOLIDATED">
+              Consolidated Report ({availableSchools.length} schools)
+            </option>
+            <option value="ALL SCHOOLS">
+              All Schools ({availableSchools.length}) — Print Per Page
+            </option>
+            {availableSchools.map((school) => (
+              <option key={school} value={school}>
+                {school}
+              </option>
+            ))}
           </select>
         </div>
 
-        <div className="form-group" style={{ flexGrow: 1 }}>
+        <div className="form-group filter-small-group">
           <label className="form-label">School Year</label>
           <select
             className="form-select"
@@ -1204,7 +1274,7 @@ export default function SDOReports({
           </select>
         </div>
 
-        <div className="form-group" style={{ flexGrow: 1 }}>
+        <div className="form-group filter-small-group">
           <label className="form-label">Period</label>
           <select
             className="form-select"
@@ -1224,6 +1294,13 @@ export default function SDOReports({
             alignSelf: "flex-end",
           }}
         >
+          <button
+            className="btn btn-sbfp-forms"
+            title="View SBFP Forms"
+            onClick={() => setView("sbfp-forms")}
+          >
+            📋 SBFP Forms
+          </button>
           <button
             className="btn btn-success"
             onClick={handleExportExcel}
