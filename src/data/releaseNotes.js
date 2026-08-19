@@ -1,4 +1,7 @@
 export const RELEASE_NOTES = {
+  '1.9.1': {
+    silent: true,
+  },
   '1.8.1': {
     title: 'v1.8.1',
     sections: [

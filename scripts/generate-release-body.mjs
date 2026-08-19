@@ -9,6 +9,12 @@ if (!entry) {
   process.exit(1);
 }
 
+if (entry.silent) {
+  fs.writeFileSync("RELEASE_BODY.md", "");
+  console.log(`Generating silent release ${version} without release notes.`);
+  process.exit(0);
+}
+
 let md = `## ${entry.title}\n\n`;
 entry.sections.forEach((section) => {
   md += `### ${section.heading}\n`;
