@@ -3,6 +3,7 @@ import {
   calcBMI,
   getBMIStatus,
   getHAZStatus,
+  formatHeightMeters,
   SCHOOL_YEARS,
   GRADE_LEVELS,
   QUARTERS,
@@ -235,7 +236,7 @@ export default function Reports({ students = [] }) {
         sex: r.sex,
         age: r.age ?? "N/A",
         weight: r.lastRec?.weight ?? "—",
-        height: r.lastRec?.height ?? "—",
+        height: r.lastRec?.height != null ? formatHeightMeters(r.lastRec.height) : "—",
         bmi: r.bmi ? parseFloat(r.bmi).toFixed(2) : "—",
         wfa: r.status?.label || "Normal",
         hfa: r.haz?.label || "Normal",
@@ -420,7 +421,7 @@ export default function Reports({ students = [] }) {
                 <th style={{ padding: "10px" }}>Birthdate</th>
                 <th style={{ padding: "10px" }}>Age</th>
                 <th style={{ padding: "10px" }}>Weight (kg)</th>
-                <th style={{ padding: "10px" }}>Height (cm)</th>
+                <th style={{ padding: "10px" }}>Height (m)</th>
                 <th style={{ padding: "10px" }}>BMI</th>
                 <th style={{ padding: "10px" }}>BMI Status</th>
                 <th style={{ padding: "10px" }}>HFA Status</th>
@@ -444,7 +445,7 @@ export default function Reports({ students = [] }) {
                   </td>
                   <td style={{ padding: "10px" }}>{student.age}</td>
                   <td style={{ padding: "10px" }}>{student.lastRec?.weight}</td>
-                  <td style={{ padding: "10px" }}>{student.lastRec?.height}</td>
+                  <td style={{ padding: "10px" }}>{formatHeightMeters(student.lastRec?.height)}</td>
                   <td style={{ padding: "10px" }}>
                     {student.bmi ? parseFloat(student.bmi).toFixed(2) : "—"}
                   </td>

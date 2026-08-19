@@ -7,6 +7,7 @@ import {
   SCHOOL_YEARS,
   GRADE_LEVELS,
   SESSIONS,
+  normalizeHeightMeters,
 } from "../utils/bmi";
 import Badge from "./Badge";
 import "./BatchEntry.css";
@@ -55,7 +56,7 @@ function buildSectionLabel(gradeLevel, teacherName, session) {
 }
 
 function downloadCsvTemplate() {
-  const headers = [["lrn", "name", "birthdate", "weight", "height", "sex"]];
+  const headers = [["lrn", "name", "birthdate", "weight", "height_m", "sex"]];
   const csvContent = headers.map((row) => row.join(",")).join("\n");
   const blob = new Blob(["\uFEFF" + csvContent], {
     type: "text/csv;charset=utf-8;",
@@ -139,17 +140,11 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
             ? row.weight.toString().replace(/[^0-9.]/g, "")
             : "";
 
-          // Height is stored in centimeters. Pasted values may sometimes be
-          // in meters (e.g. "1.20") - no school-age child is under 3m tall,
-          // so anything that low is treated as meters and converted to cm.
           let height = "";
-          if (row.height) {
-            const rawHeight = row.height.toString().replace(/[^0-9.]/g, "");
-            const numHeight = parseFloat(rawHeight);
-            if (!isNaN(numHeight)) {
-              height =
-                numHeight <= 3 ? (numHeight * 100).toFixed(1) : rawHeight;
-            }
+          const importedHeight = row.height_m ?? row.height;
+          if (importedHeight) {
+            const normalized = normalizeHeightMeters(importedHeight);
+            if (normalized != null) height = String(normalized);
           }
 
           // --- CLEAN & UPPERCASE NAME ---
@@ -266,8 +261,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
           section: sectionLabel,
           weight:
             row.weight.toString().trim() !== "" ? parseFloat(row.weight) : null,
-          height:
-            row.height.toString().trim() !== "" ? parseFloat(row.height) : null,
+          height: normalizeHeightMeters(row.height),
         };
 
         // Ensure name is cleaned and uppercase regardless of input method
@@ -616,7 +610,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
                     textAlign: "center",
                   }}
                 >
-                  HEIGHT
+                  HEIGHT (m)
                 </th>
                 <th
                   style={{
@@ -756,6 +750,9 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
                     <td style={{ display: "table-cell", padding: "8px" }}>
                       <input
                         type="number"
+                        min="0.3"
+                        max="3"
+                        step="0.001"
                         className="form-input"
                         value={row.height}
                         onChange={(e) => updateRow(i, "height", e.target.value)}

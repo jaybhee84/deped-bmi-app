@@ -48,8 +48,22 @@ export function normalizeHeightCm(height) {
   return value <= 3 ? value * 100 : value;
 }
 
+// Canonical height unit used by forms, records, and CSV files.
+// Values above 3 are treated as legacy centimetre values.
+export function normalizeHeightMeters(height) {
+  const value = parseFloat(height);
+  if (!value || value <= 0) return null;
+  return value > 3 ? value / 100 : value;
+}
+
+export function formatHeightMeters(height) {
+  const value = normalizeHeightMeters(height);
+  if (value == null) return "—";
+  return Number(value.toFixed(3)).toString();
+}
+
 export function calcBMI(weight, height) {
-  const h = normalizeHeightCm(height) / 100;
+  const h = normalizeHeightMeters(height);
   const w = parseFloat(weight);
   if (!h || !w || h <= 0 || w <= 0) return null;
   return w / (h * h);

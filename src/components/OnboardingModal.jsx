@@ -157,11 +157,14 @@ export default function OnboardingModal({ user, onComplete }) {
         ...updatedProfile,
         school_id: targetSchoolId,
         school_name: targetName,
+        district,
+        address,
       };
 
       const localSchoolPayload = {
         school_id: targetSchoolId,
         school_name: targetName,
+        division: "Division of Isabela City",
         logo_url: generatedLogoUrl,
         district: district,
         address: address,
@@ -181,6 +184,16 @@ export default function OnboardingModal({ user, onComplete }) {
           school_name: targetName,
           password_hash: null,
         });
+      }
+
+      if (window.sqlite?.saveSchool) {
+        await window.sqlite.saveSchool(
+          {
+            ...localSchoolPayload,
+            name: targetName,
+          },
+          user.id,
+        );
       }
 
       onComplete(boundProfile);

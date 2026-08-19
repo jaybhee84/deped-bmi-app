@@ -3,6 +3,8 @@ import {
   calcBMI,
   getBMIStatus,
   getHAZStatus,
+  normalizeHeightMeters,
+  formatHeightMeters,
   ageInYears,
   SCHOOL_YEARS,
   QUARTERS,
@@ -138,7 +140,7 @@ function HealthRecordCard({ record, student, onEdit, readOnly }) {
           value={formatDateMMDDYYYY(record.date)}
         />
         <MetricRow label="Weight" value={`${record.weight} kg`} />
-        <MetricRow label="Height" value={`${record.height} cm`} />
+        <MetricRow label="Height" value={`${formatHeightMeters(record.height)} m`} />
         <MetricRow label="BMI" value={bmi ? bmi.toFixed(2) : "—"} />
         <MetricRow
           label="Nutritional Status"
@@ -276,7 +278,7 @@ export default function Profile({
         q: recordToLoad.q || defaultQuarter,
         date: recordToLoad.date || "",
         weight: recordToLoad.weight ? String(recordToLoad.weight) : "",
-        height: recordToLoad.height ? String(recordToLoad.height) : "",
+        height: recordToLoad.height ? String(normalizeHeightMeters(recordToLoad.height)) : "",
       });
     } else {
       setRec({
@@ -299,7 +301,7 @@ export default function Profile({
         q: selectedQuarter,
         date: existing.date || "",
         weight: existing.weight ? String(existing.weight) : "",
-        height: existing.height ? String(existing.height) : "",
+        height: existing.height ? String(normalizeHeightMeters(existing.height)) : "",
       });
     } else {
       setRec((r) => ({
@@ -401,7 +403,7 @@ export default function Profile({
       ...rec,
       section: student.section,
       weight: parseFloat(rec.weight),
-      height: parseFloat(rec.height),
+      height: normalizeHeightMeters(rec.height),
     };
     setStudents((prev) =>
       prev.map((s) => {
@@ -1025,11 +1027,14 @@ export default function Profile({
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Height (cm)</label>
+              <label className="form-label">Height (m)</label>
               <input
                 type="number"
                 className="form-input"
-                placeholder="e.g. 145"
+                placeholder="e.g. 1.45"
+                min="0.3"
+                max="3"
+                step="0.001"
                 value={rec.height}
                 onChange={(e) =>
                   setRec((r) => ({ ...r, height: e.target.value }))

@@ -1,4 +1,31 @@
 export const RELEASE_NOTES = {
+  '2.0.0': {
+    title: 'v2.0.0',
+    sections: [
+      {
+        heading: 'Measurement Data and Reports',
+        items: [
+          'Standardized learner height entry, display, CSV templates, and reports to metres while retaining compatibility with older centimetre records.',
+          'Updated BMI calculations and height formatting across Baseline Entry, learner profiles, the database, nutritional reports, and SBFP beneficiary reports.',
+        ],
+      },
+      {
+        heading: 'SBFP Forms and Beneficiary Information',
+        items: [
+          'SBFP Form 1 now uses each learner’s Date Measured from Batch/Baseline Entry as the Date of Weighing or Measuring on screen and in Excel downloads.',
+          'Added an official SBFP beneficiary criteria card showing automatic grade-level inclusion, nutritional-status criteria, and their SDO-configured grade scopes.',
+        ],
+      },
+      {
+        heading: 'School Information and Onboarding',
+        items: [
+          'Expanded the School Information layout and kept school names on a single responsive line.',
+          'Connected District and Complete Address to onboarding and authoritative school records, with local caching for offline use.',
+          'Standardized the displayed division as Division of Isabela City.',
+        ],
+      },
+    ],
+  },
   '1.10.1': {
     silent: true,
   },

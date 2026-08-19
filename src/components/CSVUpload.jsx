@@ -6,6 +6,8 @@ import {
   calcBMI,
   getBMIStatus,
   getHAZStatus,
+  normalizeHeightMeters,
+  formatHeightMeters,
 } from "../utils/bmi";
 import { getStudentIdentifier, gradeFromSection } from "../utils/registry";
 import "./CSVUpload.css";
@@ -78,7 +80,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
   function downloadTemplate() {
     const sectionLabel = filterSection || filterGrade || "Class";
     const rows = [
-      ["registry_no", "name", "weight", "height"],
+      ["registry_no", "name", "weight", "height_m"],
       ...classStudents.map((s) => [
         s.registryNo || "—",
         s.name,
@@ -128,8 +130,8 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         errors: ["CSV must have a registry_no column. Download the template."],
       };
     }
-    if (!standardKeys.includes("weight") || !standardKeys.includes("height")) {
-      return { rows: [], errors: ["CSV must have weight and height columns."] };
+    if (!standardKeys.includes("weight") || (!standardKeys.includes("height_m") && !standardKeys.includes("height"))) {
+      return { rows: [], errors: ["CSV must have weight and height_m columns."] };
     }
 
     const rows = [];
@@ -142,7 +144,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         (k) => k.trim().toLowerCase() === "weight",
       );
       const heightKey = Object.keys(row).find(
-        (k) => k.trim().toLowerCase() === "height",
+        (k) => ["height_m", "height"].includes(k.trim().toLowerCase()),
       );
       const nameKey = Object.keys(row).find(
         (k) => k.trim().toLowerCase() === "name",
@@ -151,20 +153,10 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       const registryNo = row[regKey] ? String(row[regKey]).trim() : null;
 
       const weightRaw = String(row[weightKey] || "").trim();
-      let heightRaw = String(row[heightKey] || "").trim();
-
-      // Height is stored in centimeters. Pasted values may sometimes be in
-      // meters (e.g. "1.20") - no school-age child is under 3m tall, so
-      // anything that low is treated as meters and converted to cm.
-      if (heightRaw !== "") {
-        const numHeight = parseFloat(heightRaw);
-        if (!isNaN(numHeight) && numHeight <= 3) {
-          heightRaw = (numHeight * 100).toFixed(1);
-        }
-      }
+      const heightRaw = String(row[heightKey] || "").trim();
 
       const weight = weightRaw !== "" ? parseFloat(weightRaw) : null;
-      const height = heightRaw !== "" ? parseFloat(heightRaw) : null;
+      const height = heightRaw !== "" ? normalizeHeightMeters(heightRaw) : null;
 
       if (!registryNo) {
         errs.push(`Row ${i + 2}: No registry_no found.`);
@@ -271,7 +263,8 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         period_stage: period,
         date_measured: date,
         weight_kg: r.weight,
-        height_cm: r.height,
+        // SQLite keeps its legacy column name, so convert metres at this boundary.
+        height_cm: r.height == null ? null : r.height * 100,
       }));
       window.electronAPI.upsertSQLiteRecords(payloads);
     }
@@ -744,7 +737,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                             fontWeight: "500",
                           }}
                         >
-                          {height ? `${height} cm` : "—"}
+                          {height ? `${formatHeightMeters(height)} m` : "—"}
                         </td>
                         <td
                           style={{
@@ -1087,7 +1080,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                         fontWeight: "500",
                       }}
                     >
-                      {row.height != null ? `${row.height} cm` : "—"}
+                      {row.height != null ? `${formatHeightMeters(row.height)} m` : "—"}
                     </td>
                     <td
                       style={{

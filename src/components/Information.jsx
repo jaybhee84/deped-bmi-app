@@ -1,12 +1,32 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
 import {
+  fetchSchoolForUser,
   fetchSchoolForUserOfflineFirst,
-  fetchAllSchools,
 } from "../utils/syncService";
 import { RELEASE_NOTES } from "../data/releaseNotes";
 import "./Information.css";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
+import {
+  DEFAULT_SBFP_CONFIG,
+  loadSbfpConfig,
+} from "../utils/sbfpConfig";
+
+function loadCachedSbfpConfig() {
+  try {
+    const cached = localStorage.getItem("sbfp_cached_config");
+    return cached ? JSON.parse(cached) : DEFAULT_SBFP_CONFIG;
+  } catch {
+    return DEFAULT_SBFP_CONFIG;
+  }
+}
+
+function criterionGradeScope(config, criterion) {
+  const restriction = config.criterionGradeRestrictions?.[criterion];
+  if (restriction === undefined) return "All grade levels";
+  if (restriction.length === 0) return "No grade levels selected";
+  return restriction;
+}
 
 export default function Information({
   schoolName,
@@ -25,6 +45,7 @@ export default function Information({
   const [schoolLoaded, setSchoolLoaded] = useState(false);
   const [schoolLogo, setSchoolLogo] = useState(null);
   const [appVersion, setAppVersion] = useState("");
+  const [sbfpConfig, setSbfpConfig] = useState(loadCachedSbfpConfig);
 
   // Pull the real release notes for whatever version is actually running,
   // instead of hardcoded mock content.
@@ -39,6 +60,20 @@ export default function Information({
     if (window.electronAPI?.getAppVersion) {
       window.electronAPI.getAppVersion().then(setAppVersion);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.onLine) return;
+
+    loadSbfpConfig().then((config) => {
+      if (!config) return;
+      setSbfpConfig(config);
+      try {
+        localStorage.setItem("sbfp_cached_config", JSON.stringify(config));
+      } catch (error) {
+        console.warn("Unable to cache the SBFP configuration.", error);
+      }
+    });
   }, []);
 
   useEffect(() => {
@@ -62,15 +97,18 @@ export default function Information({
           localSchool = await window.sqlite.loadSchool(currentUser?.id);
 
           if (localSchool) {
+            const onboardingSchool = localSchool.school_id
+              ? await window.sqlite?.getSchoolById?.(localSchool.school_id)
+              : null;
             setSchool({
               name: localSchool.school_name || localSchool.name || "",
               id: localSchool.school_id || "",
-              division: localSchool.division || "",
+              division: "Division of Isabela City",
               district: isMissing(localSchool.district)
-                ? ""
+                ? onboardingSchool?.district || ""
                 : localSchool.district,
               address: isMissing(localSchool.address)
-                ? ""
+                ? onboardingSchool?.address || ""
                 : localSchool.address,
             });
 
@@ -92,19 +130,47 @@ export default function Information({
           }
         }
 
+        const directorySchoolId =
+          localSchool?.school_id || currentUser?.school_id || "";
+        const onboardingSchool = directorySchoolId
+          ? await window.sqlite?.getSchoolById?.(directorySchoolId)
+          : null;
+
+        if (!localSchool && onboardingSchool) {
+          setSchool({
+            name: onboardingSchool.school_name || onboardingSchool.name || "",
+            id: onboardingSchool.school_id || directorySchoolId,
+            division: "Division of Isabela City",
+            district: isMissing(onboardingSchool.district)
+              ? ""
+              : onboardingSchool.district,
+            address: isMissing(onboardingSchool.address)
+              ? ""
+              : onboardingSchool.address,
+          });
+          setSchoolLogo(
+            getSchoolLogoUrl(
+              onboardingSchool.school_name || onboardingSchool.name,
+            ),
+          );
+          setSchoolLoaded(true);
+        }
+
         const localIncomplete =
-          !localSchool ||
-          isMissing(localSchool.district) ||
-          isMissing(localSchool.address);
+          (!localSchool && !onboardingSchool) ||
+          (isMissing(localSchool?.district) &&
+            isMissing(onboardingSchool?.district)) ||
+          (isMissing(localSchool?.address) &&
+            isMissing(onboardingSchool?.address));
 
         // 2. Try to fetch the current record from Supabase (if online) and use it to
         // both update what's on screen AND repair the local cache. If offline, use the
         // offline-first function which will return local cache.
         if (localIncomplete && currentUser?.id) {
           try {
-            const boundSchool = await fetchSchoolForUserOfflineFirst(
-              currentUser.id,
-            );
+            const boundSchool = navigator.onLine
+              ? await fetchSchoolForUser(currentUser.id)
+              : await fetchSchoolForUserOfflineFirst(currentUser.id);
 
             if (boundSchool) {
               // fetchSchoolForUserOfflineFirst returns the school id under `id`
@@ -113,7 +179,7 @@ export default function Information({
               setSchool({
                 name: boundSchool.name || "",
                 id: schoolId,
-                division: boundSchool.division || "",
+                division: "Division of Isabela City",
                 district: boundSchool.district || "",
                 address: boundSchool.address || "",
               });
@@ -127,7 +193,7 @@ export default function Information({
                   {
                     school_name: boundSchool.name,
                     school_id: schoolId,
-                    division: boundSchool.division || "",
+                    division: "Division of Isabela City",
                     district: boundSchool.district,
                     address: boundSchool.address,
                   },
@@ -162,13 +228,14 @@ export default function Information({
 
       <div className="settings-grid">
         {/* ── CARD 1: School Profile Workspace ── */}
-        <div className="card">
-          <h3 className="card-title">School Profile</h3>
+        <div className="information-card-column">
+          <div className="card">
+            <h3 className="card-title">School Profile</h3>
 
-          <div
-            className="school-preview"
-            style={{ marginTop: 0, borderTop: "none", paddingTop: 0 }}
-          >
+            <div
+              className="school-preview"
+              style={{ marginTop: 0, borderTop: "none", paddingTop: 0 }}
+            >
             {schoolLogo && (
               <div
                 style={{
@@ -195,7 +262,6 @@ export default function Information({
                 <div
                   className="school-preview-name"
                   style={{
-                    fontSize: "1.5rem",
                     color: "#1e293b",
                     textAlign: "center",
                     marginBottom: "16px",
@@ -207,8 +273,7 @@ export default function Information({
                   <strong>School ID:</strong> {school.id || "N/A"}
                 </div>
                 <div className="school-preview-row">
-                  <strong>Division:</strong>{" "}
-                  {school.division || "DepEd Division Component"}
+                  <strong>Division:</strong> Division of Isabela City
                 </div>
                 <div className="school-preview-row">
                   <strong>District:</strong> {school.district || "N/A"}
@@ -247,6 +312,67 @@ export default function Information({
                 No active school workspace bound to this account footprint.
               </div>
             )}
+            </div>
+          </div>
+
+          <div className="card sbfp-grades-card">
+            <h3 className="card-title">Official SBFP Beneficiary Criteria</h3>
+            <p className="settings-ref-sub">
+              Current grade-level and nutritional-status selections from SDO
+              Settings.
+            </p>
+
+            <div className="sbfp-information-group">
+              <div className="sbfp-information-label">
+                Automatically Included Grade Levels
+              </div>
+              {sbfpConfig.grades?.length > 0 ? (
+                <div className="sbfp-grade-tags">
+                  {sbfpConfig.grades.map((grade) => (
+                    <span className="sbfp-grade-tag" key={grade}>
+                      {grade}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div className="sbfp-grades-empty">
+                  No grade levels selected for automatic inclusion.
+                </div>
+              )}
+            </div>
+
+            <div className="sbfp-information-group">
+              <div className="sbfp-information-label">
+                Nutritional Status Criteria
+              </div>
+              {sbfpConfig.criteria?.length > 0 ? (
+                <div className="sbfp-criteria-list">
+                  {sbfpConfig.criteria.map((criterion) => {
+                    const scope = criterionGradeScope(sbfpConfig, criterion);
+                    return (
+                      <div className="sbfp-criterion-row" key={criterion}>
+                        <span className="sbfp-criterion-name">{criterion}</span>
+                        {Array.isArray(scope) ? (
+                          <div className="sbfp-criterion-grades">
+                            {scope.map((grade) => (
+                              <span className="sbfp-scope-tag" key={grade}>
+                                {grade}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="sbfp-criterion-scope">{scope}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="sbfp-grades-empty">
+                  No nutritional status criteria selected.
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

@@ -100,7 +100,7 @@ export async function exportSbfpForm1Excel({
         : "";
     row.getCell(4).value = student.section || student.grade || "";
     row.getCell(5).value = toDate(student.birthdate) || "";
-    row.getCell(6).value = new Date();
+    row.getCell(6).value = toDate(rec?.date) || "";
     row.getCell(7).value = age(student.birthdate);
     row.getCell(8).value = rec?.weight ?? "";
     row.getCell(9).value = student.heightCm ?? rec?.height ?? "";

@@ -7,6 +7,7 @@ import {
   GRADE_LEVELS,
   SCHOOL_YEARS,
   QUARTERS,
+  formatHeightMeters,
 } from "../utils/bmi";
 import {
   loadSbfpConfig,
@@ -725,7 +726,7 @@ export default function SBFPBeneficiaries({
       "Grade",
       "Section",
       "Weight (kg)",
-      "Height (cm)",
+      "Height (m)",
       "BMI",
       "Nutritional Status",
       "Height Status",
@@ -765,7 +766,7 @@ export default function SBFPBeneficiaries({
         s.grade || "",
         displaySection(s.section, s.grade),
         s.rec ? s.rec.weight : "",
-        s.rec ? s.rec.height : "",
+        s.rec ? formatHeightMeters(s.rec.height) : "",
         s.bmi ? s.bmi.toFixed(2) : "",
         s.baz?.label || "",
         s.haz?.label || "",
@@ -816,7 +817,7 @@ export default function SBFPBeneficiaries({
         sex: s.sex,
         age: s.age ?? "N/A",
         weight: s.rec?.weight ?? "—",
-        height: s.rec?.height ?? "—",
+        height: s.rec?.height != null ? formatHeightMeters(s.rec.height) : "—",
         bmi: s.bmi ? parseFloat(s.bmi).toFixed(2) : "—",
         wfa: s.baz?.label || "—",
         hfa: s.haz?.label || "—",
@@ -1366,7 +1367,7 @@ export default function SBFPBeneficiaries({
                 <th>Grade</th>
                 <th>Section</th>
                 <th>Weight (kg)</th>
-                <th>Height (cm)</th>
+                <th>Height (m)</th>
                 <th>BMI</th>
                 <th>Nutritional Status</th>
                 <th>Height Status</th>
@@ -1415,7 +1416,7 @@ export default function SBFPBeneficiaries({
                     <td>{s.grade}</td>
                     <td>{displaySection(s.section, s.grade)}</td>
                     <td>{s.rec ? s.rec.weight : "—"}</td>
-                    <td>{s.rec ? s.rec.height : "—"}</td>
+                    <td>{s.rec ? formatHeightMeters(s.rec.height) : "—"}</td>
                     <td>{s.bmi ? s.bmi.toFixed(2) : "—"}</td>
                     <td>
                       {s.baz ? (

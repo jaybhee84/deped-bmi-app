@@ -4,6 +4,7 @@ import {
   getBMIStatus,
   getHAZStatus,
   normalizeHeightCm,
+  formatHeightMeters,
   SCHOOL_YEARS,
   QUARTERS,
 } from "../utils/bmi";
@@ -493,7 +494,7 @@ export default function SbfpForms({
                       <th rowSpan="2">
                         Height
                         <br />
-                        (cm)
+                        (m)
                       </th>
                       <th rowSpan="2">BMI for 6 y.o. and above</th>
                       <th colSpan="2">Nutritional Status (NS)</th>
@@ -531,14 +532,10 @@ export default function SbfpForms({
                         <td>{student.sex}</td>
                         <td>{student.section || student.grade}</td>
                         <td>{date(student.birthdate)}</td>
-                        <td>
-                          {student.rec
-                            ? new Date().toLocaleDateString("en-US")
-                            : "—"}
-                        </td>
+                        <td>{date(student.rec?.date)}</td>
                         <td>{age(student.birthdate)}</td>
                         <td>{student.rec?.weight ?? "—"}</td>
-                        <td>{student.heightCm ?? "—"}</td>
+                        <td>{formatHeightMeters(student.heightCm)}</td>
                         <td>{student.bmi?.toFixed(2) ?? "—"}</td>
                         <td>{CODES[student.baz?.label] || "—"}</td>
                         <td>{CODES[student.haz?.label] || "—"}</td>

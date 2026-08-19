@@ -4,6 +4,7 @@ import {
   calcBMI,
   getBMIStatus,
   getHAZStatus,
+  formatHeightMeters,
   SECTIONS,
   GRADE_LEVELS,
   SCHOOL_YEARS,
@@ -505,7 +506,7 @@ export default function Database({
                   <th>Sex</th>
                   <th>Section</th>
                   <th>Weight</th>
-                  <th>Height</th>
+                  <th>Height (m)</th>
                   <th>Latest BMI</th>
                   <th>Nutritional Status</th>
                   <th>HFA Status</th>
@@ -601,7 +602,7 @@ export default function Database({
                         </td>
                         <td style={{ textAlign: "center" }}>
                           {rec && rec.height != null ? (
-                            `${rec.height} cm`
+                            `${formatHeightMeters(rec.height)} m`
                           ) : (
                             <span className="muted">—</span>
                           )}
