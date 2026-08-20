@@ -1,4 +1,16 @@
 export const RELEASE_NOTES = {
+  '2.0.4': {
+    title: 'v2.0.4',
+    sections: [
+      {
+        heading: 'Dashboard and Sync Fixes',
+        items: [
+          'Fixed a blank screen that could appear after login while the Dashboard calculated nutritional-status charts from saved learner records.',
+          'Corrected the sync indicator so it refreshes immediately after automatically uploading locally saved Baseline Entry data.',
+        ],
+      },
+    ],
+  },
   '2.0.3': {
     title: 'v2.0.3',
     sections: [

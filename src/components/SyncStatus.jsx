@@ -25,9 +25,11 @@ export default function SyncStatus({ students }) {
   useEffect(() => {
     window.addEventListener('online',  refresh);
     window.addEventListener('offline', refresh);
+    window.addEventListener('local-storage-sync-update', refresh);
     return () => {
       window.removeEventListener('online',  refresh);
       window.removeEventListener('offline', refresh);
+      window.removeEventListener('local-storage-sync-update', refresh);
     };
   }, [refresh]);
 

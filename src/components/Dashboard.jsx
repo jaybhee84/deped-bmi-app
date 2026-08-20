@@ -972,13 +972,11 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
                   r.q === ["Baseline", "Midline", "Endline"][idx],
               );
               if (!recs.length) return false;
-              const bmi = calcBMI(
-                recs[recs.length - 1].weight,
-                recs[recs.length - 1].height,
-              );
+              const last = recs[recs.length - 1];
+              const bmi = calcBMI(last.weight, last.height);
               return (
                 bmi &&
-                getBMIStatus(bmi, s.sex, s.birthdate, rec.date)?.label ===
+                getBMIStatus(bmi, s.sex, s.birthdate, last.date)?.label ===
                   "Wasted"
               );
             }).length;
@@ -990,13 +988,11 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
                   r.q === ["Baseline", "Midline", "Endline"][idx],
               );
               if (!recs.length) return false;
-              const bmi = calcBMI(
-                recs[recs.length - 1].weight,
-                recs[recs.length - 1].height,
-              );
+              const last = recs[recs.length - 1];
+              const bmi = calcBMI(last.weight, last.height);
               return (
                 bmi &&
-                getBMIStatus(bmi, s.sex, s.birthdate, rec.date)?.label ===
+                getBMIStatus(bmi, s.sex, s.birthdate, last.date)?.label ===
                   "Severely Wasted"
               );
             }).length;
@@ -1008,13 +1004,11 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
                   r.q === ["Baseline", "Midline", "Endline"][idx],
               );
               if (!recs.length) return false;
-              const bmi = calcBMI(
-                recs[recs.length - 1].weight,
-                recs[recs.length - 1].height,
-              );
+              const last = recs[recs.length - 1];
+              const bmi = calcBMI(last.weight, last.height);
               return (
                 bmi &&
-                getBMIStatus(bmi, s.sex, s.birthdate, rec.date)?.label ===
+                getBMIStatus(bmi, s.sex, s.birthdate, last.date)?.label ===
                   "Overweight"
               );
             }).length;
@@ -1026,13 +1020,11 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
                   r.q === ["Baseline", "Midline", "Endline"][idx],
               );
               if (!recs.length) return false;
-              const bmi = calcBMI(
-                recs[recs.length - 1].weight,
-                recs[recs.length - 1].height,
-              );
+              const last = recs[recs.length - 1];
+              const bmi = calcBMI(last.weight, last.height);
               return (
                 bmi &&
-                getBMIStatus(bmi, s.sex, s.birthdate, rec.date)?.label ===
+                getBMIStatus(bmi, s.sex, s.birthdate, last.date)?.label ===
                   "Obese"
               );
             }).length;
