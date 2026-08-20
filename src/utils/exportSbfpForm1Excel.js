@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { getSchoolAbbreviation } from "./schoolLogoMap";
+import { loadExcelTemplate } from "./loadExcelTemplate";
 
 const STATUS_CODES = {
   "Severely Wasted": "SW",
@@ -56,10 +57,8 @@ export async function exportSbfpForm1Excel({
   principalName,
   feedingFocalPerson,
 }) {
-  const template = await fetch("/templates/SBFP FORM 1.xlsx");
-  if (!template.ok) throw new Error("Unable to load the SBFP Form 1 template.");
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await template.arrayBuffer());
+  await workbook.xlsx.load(await loadExcelTemplate("SBFP FORM 1.xlsx"));
   const sheet =
     workbook.getWorksheet("SBFP-FORM 1 (2)") || workbook.worksheets[1];
   if (!sheet) throw new Error("The SBFP Form 1 worksheet is unavailable.");

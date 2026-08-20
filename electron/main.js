@@ -145,6 +145,33 @@ ipcMain.handle("app:getVersion", () => {
   return app.getVersion();
 });
 
+const BUNDLED_TEMPLATE_FILES = new Set([
+  "SBFP FORM 1.xlsx",
+  "SBFP FORM 2.xlsx",
+]);
+
+ipcMain.handle("assets:loadTemplate", async (_, filename) => {
+  if (!BUNDLED_TEMPLATE_FILES.has(filename)) {
+    throw new Error("The requested template is not allowed.");
+  }
+
+  const templateDirectories = app.isPackaged
+    ? [path.join(app.getAppPath(), "dist", "templates")]
+    : [
+        path.join(app.getAppPath(), "public", "templates"),
+        path.join(app.getAppPath(), "dist", "templates"),
+      ];
+
+  for (const directory of templateDirectories) {
+    const templatePath = path.join(directory, filename);
+    if (fs.existsSync(templatePath)) {
+      return fs.promises.readFile(templatePath);
+    }
+  }
+
+  throw new Error(`Bundled template not found: ${filename}`);
+});
+
 // ==========================================
 // UNIFIED "CHECK FOR UPDATES" HANDLER
 // ==========================================

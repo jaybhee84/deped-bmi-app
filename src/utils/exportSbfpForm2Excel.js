@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { getSchoolAbbreviation } from "./schoolLogoMap";
+import { loadExcelTemplate } from "./loadExcelTemplate";
 
 const GRADES = [
   ["Kinder", "Kinder"],
@@ -105,10 +106,8 @@ export async function exportSbfpForm2Excel({
   feedingStartDate,
   lastMile,
 }) {
-  const template = await fetch("/templates/SBFP FORM 2.xlsx");
-  if (!template.ok) throw new Error("Unable to load the SBFP Form 2 template.");
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await template.arrayBuffer());
+  await workbook.xlsx.load(await loadExcelTemplate("SBFP FORM 2.xlsx"));
   const sheet =
     workbook.getWorksheet("SBFP-FORM 2-ES (2)") || workbook.worksheets[0];
   if (!sheet) throw new Error("The SBFP Form 2 worksheet is unavailable.");

@@ -1,4 +1,16 @@
 export const RELEASE_NOTES = {
+  '2.0.8': {
+    title: 'v2.0.8',
+    sections: [
+      {
+        heading: 'SBFP Excel Downloads',
+        items: [
+          'Fixed the Failed to fetch error when downloading SBFP Form 1 from the packaged desktop application.',
+          'SBFP Form 1 and Form 2 now load their bundled Excel templates reliably in both the Electron app and browser development mode.',
+        ],
+      },
+    ],
+  },
   '2.0.7': {
     title: 'v2.0.7',
     sections: [

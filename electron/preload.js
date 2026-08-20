@@ -113,6 +113,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Application Details & Updater Callbacks
   getAppVersion: () => ipcRenderer.invoke("app:getVersion"),
 
+  loadBundledTemplate: (filename) =>
+    ipcRenderer.invoke("assets:loadTemplate", filename),
+
   checkForUpdates: () => ipcRenderer.invoke("app:checkForUpdates"),
 
   downloadUpdateMac: (payload) =>
