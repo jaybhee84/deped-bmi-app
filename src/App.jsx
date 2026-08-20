@@ -27,6 +27,7 @@ import { supabase } from "./utils/supabaseClient";
 import {
   localLoadStudents,
   localSaveStudents,
+  getQueueLength,
   queueStudentForSync,
   syncToServer,
   syncFromServer,
@@ -36,6 +37,25 @@ import {
   fetchAllSchools,
 } from "./utils/syncService";
 import "./App.css";
+
+async function setBmiPresence(session, status) {
+  if (!session?.id || !navigator.onLine) return;
+
+  const { error } = await supabase.from("user_presence").upsert(
+    {
+      user_id: session.id,
+      app_id: "bmi",
+      email: session.email || null,
+      status,
+      last_seen: new Date().toISOString(),
+    },
+    { onConflict: "user_id,app_id" },
+  );
+
+  if (error) {
+    console.warn(`[Presence] Could not mark BMI user ${status}:`, error.message);
+  }
+}
 
 // ── Subcomponent: Main Shell Layout ───────────────────────────────────────
 function AppContent({
@@ -383,6 +403,28 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [pendingSession, setPendingSession] = useState(null);
+  const presenceUserId = session?.id;
+  const presenceEmail = session?.email;
+
+  useEffect(() => {
+    if (!presenceUserId) return undefined;
+
+    const presenceSession = { id: presenceUserId, email: presenceEmail };
+
+    setBmiPresence(presenceSession, "online");
+    const heartbeat = window.setInterval(
+      () => setBmiPresence(presenceSession, "online"),
+      30_000,
+    );
+    const markOnline = () => setBmiPresence(presenceSession, "online");
+
+    window.addEventListener("online", markOnline);
+    return () => {
+      window.clearInterval(heartbeat);
+      window.removeEventListener("online", markOnline);
+      setBmiPresence(presenceSession, "offline");
+    };
+  }, [presenceUserId, presenceEmail]);
 
   useEffect(() => {
     async function verifySchoolBinding() {
@@ -703,6 +745,26 @@ export default function App() {
           return;
         }
 
+        // Pending local edits are the newest copy. Upload them before pulling
+        // from Supabase so a login cannot replace an unsynced import with the
+        // older server snapshot. If the upload fails, keep the local copy.
+        if (localStudents.length > 0 && getQueueLength() > 0) {
+          if (!isOnline() || !isSupabaseConfigured()) return;
+
+          const uploadResult = await syncToServer(localStudents, targetId);
+          if (!uploadResult.success) return;
+
+          if (Array.isArray(uploadResult.students)) {
+            if (window.sqlite?.saveStudents) {
+              await window.sqlite.saveStudents(uploadResult.students, false);
+            } else {
+              await localSaveStudents(uploadResult.students);
+            }
+            setStudents(uploadResult.students);
+            return;
+          }
+        }
+
         const serverData = await syncFromServer(targetId);
         if (serverData.success && Array.isArray(serverData.students)) {
           if (window.sqlite?.saveStudents) {
@@ -845,7 +907,9 @@ export default function App() {
     return () => window.removeEventListener("school-bound", handleSchoolBound);
   }, [session]);
 
-  function handleLogout() {
+  async function handleLogout() {
+    await setBmiPresence(session, "offline");
+    await supabase.auth.signOut();
     logout();
     sessionStorage.clear();
 

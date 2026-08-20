@@ -1,4 +1,16 @@
 export const RELEASE_NOTES = {
+  '2.0.5': {
+    title: 'v2.0.5',
+    sections: [
+      {
+        heading: 'Sync and Session Reliability',
+        items: [
+          'Pending Baseline Entry records now upload before cloud data is downloaded after login, preventing an older server copy from replacing unsynced local changes.',
+          'Improved online-presence tracking and sign-out cleanup for more reliable user sessions.',
+        ],
+      },
+    ],
+  },
   '2.0.4': {
     title: 'v2.0.4',
     sections: [
