@@ -1,4 +1,17 @@
 export const RELEASE_NOTES = {
+  '2.0.7': {
+    title: 'v2.0.7',
+    sections: [
+      {
+        heading: 'Responsive SBFP Forms',
+        items: [
+          'SBFP Forms now fit within the available content area on laptops and smaller screens instead of clipping the right side.',
+          'Wide Form 1 and Form 2 tables can now be scrolled horizontally and vertically while keeping the surrounding form layout visible.',
+          'Improved filter wrapping, compact spacing, table height, and Form 2 signature alignment for narrow or short displays.',
+        ],
+      },
+    ],
+  },
   '2.0.6': {
     title: 'v2.0.6',
     sections: [

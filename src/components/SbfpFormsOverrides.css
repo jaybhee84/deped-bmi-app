@@ -1,5 +1,14 @@
 .sbfp-form-sheet-wrap {
   overflow: hidden;
+  max-width: 100%;
+}
+
+/* Keep the paper frame inside the available content area. The wide tables
+   scroll in .sbfp-table-scroll instead of being clipped on laptop screens. */
+.sbfp-form-sheet {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .sbfp-forms-filters {
   display: flex;
@@ -52,10 +61,13 @@
   user-select: text !important;
 }
 .sbfp-table-scroll {
+  width: 100%;
+  max-width: 100%;
   max-height: calc(100vh - 330px);
   min-height: 220px;
   overflow: auto;
   scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 .sbfp-form-table {
   table-layout: fixed;
@@ -119,7 +131,7 @@
   background: #f0fdf4;
 }
 .sbfp-form2-sheet {
-  min-width: 1495px;
+  min-width: 0;
 }
 .form2-details {
   display: grid;
@@ -207,7 +219,7 @@
 }
 .form2-signatures {
   display: grid;
-  grid-template-columns: 872px 325px 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 0;
   margin-top: 28px;
   text-align: center;
@@ -217,8 +229,65 @@
   text-align: left;
 }
 .form2-signatures span:last-child {
-  grid-column: 2;
   text-align: center;
+}
+@media (max-width: 1200px) {
+  .sbfp-forms-page {
+    padding: 18px;
+  }
+  .sbfp-forms-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .sbfp-forms-filters {
+    width: 100%;
+    box-sizing: border-box;
+    flex-wrap: wrap;
+  }
+  .sbfp-forms-filters label,
+  .sbfp-forms-filters select {
+    flex: 1 1 150px;
+    width: 100%;
+    min-width: 0;
+  }
+  .sbfp-table-scroll {
+    max-height: calc(100vh - 390px);
+  }
+  .form2-scroll {
+    max-height: calc(100vh - 450px);
+  }
+}
+@media (max-height: 720px) {
+  .sbfp-forms-page {
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+  .sbfp-forms-heading {
+    margin-bottom: 12px;
+  }
+  .sbfp-forms-heading h1 {
+    font-size: 24px;
+  }
+  .sbfp-form-tabs {
+    margin-bottom: 10px;
+  }
+  .sbfp-form-tabs button {
+    padding-block: 8px;
+  }
+  .sbfp-download-button {
+    margin-bottom: 10px;
+    padding-block: 8px;
+  }
+  .sbfp-form-sheet-wrap {
+    padding: 12px;
+  }
+  .sbfp-table-scroll,
+  .form2-scroll {
+    max-height: 300px;
+    min-height: 160px;
+  }
 }
 @media (max-width: 760px) {
   .sbfp-forms-filters {
