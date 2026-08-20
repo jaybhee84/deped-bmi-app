@@ -198,12 +198,12 @@ export function getNutritionalStatus(
 
 export const GRADE_LEVELS = [
   'Kinder', 'Grade 1', 'Grade 2', 'Grade 3',
-  'Grade 4', 'Grade 5', 'Grade 6', 
+  'Grade 4', 'Grade 5', 'Grade 6', 'SNED',
 ];
 
 export const SECTIONS = [
   'Kinder', 'Grade 1', 'Grade 2', 'Grade 3',
-  'Grade 4', 'Grade 5', 'Grade 6', 
+  'Grade 4', 'Grade 5', 'Grade 6', 'SNED',
 ];
 
 export function getCurrentSchoolYear() {

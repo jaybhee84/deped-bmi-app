@@ -45,11 +45,13 @@ const HISTORY_GRADES = [
   "Grade 4",
   "Grade 5",
   "Grade 6",
+  "SNED",
 ];
 
 function normalizedHistoryGrade(value) {
   const text = String(value || "").trim();
   if (/^kinder/i.test(text)) return "Kinder";
+  if (/^sned/i.test(text)) return "SNED";
   const match = text.match(/^grade\s*([1-6])/i);
   return match ? `Grade ${match[1]}` : null;
 }

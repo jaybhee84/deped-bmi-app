@@ -696,6 +696,7 @@ export default function SDODashboard({
     "Grade 4": "#FDF2F8",
     "Grade 5": "#F5F3FF",
     "Grade 6": "#ECFEFF",
+    SNED: "#F3E8FF",
   };
 
   const combinedMaxBMI = useMemo(() => {

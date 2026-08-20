@@ -330,7 +330,8 @@ export default function SbfpForms({
       "Y",
     parentConsent:
       yesNoEdits[yesNoKey(student, index, "parentConsent")] ??
-      student.parentConsent,
+      student.parentConsent ??
+      "Y",
     member4ps:
       yesNoEdits[yesNoKey(student, index, "member4ps")] ?? student.member4ps,
     previousSbfpBeneficiary:
@@ -579,7 +580,7 @@ export default function SbfpForms({
                         <td>{CODES[student.haz?.label] || "—"}</td>
                         {[
                           ["dewormed", student.dewormed || "Y"],
-                          ["parentConsent", student.parentConsent],
+                          ["parentConsent", student.parentConsent || "Y"],
                           ["member4ps", student.member4ps],
                           ["previousSbfp", student.previousSbfpBeneficiary],
                         ].map(([field, fetchedValue]) => {

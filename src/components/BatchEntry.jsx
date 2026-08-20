@@ -307,7 +307,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
             sex: row.sex,
             section: sectionLabel,
             dewormed: "Y",
-            parentConsent: "N",
+            parentConsent: "Y",
             member4ps: "N",
             schoolId: verifiedSchoolId,
             schoolName: schoolName,

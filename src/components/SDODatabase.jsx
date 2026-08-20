@@ -35,6 +35,7 @@ const GRADE_ORDER = [
   "Grade 4",
   "Grade 5",
   "Grade 6",
+  "SNED",
   "SPED",
 ];
 
@@ -241,7 +242,7 @@ export default function SDOStudents({
         sex: form.sex,
         section: form.section,
         dewormed: "Y",
-        parentConsent: "N",
+        parentConsent: "Y",
         member4ps: "N",
         records: [],
       },
@@ -254,19 +255,26 @@ export default function SDOStudents({
     <div className="sdo-page">
       <div className="sdo-page-header">
         <div>
+          <div className="sdo-page-eyebrow">Division-wide records</div>
           <h1 className="sdo-page-title">SDO Database</h1>
           <p className="sdo-page-sub">
-            Manage student profiles and health records
+            Review learner profiles and health records across schools.
           </p>
         </div>
-        {!readOnly && (
-          <button
-            className="sdo-btn sdo-btn-primary"
-            onClick={() => setAddOpen(true)}
-          >
-            + Add Student
-          </button>
-        )}
+        <div className="sdo-header-actions">
+          <div className="sdo-counts" aria-label="Learner counts">
+            <span><strong>{students.length}</strong> Total</span>
+            <span><strong>{filtered.length}</strong> Shown</span>
+          </div>
+          {!readOnly && (
+            <button
+              className="sdo-btn sdo-btn-primary"
+              onClick={() => setAddOpen(true)}
+            >
+              + Add Student
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="sdo-filter-row">
@@ -490,36 +498,21 @@ export default function SDOStudents({
                       </td>
                       <td style={{ textAlign: "center" }}>
                         <span
-                          style={{
-                            color:
-                              (s.parentConsent || "N") === "Y"
-                                ? "#16a34a"
-                                : "#dc2626",
-                            fontWeight: "bold",
-                          }}
+                          className={`sdo-yn-pill ${(s.parentConsent || "Y") === "Y" ? "is-yes" : "is-no"}`}
                         >
-                          {s.parentConsent || "N"}
+                          {s.parentConsent || "Y"}
                         </span>
                       </td>
                       <td style={{ textAlign: "center" }}>
                         <span
-                          style={{
-                            color:
-                              (s.member4ps || "N") === "Y"
-                                ? "#16a34a"
-                                : "#dc2626",
-                            fontWeight: "bold",
-                          }}
+                          className={`sdo-yn-pill ${(s.member4ps || "N") === "Y" ? "is-yes" : "is-no"}`}
                         >
                           {s.member4ps || "N"}
                         </span>
                       </td>
                       <td style={{ textAlign: "center" }}>
                         <span
-                          style={{
-                            color: previousSbfp ? "#16a34a" : "#dc2626",
-                            fontWeight: "bold",
-                          }}
+                          className={`sdo-yn-pill ${previousSbfp ? "is-yes" : "is-no"}`}
                         >
                           {previousSbfp ? "Y" : "N"}
                         </span>

@@ -78,6 +78,13 @@ function getStudentGrade(s) {
     return "Kinder";
   }
   if (
+    upper.includes("SNED") ||
+    upper.includes("SPECIAL NEEDS EDUCATION") ||
+    upper.includes("SPECIAL NEEDS ED")
+  ) {
+    return "SNED";
+  }
+  if (
     upper.includes("SPED") ||
     upper.includes("SPECIAL EDUCATION") ||
     upper.includes("SPECIAL ED")
@@ -359,6 +366,7 @@ function computeGradeSummary(students, sy, period, officialEnrolment = {}) {
     "Grade 4",
     "Grade 5",
     "Grade 6",
+    "SNED",
     "SPED",
   ];
 
@@ -435,6 +443,8 @@ function getGradeColor(grade) {
       return "#fce7f3";
     case "Grade 6":
       return "#cffafe";
+    case "SNED":
+      return "#f3e8ff";
     case "SPED":
       return "#e5e7eb";
     default:

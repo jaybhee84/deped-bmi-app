@@ -412,3 +412,153 @@
         opacity: 1;
     }
 }
+
+/* Modern database presentation */
+.sdo-page {
+    padding: 24px;
+    background: #f7f9fc;
+}
+
+.sdo-page-header {
+    gap: 20px;
+    margin-bottom: 18px;
+}
+
+.sdo-page-eyebrow {
+    margin-bottom: 4px;
+    color: #4f8f2f;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+.sdo-page-title {
+    color: #162033;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+}
+
+.sdo-header-actions,
+.sdo-counts {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sdo-counts span {
+    min-width: 78px;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #64748b;
+    font-size: 11px;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.sdo-counts strong {
+    display: block;
+    color: #162033;
+    font-size: 16px;
+    line-height: 1.1;
+}
+
+.sdo-filter-row {
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid #dbe4ef;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+}
+
+.sdo-form-input,
+.sdo-form-select {
+    min-height: 42px;
+    border-radius: 10px;
+}
+
+.sdo-btn {
+    min-height: 42px;
+    border-radius: 10px;
+}
+
+.sdo-btn-primary {
+    background: #162033;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.14);
+}
+
+.sdo-card {
+    border-color: #dbe4ef;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+}
+
+.sdo-table th {
+    background: linear-gradient(180deg, #5d9c32 0%, #4f8b2c 100%);
+}
+
+.sdo-table td {
+    background: #ffffff;
+}
+
+.sdo-table tbody tr:nth-child(even) td {
+    background: #fbfcfe;
+}
+
+.sdo-yn-pill {
+    display: inline-flex;
+    min-width: 32px;
+    height: 26px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sdo-yn-pill.is-yes {
+    border-color: #a7d8b8;
+    background: #edf9f1;
+    color: #16713b;
+}
+
+.sdo-yn-pill.is-no {
+    border-color: #f2b8b8;
+    background: #fff2f2;
+    color: #b4232c;
+}
+
+@media (max-width: 900px) {
+    .sdo-page {
+        padding: 16px;
+    }
+
+    .sdo-page-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .sdo-header-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .sdo-filter-row > * {
+        flex: 1 1 180px;
+    }
+
+    .sdo-search-input {
+        width: auto;
+        flex-basis: 100%;
+    }
+
+    .sdo-card {
+        max-height: calc(100vh - 390px);
+    }
+}

@@ -585,7 +585,7 @@ async function supabaseUpsert(cfg, students) {
       sex: s.sex,
       section: s.section,
       dewormed: s.dewormed || 'Y',
-      parent_consent: s.parentConsent || 'N',
+      parent_consent: s.parentConsent || 'Y',
       member_4ps: s.member4ps || 'N',
       previous_sbfp_beneficiary: s.previousSbfpBeneficiary || 'N',
       records: s.records,
@@ -637,30 +637,55 @@ async function supabaseDelete(cfg, ids) {
 
 async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
   const accessToken = await getSupabaseAccessToken(cfg);
-  let url = `${cfg.url}/rest/v1/students?select=*&order=name.asc`;
+  let url = `${cfg.url}/rest/v1/students?select=*&order=name.asc,id.asc`;
 
   if (schoolId) {
     url += `&school_id=eq.${encodeURIComponent(schoolId)}`;
   }
 
-  const headers = {
+  const baseHeaders = {
     'apikey':        cfg.key,
     'Authorization': `Bearer ${accessToken}`,
   };
 
-  let res = await fetch(url, { headers });
-  if (!res.ok) throw new Error(`Supabase fetch error: ${res.status}`);
-  let rows = await res.json();
+  // Supabase/PostgREST limits a response to 1,000 rows by default. Fetch all
+  // ranges so large schools are not silently truncated alphabetically.
+  async function fetchEveryPage(requestUrl) {
+    const pageSize = 1000;
+    const allRows = [];
+    let offset = 0;
+
+    while (true) {
+      const res = await fetch(requestUrl, {
+        headers: {
+          ...baseHeaders,
+          'Prefer': 'count=exact',
+          'Range-Unit': 'items',
+          'Range': `${offset}-${offset + pageSize - 1}`,
+        },
+      });
+      if (res.status === 416 && offset > 0) break;
+      if (!res.ok) throw new Error(`Supabase fetch error: ${res.status}`);
+
+      const page = await res.json();
+      if (!Array.isArray(page) || page.length === 0) break;
+
+      allRows.push(...page);
+      offset += page.length;
+
+      const contentRange = res.headers.get('content-range') || '';
+      const totalMatch = contentRange.match(/\/(\d+)$/);
+      if (totalMatch && offset >= Number(totalMatch[1])) break;
+    }
+
+    return allRows;
+  }
+
+  let rows = await fetchEveryPage(url);
 
   if (rows.length === 0 && schoolName) {
-    const fallbackUrl = `${cfg.url}/rest/v1/students?select=*&school_name=eq.${encodeURIComponent(schoolName)}&order=name.asc`;
-    const fallbackRes = await fetch(fallbackUrl, { headers });
-    if (fallbackRes.ok) {
-      const fallbackRows = await fallbackRes.json();
-      if (fallbackRows.length > 0) {
-        rows = fallbackRows;
-      }
-    }
+    const fallbackUrl = `${cfg.url}/rest/v1/students?select=*&school_name=eq.${encodeURIComponent(schoolName)}&order=name.asc,id.asc`;
+    rows = await fetchEveryPage(fallbackUrl);
   }
 
   return rows.map(r => ({
@@ -676,7 +701,7 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
     section: r.section,
     schoolYear: r.school_year || "",
     dewormed: r.dewormed || 'Y',
-    parentConsent: r.parent_consent || 'N',
+    parentConsent: r.parent_consent || 'Y',
     member4ps: r.member_4ps || 'N',
     previousSbfpBeneficiary: r.previous_sbfp_beneficiary || 'N',
     records: normalizeStudentRecords(r.records),

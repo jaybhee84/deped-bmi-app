@@ -86,21 +86,12 @@ export default function Database({
   });
 
   const availableSections = useMemo(() => {
-    const filteredStudents = students.filter((student) => {
-      const matchSy =
-        filterSy === "All" || student.records?.some((r) => r.sy === filterSy);
-      const matchPeriod =
-        filterPeriod === "All" ||
-        student.records?.some((r) => r.q === filterPeriod);
-      return matchSy && matchPeriod;
-    });
-
-    const counts = filteredStudents.reduce((acc, student) => {
+    const counts = students.reduce((acc, student) => {
       acc[student.section] = (acc[student.section] || 0) + 1;
       return acc;
     }, {});
 
-    let list = [...new Set(filteredStudents.map((s) => s.section))];
+    let list = [...new Set(students.map((s) => s.section).filter(Boolean))];
 
     if (filterGrade !== "All") {
       list = list.filter((section) => section.startsWith(filterGrade));
@@ -124,29 +115,26 @@ export default function Database({
         name: sectionName,
         count: counts[sectionName] || 0,
       }));
-  }, [students, filterSy, filterPeriod, filterGrade]);
+  }, [students, filterGrade]);
 
   const filtered = useMemo(() => {
     return students.filter((s) => {
-      const matchSy =
-        filterSy === "All" || s.records?.some((r) => r.sy === filterSy);
-
-      const matchPeriod =
-        filterPeriod === "All" || s.records?.some((r) => r.q === filterPeriod);
-
       const matchGrade =
-        filterGrade === "All" || s.section.startsWith(filterGrade);
+        filterGrade === "All" ||
+        String(s.section || "").startsWith(filterGrade);
 
       const matchSec = filterSection === "All" || s.section === filterSection;
 
       const matchQ =
         searchQ === "" ||
-        s.name.toLowerCase().includes(searchQ.toLowerCase()) ||
-        s.lrn.includes(searchQ);
+        String(s.name || "")
+          .toLowerCase()
+          .includes(searchQ.toLowerCase()) ||
+        String(s.lrn || "").includes(searchQ);
 
-      return matchSy && matchPeriod && matchGrade && matchSec && matchQ;
+      return matchGrade && matchSec && matchQ;
     });
-  }, [students, filterSy, filterPeriod, filterGrade, filterSection, searchQ]);
+  }, [students, filterGrade, filterSection, searchQ]);
 
   // Always show Male learners first, then Female, alphabetical by name
   // within each — regardless of which filters are active.
@@ -281,7 +269,7 @@ export default function Database({
         sex: form.sex,
         section: form.section,
         dewormed: "Y",
-        parentConsent: "N",
+        parentConsent: "Y",
         member4ps: "N",
         records: [],
       },
@@ -291,54 +279,32 @@ export default function Database({
   }
 
   return (
-    <div className="students-page-container page" style={{ padding: "20px" }}>
-      <div
-        className="page-header"
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "20px",
-        }}
-      >
+    <div className="students-page-container page">
+      <div className="page-header database-page-header">
         <div>
-          <h1
-            className="page-title"
-            style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}
-          >
-            Learner Database
-          </h1>
-          <p
-            className="page-sub"
-            style={{ fontSize: "14px", color: "#64748b", margin: "4px 0 0 0" }}
-          >
-            Manage student profiles and health records
-          </p>
+          <div className="database-eyebrow">Student records</div>
+          <h1 className="page-title">Learner Database</h1>
+          <p className="page-sub">Search, review, and update learner records.</p>
         </div>
-        {!readOnly && (
-          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <div className="database-header-actions">
+          <div className="database-counts" aria-label="Learner counts">
+            <span><strong>{students.length}</strong> Total</span>
+            <span><strong>{sortedFiltered.length}</strong> Shown</span>
+          </div>
+          {!readOnly && (
             <button
-              className="btn btn-primary"
+              className="btn btn-primary database-add-button"
               onClick={() => setAddOpen(true)}
-              style={{
-                background: "#0f172a",
-                color: "#fff",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontWeight: "500",
-              }}
             >
               + Add Student
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <>
         {/* Controls Filters */}
-        <div className="filter-row">
+        <div className="filter-row database-filter-panel">
           <input
             className="form-input search-input"
             style={{
@@ -535,15 +501,15 @@ export default function Database({
                   </tr>
                 ) : (
                   sortedFiltered.map((s) => {
-                    const rec =
-                      s.records.find(
-                        (r) =>
-                          (filterSy === "All" || r.sy === filterSy) &&
-                          (filterPeriod === "All" || r.q === filterPeriod),
-                      ) ||
-                      (s.records.length
-                        ? s.records[s.records.length - 1]
-                        : null);
+                    const records = Array.isArray(s.records) ? s.records : [];
+                    const matchingRecords = records.filter(
+                      (r) =>
+                        (filterSy === "All" || r.sy === filterSy) &&
+                        (filterPeriod === "All" || r.q === filterPeriod),
+                    );
+                    const rec = matchingRecords.length
+                      ? matchingRecords[matchingRecords.length - 1]
+                      : null;
 
                     const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
                     const status = bmi
@@ -666,7 +632,9 @@ export default function Database({
                         </td>
                         <td>
                           <select
-                            value={s.parentConsent || "N"}
+                            value={s.parentConsent || "Y"}
+                            disabled={readOnly}
+                            className={`yn-select ${(s.parentConsent || "Y") === "Y" ? "is-yes" : "is-no"}`}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               updateStudentField(
@@ -675,11 +643,6 @@ export default function Database({
                                 e.target.value,
                               )
                             }
-                            style={{
-                              maxWidth: "60px",
-                              margin: "0 auto",
-                              display: "block",
-                            }}
                           >
                             <option value="Y">Y</option>
                             <option value="N">N</option>
@@ -688,6 +651,8 @@ export default function Database({
                         <td>
                           <select
                             value={s.member4ps || "N"}
+                            disabled={readOnly}
+                            className={`yn-select ${(s.member4ps || "N") === "Y" ? "is-yes" : "is-no"}`}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               updateStudentField(
@@ -696,11 +661,6 @@ export default function Database({
                                 e.target.value,
                               )
                             }
-                            style={{
-                              maxWidth: "60px",
-                              margin: "0 auto",
-                              display: "block",
-                            }}
                           >
                             <option value="Y">Y</option>
                             <option value="N">N</option>
@@ -710,6 +670,7 @@ export default function Database({
                           <select
                             value={previousSbfpValue}
                             disabled={readOnly}
+                            className={`yn-select ${previousSbfpValue === "Y" ? "is-yes" : "is-no"}`}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               updateStudentField(
@@ -718,16 +679,6 @@ export default function Database({
                                 e.target.value,
                               )
                             }
-                            style={{
-                              color:
-                                previousSbfpValue === "Y"
-                                  ? "#16a34a"
-                                  : "#dc2626",
-                              fontWeight: "bold",
-                              maxWidth: "60px",
-                              margin: "0 auto",
-                              display: "block",
-                            }}
                           >
                             <option value="Y">Y</option>
                             <option value="N">N</option>

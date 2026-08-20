@@ -177,6 +177,8 @@ export default function Reports({ students = [] }) {
     "Grade 4": 4,
     "Grade 5": 5,
     "Grade 6": 6,
+    SNED: 7,
+    SPED: 8,
   };
 
   const sortedDisplayRows = [...displayRows].sort((a, b) => {

@@ -28,6 +28,7 @@ const REPORT_GRADE_ORDER = [
   "Grade 4",
   "Grade 5",
   "Grade 6",
+  "SNED",
   "SPED",
 ];
 
@@ -294,6 +295,7 @@ export default function SBFPBeneficiaries({
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
   const [filterSection, setFilterSection] = useState("All");
+  const [filterNutrition, setFilterNutrition] = useState("All");
   const [searchQ, setSearchQ] = useState("");
   const [manualEnrolment, setManualEnrolment] = useState({});
   const [isDirty, setIsDirty] = useState(false);
@@ -585,13 +587,21 @@ export default function SBFPBeneficiaries({
         filterGrade === "All" ||
         filterSection === "All" ||
         s.section === filterSection;
+      const matchNutrition =
+        filterNutrition === "All" || s.baz?.label === filterNutrition;
       const matchSearch =
         searchQ === "" ||
         (s.name || "").toLowerCase().includes(searchQ.toLowerCase()) ||
         (s.lrn || "").includes(searchQ);
-      return matchGrade && matchSection && matchSearch;
+      return matchGrade && matchSection && matchNutrition && matchSearch;
     });
-  }, [beneficiaries, filterGrade, filterSection, searchQ]);
+  }, [
+    beneficiaries,
+    filterGrade,
+    filterSection,
+    filterNutrition,
+    searchQ,
+  ]);
 
   // Only offered once a specific grade is chosen - sections aren't
   // meaningful to pick from until the list is scoped to one grade.
@@ -647,6 +657,8 @@ export default function SBFPBeneficiaries({
     "Grade 4": 4,
     "Grade 5": 5,
     "Grade 6": 6,
+    SNED: 7,
+    SPED: 8,
   };
   const sortedRows = [...filtered].sort((a, b) => {
     const gd = (gradeOrder[a.grade] ?? 99) - (gradeOrder[b.grade] ?? 99);
@@ -992,6 +1004,7 @@ export default function SBFPBeneficiaries({
             "Grade 4",
             "Grade 5",
             "Grade 6",
+            "SNED",
             "SPED",
           ].map((g) => (
             <div
@@ -1256,6 +1269,33 @@ export default function SBFPBeneficiaries({
               </div>
             </>
           )}
+
+          <div
+            style={{
+              width: "1px",
+              alignSelf: "stretch",
+              background: "#E5E7EB",
+            }}
+          />
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label" style={{ marginBottom: "2px" }}>
+              Nutritional Status
+            </label>
+            <select
+              className="form-select"
+              style={{ minWidth: "165px" }}
+              value={filterNutrition}
+              onChange={(e) => setFilterNutrition(e.target.value)}
+            >
+              <option value="All">All Statuses</option>
+              {BMI_LABELS.map((label) => (
+                <option key={label} value={label}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div
             style={{

@@ -15,6 +15,7 @@ const GRADE_CODES = {
   'Grade 4':  'G4',
   'Grade 5':  'G5',
   'Grade 6':  'G6',
+  'SNED':     'SNED',
   'Grade 7':  'G7',
   'Grade 8':  'G8',
   'Grade 9':  'G9',
