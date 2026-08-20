@@ -163,6 +163,7 @@ function YesNoCell({
 
 export default function SbfpForms({
   students = [],
+  setStudents,
   currentUser,
   schoolName,
   readOnly = false,
@@ -290,11 +291,43 @@ export default function SbfpForms({
       });
       return next;
     });
+
+    if (!setStudents || readOnly) return;
+
+    const fieldMap = {
+      dewormed: "dewormed",
+      parentConsent: "parentConsent",
+      member4ps: "member4ps",
+      previousSbfp: "previousSbfpBeneficiary",
+    };
+    const updatesByStudentId = new Map();
+    beneficiaries.forEach((student, index) => {
+      Object.entries(fieldMap).forEach(([cellField, studentField]) => {
+        const key = yesNoKey(student, index, cellField);
+        if (targets.includes(key)) {
+          const studentId = String(student.id);
+          updatesByStudentId.set(studentId, {
+            ...(updatesByStudentId.get(studentId) || {}),
+            [studentField]: value,
+          });
+        }
+      });
+    });
+
+    if (updatesByStudentId.size === 0) return;
+    setStudents((previous) =>
+      previous.map((student) => {
+        const updates = updatesByStudentId.get(String(student.id));
+        return updates ? { ...student, ...updates } : student;
+      }),
+    );
   };
   const exportBeneficiaries = beneficiaries.map((student, index) => ({
     ...student,
     dewormed:
-      yesNoEdits[yesNoKey(student, index, "dewormed")] ?? student.dewormed,
+      yesNoEdits[yesNoKey(student, index, "dewormed")] ??
+      student.dewormed ??
+      "Y",
     parentConsent:
       yesNoEdits[yesNoKey(student, index, "parentConsent")] ??
       student.parentConsent,
@@ -545,7 +578,7 @@ export default function SbfpForms({
                         <td>{CODES[student.baz?.label] || "—"}</td>
                         <td>{CODES[student.haz?.label] || "—"}</td>
                         {[
-                          ["dewormed", student.dewormed],
+                          ["dewormed", student.dewormed || "Y"],
                           ["parentConsent", student.parentConsent],
                           ["member4ps", student.member4ps],
                           ["previousSbfp", student.previousSbfpBeneficiary],

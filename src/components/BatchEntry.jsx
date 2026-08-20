@@ -306,6 +306,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
             age: typeof row.age === "number" ? row.age : parseInt(row.age) || 0,
             sex: row.sex,
             section: sectionLabel,
+            dewormed: "Y",
             parentConsent: "N",
             member4ps: "N",
             schoolId: verifiedSchoolId,

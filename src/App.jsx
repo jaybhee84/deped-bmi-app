@@ -260,6 +260,7 @@ function AppContent({
         {page === "sbfp-forms" && !isSDO && (
           <SbfpForms
             students={safeStudents}
+            setStudents={readOnly ? undefined : updateStudents}
             currentUser={session}
             schoolName={schoolName}
           />

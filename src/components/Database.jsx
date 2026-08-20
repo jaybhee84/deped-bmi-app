@@ -280,6 +280,7 @@ export default function Database({
         age: parseInt(form.age) || 0,
         sex: form.sex,
         section: form.section,
+        dewormed: "Y",
         parentConsent: "N",
         member4ps: "N",
         records: [],

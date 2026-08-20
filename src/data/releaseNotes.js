@@ -1,4 +1,16 @@
 export const RELEASE_NOTES = {
+  '2.0.9': {
+    title: 'v2.0.9',
+    sections: [
+      {
+        heading: 'Persistent SBFP Form Responses',
+        items: [
+          'Y/N entries made directly in SBFP Form 1 now save to the learner record locally and synchronize to the cloud instead of being discarded when leaving the form.',
+          'Added persistent deworming status with Y as the default while allowing school users to change and save N.',
+        ],
+      },
+    ],
+  },
   '2.0.8': {
     title: 'v2.0.8',
     sections: [
