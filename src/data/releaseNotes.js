@@ -1,4 +1,30 @@
 export const RELEASE_NOTES = {
+  '2.0.3': {
+    title: 'v2.0.3',
+    sections: [
+      {
+        heading: 'Enrollment Totals',
+        items: [
+          'Total enrollment now uses matching school-year learner enrollment from the shared IECES Portal first, with official manual SBFP enrollment as the fallback when portal data is unavailable.',
+          'Added school-year support to the shared learner registry so future enrollment periods can supply totals automatically without changing existing school-year figures.',
+        ],
+      },
+      {
+        heading: 'Nutritional Status Accuracy',
+        items: [
+          "BMI-for-age and height-for-age classifications now use each learner's age on the recorded Date Measured instead of their age on the current date.",
+          'Applied measurement-date classification consistently across Baseline Entry, CSV previews, learner profiles, databases, dashboards, reports, and SBFP forms.',
+        ],
+      },
+      {
+        heading: 'Baseline Entry',
+        items: [
+          'Grade Level now starts clear and must be selected explicitly; the Session field appears only when Kinder is selected.',
+          "Standardized Baseline Entry action buttons to the application's navy theme, including hover, active, focus, and disabled states.",
+        ],
+      },
+    ],
+  },
   '2.0.2': {
     silent: true,
   },

@@ -240,10 +240,15 @@ export default function SbfpForms({
               heightCm,
               bmi,
               baz: bmi
-                ? getBMIStatus(bmi, student.sex, student.birthdate)
+                ? getBMIStatus(bmi, student.sex, student.birthdate, rec.date)
                 : null,
               haz: rec
-                ? getHAZStatus(heightCm, student.sex, student.birthdate)
+                ? getHAZStatus(
+                    heightCm,
+                    student.sex,
+                    student.birthdate,
+                    rec.date,
+                  )
                 : null,
             };
           })

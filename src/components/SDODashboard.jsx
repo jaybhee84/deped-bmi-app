@@ -14,6 +14,11 @@ import "./SDODashboard.css";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 import { getCachedLogoSrc, useLogoCacheHydrated } from "../utils/logoCache";
 import DataAndTables from "./DataAndTables";
+import {
+  chooseEnrolmentTotal,
+  combineSchoolEnrolmentTotals,
+  normalizeSchoolYear,
+} from "../utils/enrolmentTotals";
 
 // ── Multi-Segment SVG Donut Chart Component ──────────────────────────────────
 import { SCHOOL_OPTIONS } from "../utils/schools";
@@ -126,7 +131,7 @@ export default function SDODashboard({
   // below picks up local logos instead of Supabase Storage URLs.
   useLogoCacheHydrated();
 
-  // Official enrolment loaded from sbfp_enrolment
+  // Preferred enrolment: matching portal rows first, manual SBFP fallback.
   const [schoolEnrolment, setSchoolEnrolment] = useState(0);
 
   useEffect(() => {
@@ -163,35 +168,44 @@ export default function SDODashboard({
   useEffect(() => {
     let cancelled = false;
 
-    function totalFromRow(row) {
-      if (!row) return 0;
-      return Object.values(row.data || {}).reduce(
-        (acc, val) => acc + (Number(val) || 0),
-        0,
-      );
-    }
-
     async function fetchEnrolment() {
       try {
+        const schoolYear = normalizeSchoolYear(filterSY);
+
         if (selectedSchool === "ALL SCHOOLS") {
-          const { data, error } = await supabase
-            .from("sbfp_enrolment")
-            .select("data")
-            .eq("sy", filterSY);
+          const [portalResult, manualResult] = await Promise.all([
+            supabase
+              .from("students")
+              .select("school_id")
+              .eq("school_year", schoolYear),
+            supabase
+              .from("sbfp_enrolment")
+              .select("school_id,data,total")
+              .eq("sy", filterSY),
+          ]);
 
           if (!cancelled) {
-            if (error) {
+            if (portalResult.error) {
+              // Until the school_year migration is deployed, manual SBFP
+              // remains the source for every school.
+              console.warn(
+                "[SDODashboard] Portal enrolment unavailable:",
+                portalResult.error.message,
+              );
+            }
+            if (manualResult.error) {
               console.error(
                 "[SDODashboard] Enrolment fetch error (ALL SCHOOLS):",
-                error,
+                manualResult.error,
               );
               setSchoolEnrolment(0);
             } else {
-              const sum = (data || []).reduce(
-                (acc, row) => acc + totalFromRow(row),
-                0,
+              setSchoolEnrolment(
+                combineSchoolEnrolmentTotals(
+                  portalResult.error ? [] : portalResult.data,
+                  manualResult.data,
+                ),
               );
-              setSchoolEnrolment(sum);
             }
           }
           return;
@@ -205,18 +219,47 @@ export default function SDODashboard({
           return;
         }
 
-        const { data, error } = await supabase
-          .from("sbfp_enrolment")
-          .select("data")
-          .eq("school_id", String(targetId).trim())
-          .eq("sy", filterSY)
-          .maybeSingle();
+        const cleanSchoolId = String(targetId).trim();
+        const [portalResult, manualResult] = await Promise.all([
+          supabase
+            .from("students")
+            .select("id", { count: "exact", head: true })
+            .eq("school_id", cleanSchoolId)
+            .eq("school_year", schoolYear),
+          supabase
+            .from("sbfp_enrolment")
+            .select("data,total")
+            .eq("school_id", cleanSchoolId)
+            .eq("sy", filterSY)
+            .maybeSingle(),
+        ]);
 
         if (!cancelled) {
-          if (error) {
-            console.error("[SDODashboard] Enrolment fetch error:", error);
+          if (portalResult.error) {
+            console.warn(
+              "[SDODashboard] Portal enrolment unavailable:",
+              portalResult.error.message,
+            );
           }
-          setSchoolEnrolment(!error && data ? totalFromRow(data) : 0);
+          if (manualResult.error) {
+            console.error(
+              "[SDODashboard] Enrolment fetch error:",
+              manualResult.error,
+            );
+          }
+          const manualTotal = manualResult.data
+            ? (manualResult.data.total ??
+              Object.values(manualResult.data.data || {}).reduce(
+                (sum, value) => sum + (Number(value) || 0),
+                0,
+              ))
+            : 0;
+          setSchoolEnrolment(
+            chooseEnrolmentTotal(
+              portalResult.error ? 0 : portalResult.count,
+              manualResult.error ? 0 : manualTotal,
+            ),
+          );
         }
       } catch (e) {
         console.error("[SDODashboard] Failed to fetch enrolment:", e);
@@ -319,8 +362,8 @@ export default function SDODashboard({
   );
 
   const totalEnrollees = useMemo(() => {
-    return schoolEnrolment > 0 ? schoolEnrolment : syStudents.length;
-  }, [schoolEnrolment, syStudents.length]);
+    return schoolEnrolment;
+  }, [schoolEnrolment]);
 
   const allLatestBMI = useMemo(() => {
     return students
@@ -332,7 +375,11 @@ export default function SDODashboard({
         const last = recs[recs.length - 1];
         const bmi = calcBMI(last.weight, last.height);
         return bmi
-          ? { bmi, status: getBMIStatus(bmi, s.sex, s.birthdate), student: s }
+          ? {
+              bmi,
+              status: getBMIStatus(bmi, s.sex, s.birthdate, last.date),
+              student: s,
+            }
           : null;
       })
       .filter(Boolean);
@@ -361,7 +408,9 @@ export default function SDODashboard({
         c["No Data"]++;
         return;
       }
-      c[getBMIStatus(bmi, s.sex, s.birthdate).label]++;
+      const status = getBMIStatus(bmi, s.sex, s.birthdate, last.date);
+      if (status?.label) c[status.label]++;
+      else c["No Data"]++;
     });
     return c;
   }, [syStudents, filterSY, filterPeriod]);
@@ -379,7 +428,7 @@ export default function SDODashboard({
       );
       if (!recs.length) return;
       const last = recs[recs.length - 1];
-      const haz = getHAZStatus(last.height, s.sex, s.birthdate);
+      const haz = getHAZStatus(last.height, s.sex, s.birthdate, last.date);
       if (haz?.label === "Normal") c["Normal Height"]++;
       else if (haz?.label) c[haz.label]++;
     });
@@ -441,7 +490,12 @@ export default function SDODashboard({
         .filter((r) => r.sy === filterSY && r.q === filterPeriod)
         .slice(-1)[0];
       const haz = rec
-        ? getHAZStatus(rec.height, item.student.sex, item.student.birthdate)
+        ? getHAZStatus(
+            rec.height,
+            item.student.sex,
+            item.student.birthdate,
+            rec.date,
+          )
         : null;
       if (haz?.label === "Normal") summary[grade][sex]["Normal Height"]++;
       else if (haz?.label) summary[grade][sex][haz.label]++;
@@ -552,7 +606,7 @@ export default function SDODashboard({
         const last = recs[recs.length - 1];
         const bmi = calcBMI(last.weight, last.height);
         if (!bmi) return;
-        const lbl = getBMIStatus(bmi, s.sex, s.birthdate).label;
+        const lbl = getBMIStatus(bmi, s.sex, s.birthdate, last.date)?.label;
         if (counts[lbl] !== undefined) counts[lbl]++;
       });
       return { period, ...counts };
@@ -574,7 +628,7 @@ export default function SDODashboard({
         if (!recs.length) return;
         const last = recs[recs.length - 1];
         if (!last.height) return;
-        const haz = getHAZStatus(last.height, s.sex, s.birthdate);
+        const haz = getHAZStatus(last.height, s.sex, s.birthdate, last.date);
         if (haz?.label === "Normal" && counts["Normal Height"] !== undefined)
           counts["Normal Height"]++;
         else if (haz?.label && counts[haz.label] !== undefined)

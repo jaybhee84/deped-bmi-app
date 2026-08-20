@@ -11,6 +11,11 @@ import "./Dashboard.css";
 import { fetchSchoolById } from "../utils/syncService";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 import { loadSbfpEnrolment } from "../utils/sbfpConfig";
+import {
+  chooseEnrolmentTotal,
+  countPortalEnrolments,
+  totalManualEnrolment,
+} from "../utils/enrolmentTotals";
 
 export default function Dashboard({ students, currentUser, onOpenProfile }) {
   const [filterSY, setFilterSY] = useState("2026–2027");
@@ -131,10 +136,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         // immediately, then (if online) refreshes from Supabase and
         // re-caches that locally. No need to duplicate that logic here.
         const enrolmentData = await loadSbfpEnrolment(schoolId, filterSY);
-        const total = Object.values(enrolmentData || {}).reduce(
-          (sum, val) => sum + (Number(val) || 0),
-          0,
-        );
+        const total = totalManualEnrolment(enrolmentData);
         if (!cancelled) setTotalEnrolment(total);
       } catch (err) {
         console.error("[Dashboard] Failed to load enrolment total:", err);
@@ -153,6 +155,15 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
     s.records.some((r) => r.sy === filterSY),
   );
 
+  const portalEnrolment = useMemo(
+    () => countPortalEnrolments(students, filterSY),
+    [students, filterSY],
+  );
+  const preferredEnrolment = chooseEnrolmentTotal(
+    portalEnrolment,
+    totalEnrolment,
+  );
+
   const allLatestBMI = useMemo(() => {
     return students
       .map((s) => {
@@ -162,9 +173,11 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         if (!recs.length) return null;
         const last = recs[recs.length - 1];
         const bmi = calcBMI(last.weight, last.height);
-        const bmiStatus = bmi ? getBMIStatus(bmi, s.sex, s.birthdate) : null;
+        const bmiStatus = bmi
+          ? getBMIStatus(bmi, s.sex, s.birthdate, last.date)
+          : null;
         const hazStatus = last.height
-          ? getHAZStatus(last.height, s.sex, s.birthdate)
+          ? getHAZStatus(last.height, s.sex, s.birthdate, last.date)
           : null;
 
         return bmi || last.height
@@ -180,7 +193,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
     );
     if (!recs.length) return true;
     const last = recs[recs.length - 1];
-    return !last.weight || !last.height || !s.birthdate || !s.sex;
+    return !last.weight || !last.height || !last.date || !s.birthdate || !s.sex;
   });
 
   const statusCounts = useMemo(() => {
@@ -206,7 +219,8 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         c["No Data"]++;
         return;
       }
-      const lbl = getBMIStatus(bmi, s.sex, s.birthdate).label;
+      const status = getBMIStatus(bmi, s.sex, s.birthdate, last.date);
+      const lbl = status?.label;
       if (c[lbl] !== undefined) c[lbl]++;
     });
     return c;
@@ -243,7 +257,8 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         const last = recs[recs.length - 1];
         const bmi = calcBMI(last.weight, last.height);
         if (!bmi) return;
-        const lbl = getBMIStatus(bmi, s.sex, s.birthdate).label;
+        const status = getBMIStatus(bmi, s.sex, s.birthdate, last.date);
+        const lbl = status?.label;
         if (lbl === "Normal") counts.Normal++;
         else if (lbl === "Wasted" || lbl === "Severely Wasted") counts.Wasted++;
         else if (lbl === "Overweight" || lbl === "Obese") counts.Overweight++;
@@ -267,7 +282,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         if (!recs.length) return;
         const last = recs[recs.length - 1];
         if (!last.height) return;
-        const haz = getHAZStatus(last.height, s.sex, s.birthdate);
+        const haz = getHAZStatus(last.height, s.sex, s.birthdate, last.date);
         if (haz?.label === "Normal") counts.NormalHeight++;
         else if (haz?.label === "Stunted") counts.Stunted++;
         else if (haz?.label === "Severely Stunted") counts.SeverelyStunted++;
@@ -631,7 +646,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         {[
           {
             label: "Total Students",
-            val: totalEnrolment,
+            val: preferredEnrolment,
             border: "#cbd5e1",
             color: "#0f172a",
           },
@@ -962,7 +977,9 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
                 recs[recs.length - 1].height,
               );
               return (
-                bmi && getBMIStatus(bmi, s.sex, s.birthdate).label === "Wasted"
+                bmi &&
+                getBMIStatus(bmi, s.sex, s.birthdate, rec.date)?.label ===
+                  "Wasted"
               );
             }).length;
 
@@ -979,7 +996,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
               );
               return (
                 bmi &&
-                getBMIStatus(bmi, s.sex, s.birthdate).label ===
+                getBMIStatus(bmi, s.sex, s.birthdate, rec.date)?.label ===
                   "Severely Wasted"
               );
             }).length;
@@ -997,7 +1014,8 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
               );
               return (
                 bmi &&
-                getBMIStatus(bmi, s.sex, s.birthdate).label === "Overweight"
+                getBMIStatus(bmi, s.sex, s.birthdate, rec.date)?.label ===
+                  "Overweight"
               );
             }).length;
 
@@ -1013,7 +1031,9 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
                 recs[recs.length - 1].height,
               );
               return (
-                bmi && getBMIStatus(bmi, s.sex, s.birthdate).label === "Obese"
+                bmi &&
+                getBMIStatus(bmi, s.sex, s.birthdate, rec.date)?.label ===
+                  "Obese"
               );
             }).length;
 
@@ -2324,6 +2344,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
                   if (!recs.length) missing.push(`Missing Q Record`);
                   else {
                     const last = recs[recs.length - 1];
+                    if (!last.date) missing.push("Date Measured");
                     if (!last.weight) missing.push("Weight");
                     if (!last.height) missing.push("Height");
                   }

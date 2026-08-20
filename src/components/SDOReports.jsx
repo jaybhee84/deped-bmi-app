@@ -330,7 +330,7 @@ function computeSexStats(students, sy, period) {
       if (hasHeight) {
         const bmi = calcBMI(rec.weight, rec.height);
         if (bmi) {
-          const status = getBMIStatus(bmi, s.sex, s.birthdate);
+          const status = getBMIStatus(bmi, s.sex, s.birthdate, rec.date);
           if (status?.label && stats.bmi[status.label] !== undefined) {
             stats.bmi[status.label]++;
           }
@@ -340,7 +340,7 @@ function computeSexStats(students, sy, period) {
 
     if (hasHeight) {
       stats.takenHeight++;
-      const haz = getHAZStatus(rec.height, s.sex, s.birthdate);
+      const haz = getHAZStatus(rec.height, s.sex, s.birthdate, rec.date);
       if (haz?.label && stats.hfa[haz.label] !== undefined) {
         stats.hfa[haz.label]++;
       }
@@ -711,8 +711,10 @@ export default function SDOReports({
       );
       if (!rec) return null;
       const bmi = calcBMI(rec.weight, rec.height);
-      const status = bmi ? getBMIStatus(bmi, s.sex, s.birthdate) : null;
-      const haz = getHAZStatus(rec.height, s.sex, s.birthdate);
+      const status = bmi
+        ? getBMIStatus(bmi, s.sex, s.birthdate, rec.date)
+        : null;
+      const haz = getHAZStatus(rec.height, s.sex, s.birthdate, rec.date);
       return {
         ...s,
         bmi,

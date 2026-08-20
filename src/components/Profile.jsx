@@ -81,7 +81,13 @@ function buildNutritionalHistory(student) {
       return;
     const bmi = calcBMI(record.weight, record.height);
     if (!bmi) return;
-    const status = getBMIStatus(bmi, student.sex, student.birthdate);
+    const status = getBMIStatus(
+      bmi,
+      student.sex,
+      student.birthdate,
+      record.date,
+    );
+    if (!status) return;
     if (!grouped.has(grade)) grouped.set(grade, {});
     grouped.get(grade)[record.q] = status;
   });
@@ -103,8 +109,15 @@ function MetricRow({ label, value }) {
 
 function HealthRecordCard({ record, student, onEdit, readOnly }) {
   const bmi = calcBMI(record.weight, record.height);
-  const status = bmi ? getBMIStatus(bmi, student.sex, student.birthdate) : null;
-  const haz = getHAZStatus(record.height, student.sex, student.birthdate);
+  const status = bmi
+    ? getBMIStatus(bmi, student.sex, student.birthdate, record.date)
+    : null;
+  const haz = getHAZStatus(
+    record.height,
+    student.sex,
+    student.birthdate,
+    record.date,
+  );
 
   return (
     <div className="modern-record-card">
@@ -902,7 +915,9 @@ export default function Profile({
                     bmi,
                     student.sex,
                     student.birthdate,
+                    r.date,
                   );
+                  if (!status) return null;
                   return (
                     <div key={i} className="trend-bar-group">
                       <div className="trend-bmi-label">{bmi.toFixed(1)}</div>

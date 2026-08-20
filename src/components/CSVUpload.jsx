@@ -186,10 +186,10 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       // Dynamically map statuses for preview display
       const bmi = weight && height ? calcBMI(weight, height) : null;
       const bmiStatus = bmi
-        ? getBMIStatus(bmi, match?.sex, match?.birthdate)
+        ? getBMIStatus(bmi, match?.sex, match?.birthdate, date)
         : null;
       const hazStatus = height
-        ? getHAZStatus(height, match?.sex, match?.birthdate)
+        ? getHAZStatus(height, match?.sex, match?.birthdate, date)
         : null;
 
       rows.push({
@@ -639,10 +639,20 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                     const bmi =
                       weight && height ? calcBMI(weight, height) : null;
                     const bmiStatus = bmi
-                      ? getBMIStatus(bmi, student.sex, student.birthdate)
+                      ? getBMIStatus(
+                          bmi,
+                          student.sex,
+                          student.birthdate,
+                          periodRec?.date,
+                        )
                       : null;
                     const hazStatus = height
-                      ? getHAZStatus(height, student.sex, student.birthdate)
+                      ? getHAZStatus(
+                          height,
+                          student.sex,
+                          student.birthdate,
+                          periodRec?.date,
+                        )
                       : null;
 
                     return (

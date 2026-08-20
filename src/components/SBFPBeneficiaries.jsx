@@ -147,7 +147,7 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
     if (hasWeight && hasHeight) {
       bucket.weighed++;
       const bmi = calcBMI(rec.weight, rec.height);
-      const baz = getBMIStatus(bmi, s.sex, s.birthdate);
+      const baz = getBMIStatus(bmi, s.sex, s.birthdate, rec.date);
       if (baz?.label && bucket.bmi[baz.label] !== undefined) {
         bucket.bmi[baz.label]++;
       }
@@ -155,7 +155,7 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
 
     if (hasHeight) {
       bucket.takenHeight++;
-      const haz = getHAZStatus(rec.height, s.sex, s.birthdate);
+      const haz = getHAZStatus(rec.height, s.sex, s.birthdate, rec.date);
       if (haz?.label && bucket.hfa[haz.label] !== undefined) {
         bucket.hfa[haz.label]++;
       }
@@ -534,8 +534,12 @@ export default function SBFPBeneficiaries({
           null;
 
         const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
-        const baz = bmi ? getBMIStatus(bmi, s.sex, s.birthdate) : null;
-        const haz = rec ? getHAZStatus(rec.height, s.sex, s.birthdate) : null;
+        const baz = bmi
+          ? getBMIStatus(bmi, s.sex, s.birthdate, rec.date)
+          : null;
+        const haz = rec
+          ? getHAZStatus(rec.height, s.sex, s.birthdate, rec.date)
+          : null;
         const grade = s.section?.split(" - ")[0] || s.grade || "";
 
         let isBen = false;

@@ -546,23 +546,27 @@ async function supabaseUpsert(cfg, students) {
   const deduplicatedStudents = Array.from(uniqueMap.values());
 
   // 2. Build payload from deduplicated student records
-  const payload = deduplicatedStudents.map(s => ({
-    id: String(s.id),
-    school_id: s.school_id || s.schoolId || "",
-    school_name: s.school_name || s.schoolName || "", 
-    lrn: s.lrn,
-    registry_no: s.registryNo || null,
-    name: s.name,
-    birthdate: s.birthdate || null,
-    age: s.age || 0,
-    sex: s.sex,
-    section: s.section,
-    parent_consent: s.parentConsent || 'N',
-    member_4ps: s.member4ps || 'N',
-    previous_sbfp_beneficiary: s.previousSbfpBeneficiary || 'N',
-    records: s.records,
-    updated_at: new Date().toISOString(),
-  }));
+  const payload = deduplicatedStudents.map(s => {
+    const schoolYear = s.schoolYear || s.school_year;
+    return {
+      id: String(s.id),
+      school_id: s.school_id || s.schoolId || "",
+      school_name: s.school_name || s.schoolName || "",
+      lrn: s.lrn,
+      registry_no: s.registryNo || null,
+      name: s.name,
+      birthdate: s.birthdate || null,
+      age: s.age || 0,
+      sex: s.sex,
+      section: s.section,
+      parent_consent: s.parentConsent || 'N',
+      member_4ps: s.member4ps || 'N',
+      previous_sbfp_beneficiary: s.previousSbfpBeneficiary || 'N',
+      records: s.records,
+      ...(schoolYear ? { school_year: schoolYear } : {}),
+      updated_at: new Date().toISOString(),
+    };
+  });
 
   const res = await fetch(`${cfg.url}/rest/v1/students`, {
     method: 'POST',
@@ -644,6 +648,7 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
     age: r.age || 0,
     sex: r.sex,
     section: r.section,
+    schoolYear: r.school_year || "",
     parentConsent: r.parent_consent || 'N',
     member4ps: r.member_4ps || 'N',
     previousSbfpBeneficiary: r.previous_sbfp_beneficiary || 'N',

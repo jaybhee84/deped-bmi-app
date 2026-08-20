@@ -314,6 +314,49 @@
   margin-bottom: 6px;
 }
 
+/* Keep every Batch Entry action on the same navy page theme. */
+.batch-entry-page .batch-actions .batch-entry-action,
+.batch-entry-page .batch-table .btn-danger,
+.batch-entry-page .chip-remove {
+  background: var(--navy) !important;
+  border-color: var(--navy) !important;
+  color: #ffffff !important;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.batch-entry-page .batch-actions .batch-entry-action:hover:not(:disabled),
+.batch-entry-page .batch-table .btn-danger:hover:not(:disabled),
+.batch-entry-page .chip-remove:hover:not(:disabled) {
+  background: #102A4C !important;
+  border-color: #102A4C !important;
+  color: #ffffff !important;
+}
+
+.batch-entry-page .batch-actions .batch-entry-action:focus-visible,
+.batch-entry-page .batch-table .btn-danger:focus-visible,
+.batch-entry-page .chip-remove:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(26, 54, 93, 0.25);
+}
+
+.batch-entry-page .batch-actions .batch-entry-action:active:not(:disabled),
+.batch-entry-page .batch-table .btn-danger:active:not(:disabled),
+.batch-entry-page .chip-remove:active:not(:disabled) {
+  background: #0B1F3A !important;
+  border-color: #0B1F3A !important;
+  transform: translateY(1px);
+}
+
+.batch-entry-page .batch-actions .batch-entry-action:disabled {
+  background: var(--navy) !important;
+  border-color: var(--navy) !important;
+  color: #ffffff !important;
+}
+
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;

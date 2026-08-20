@@ -411,9 +411,14 @@ export default function SDOStudents({
                     try {
                       bmi = calcBMI(rec.weight, rec.height);
                       status = bmi
-                        ? getBMIStatus(bmi, s.sex, s.birthdate)
+                        ? getBMIStatus(bmi, s.sex, s.birthdate, rec.date)
                         : null;
-                      hfa = getHAZStatus(rec.height, s.sex, s.birthdate);
+                      hfa = getHAZStatus(
+                        rec.height,
+                        s.sex,
+                        s.birthdate,
+                        rec.date,
+                      );
                     } catch (err) {
                       console.error(
                         "Error calculating nutritional status row parameters:",

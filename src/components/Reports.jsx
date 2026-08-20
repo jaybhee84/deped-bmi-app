@@ -137,8 +137,18 @@ export default function Reports({ students = [] }) {
       if (!selectedRecord) return null;
 
       const bmi = calcBMI(selectedRecord.weight, selectedRecord.height);
-      const status = getBMIStatus(bmi, s.sex, s.birthdate);
-      const haz = getHAZStatus(selectedRecord.height, s.sex, s.birthdate);
+      const status = getBMIStatus(
+        bmi,
+        s.sex,
+        s.birthdate,
+        selectedRecord.date,
+      );
+      const haz = getHAZStatus(
+        selectedRecord.height,
+        s.sex,
+        s.birthdate,
+        selectedRecord.date,
+      );
 
       return {
         ...s,

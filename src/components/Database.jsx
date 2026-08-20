@@ -546,10 +546,10 @@ export default function Database({
 
                     const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
                     const status = bmi
-                      ? getBMIStatus(bmi, s.sex, s.birthdate)
+                      ? getBMIStatus(bmi, s.sex, s.birthdate, rec.date)
                       : null;
                     const hfa = rec
-                      ? getHAZStatus(rec.height, s.sex, s.birthdate)
+                      ? getHAZStatus(rec.height, s.sex, s.birthdate, rec.date)
                       : null;
                     const previousSbfp = hasPreviousYearData(
                       s,

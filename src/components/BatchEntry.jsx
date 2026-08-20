@@ -77,7 +77,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
   // Pull data out of the shared global tunnel
   const { school, loading: contextLoading } = useSchoolScope();
 
-  const [gradeLevel, setGradeLevel] = useState("Kinder");
+  const [gradeLevel, setGradeLevel] = useState("");
   const [teacherName, setTeacherName] = useState("");
   const [session, setSession] = useState("Morning");
   const [sy, setSy] = useState("2026–2027");
@@ -156,7 +156,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
             lrn: row.lrn?.trim() || "",
             name: cleanedName,
             birthdate,
-            age: birthdate ? ageInYears(birthdate) : "",
+            age: birthdate ? ageInYears(birthdate, date) : "",
             weight,
             height,
             sex,
@@ -202,11 +202,21 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
       prev.map((r, j) => {
         if (j !== i) return r;
         const updated = { ...r, [field]: value };
-        if (field === "birthdate") updated.age = ageInYears(value);
+        if (field === "birthdate") updated.age = ageInYears(value, date);
         return updated;
       }),
     );
-  }, []);
+  }, [date]);
+
+  function handleMeasurementDateChange(value) {
+    setDate(value);
+    setRows((previous) =>
+      previous.map((row) => ({
+        ...row,
+        age: row.birthdate ? ageInYears(row.birthdate, value) : "",
+      })),
+    );
+  }
 
   const addRow = () => setRows((prev) => [...prev, emptyRow()]);
   const removeRow = (i) => setRows((prev) => prev.filter((_, j) => j !== i));
@@ -327,7 +337,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
 
   return (
     <div
-      className="page"
+      className="page batch-entry-page"
       style={{
         minHeight: "100vh",
         display: "flex",
@@ -369,6 +379,9 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
                   setTeacherName("");
                 }}
               >
+                <option value="" disabled>
+                  Select grade level
+                </option>
                 {GRADE_LEVELS.map((g) => (
                   <option key={g}>{g}</option>
                 ))}
@@ -428,7 +441,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
                 type="date"
                 className="form-input"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => handleMeasurementDateChange(e.target.value)}
               />
             </div>
           </div>
@@ -667,10 +680,10 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
                     ? calcBMI(row.weight, row.height)
                     : null;
                 const status = bmi
-                  ? getBMIStatus(bmi, row.sex, row.birthdate)
+                  ? getBMIStatus(bmi, row.sex, row.birthdate, date)
                   : null;
                 const haz = row.height
-                  ? getHAZStatus(row.height, row.sex, row.birthdate)
+                  ? getHAZStatus(row.height, row.sex, row.birthdate, date)
                   : null;
                 return (
                   <tr key={i} style={{ borderBottom: "1px solid #f1f5f9" }}>
@@ -836,20 +849,26 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
           }}
         >
           <button
-            className="btn btn-secondary"
+            className="btn btn-primary batch-entry-action"
             disabled={!canUpload || !schoolConfigured}
             onClick={() => fileInputRef.current?.click()}
           >
             Upload CSV
           </button>
-          <button className="btn btn-secondary" onClick={addRow}>
+          <button
+            className="btn btn-primary batch-entry-action"
+            onClick={addRow}
+          >
             + Add Row
           </button>
-          <button className="btn btn-secondary" onClick={downloadCsvTemplate}>
+          <button
+            className="btn btn-primary batch-entry-action"
+            onClick={downloadCsvTemplate}
+          >
             ⬇ Template
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary batch-entry-action"
             onClick={saveAll}
             disabled={!canUpload || !schoolConfigured}
           >

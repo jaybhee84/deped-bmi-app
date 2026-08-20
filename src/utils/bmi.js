@@ -69,33 +69,55 @@ export function calcBMI(weight, height) {
   return w / (h * h);
 }
 
-export function ageInMonths(birthdate) {
+function validDate(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? new Date(value) : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function ageInMonths(birthdate, referenceDate = new Date()) {
   if (!birthdate) return null;
-  const birth = new Date(birthdate);
-  const today = new Date();
-  let months = (today.getFullYear() - birth.getFullYear()) * 12
-             + (today.getMonth()    - birth.getMonth());
-  if (today.getDate() < birth.getDate()) months--;
+  const birth = validDate(birthdate);
+  const measured = validDate(referenceDate);
+  if (!birth || !measured) return null;
+  let months = (measured.getFullYear() - birth.getFullYear()) * 12
+             + (measured.getMonth()    - birth.getMonth());
+  if (measured.getDate() < birth.getDate()) months--;
   return months >= 0 ? months : null;
 }
 
-export function ageInYears(birthdate) {
+export function ageInYears(birthdate, referenceDate = new Date()) {
   if (!birthdate) return '';
-  const birth = new Date(birthdate);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  const birth = validDate(birthdate);
+  const measured = validDate(referenceDate);
+  if (!birth || !measured) return '';
+  let age = measured.getFullYear() - birth.getFullYear();
+  const m = measured.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && measured.getDate() < birth.getDate())) age--;
   return age >= 0 ? age : '';
 }
 
 // ── BMI-for-Age (BAZ) ─────────────────────────────────────────────────────
 // Returns: { label, color, bg } | null
 
-export function getBMIStatus(bmi, sex, birthdate, fallbackMonths) {
+export function getBMIStatus(
+  bmi,
+  sex,
+  birthdate,
+  measurementDate,
+  fallbackMonths,
+) {
   if (bmi == null) return null;
 
-  const months = birthdate ? ageInMonths(birthdate) : fallbackMonths;
+  const legacyFallbackMonths =
+    typeof measurementDate === 'number' ? measurementDate : fallbackMonths;
+  const measuredOn =
+    typeof measurementDate === 'number' ? null : measurementDate;
+  const months = birthdate
+    ? measuredOn
+      ? ageInMonths(birthdate, measuredOn)
+      : null
+    : legacyFallbackMonths;
   if (months == null) return null;
 
   const table       = sex === 'F' ? BMI_TABLE_GIRLS : BMI_TABLE_BOYS;
@@ -121,10 +143,24 @@ export function getBMIStatus(bmi, sex, birthdate, fallbackMonths) {
 // ── Height-for-Age (HAZ) ──────────────────────────────────────────────────
 // Returns: { label, color, bg } | null
 
-export function getHAZStatus(heightCm, sex, birthdate, fallbackMonths) {
+export function getHAZStatus(
+  heightCm,
+  sex,
+  birthdate,
+  measurementDate,
+  fallbackMonths,
+) {
   if (!heightCm) return null;
 
-  const months = birthdate ? ageInMonths(birthdate) : fallbackMonths;
+  const legacyFallbackMonths =
+    typeof measurementDate === 'number' ? measurementDate : fallbackMonths;
+  const measuredOn =
+    typeof measurementDate === 'number' ? null : measurementDate;
+  const months = birthdate
+    ? measuredOn
+      ? ageInMonths(birthdate, measuredOn)
+      : null
+    : legacyFallbackMonths;
   if (months == null) return null;
 
   const h           = normalizeHeightCm(heightCm);
@@ -145,10 +181,16 @@ export function getHAZStatus(heightCm, sex, birthdate, fallbackMonths) {
 // ── Combined nutritional status (both indicators) ─────────────────────────
 // Returns: { baz: {...}, haz: {...} }
 
-export function getNutritionalStatus(weight, height, sex, birthdate) {
+export function getNutritionalStatus(
+  weight,
+  height,
+  sex,
+  birthdate,
+  measurementDate,
+) {
   const bmi    = calcBMI(weight, height);
-  const baz    = getBMIStatus(bmi, sex, birthdate);
-  const haz    = getHAZStatus(height, sex, birthdate);
+  const baz    = getBMIStatus(bmi, sex, birthdate, measurementDate);
+  const haz    = getHAZStatus(height, sex, birthdate, measurementDate);
   return { bmi, baz, haz };
 }
 
