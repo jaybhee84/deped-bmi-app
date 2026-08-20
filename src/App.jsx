@@ -145,7 +145,10 @@ function AppContent({
                 setStudents={updateStudents}
               />
             )}
-            <SyncStatus students={safeStudents} />
+            <SyncStatus
+              students={safeStudents}
+              schoolId={session?.school_id}
+            />
           </div>
         </div>
 

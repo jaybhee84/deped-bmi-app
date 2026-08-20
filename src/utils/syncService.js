@@ -424,7 +424,9 @@ function loadQueue() {
 
 function saveQueue(queue) {
   try {
-    localStorage.setItem(KEYS.SYNC_QUEUE, JSON.stringify(queue));
+    const normalized = [...new Set(queue.map(id => String(id)))];
+    localStorage.setItem(KEYS.SYNC_QUEUE, JSON.stringify(normalized));
+    window.dispatchEvent(new Event("local-storage-sync-update"));
   } catch {}
 }
 
@@ -510,6 +512,29 @@ export function getQueueLength() {
 
 export function clearQueue() {
   saveQueue([]);
+}
+
+// Remove queue entries that no longer have a matching local student. This can
+// happen after switching schools or replacing an imported class list.
+export function pruneSyncQueue(students = []) {
+  const localIds = new Set(students.map(student => String(student.id)));
+  const queue = loadQueue();
+  const prunedQueue = queue.filter(id => localIds.has(String(id)));
+  if (prunedQueue.length !== queue.length) saveQueue(prunedQueue);
+  return queue.length - prunedQueue.length;
+}
+
+// Discards upload requests only. It deliberately leaves the local student data
+// and pending cloud deletions untouched.
+export function discardPendingUploads() {
+  const discarded = loadQueue().length;
+  clearQueue();
+  return discarded;
+}
+
+function removeFromSyncQueue(ids) {
+  const completedIds = new Set(ids.map(id => String(id)));
+  saveQueue(loadQueue().filter(id => !completedIds.has(String(id))));
 }
 
 export function saveLastSync(date) {
@@ -669,8 +694,19 @@ export async function syncToServer(students, schoolId) {
 
   const toSync = students.filter(s => queue.includes(String(s.id)));
 
+  // Old app versions could leave orphaned IDs in this device-wide queue. They
+  // can never be uploaded, so remove them instead of showing "unsynced"
+  // forever.
+  const staleIds = queue.filter(id => !toSync.some(s => String(s.id) === String(id)));
+  const staleCount = staleIds.length;
+  if (staleCount > 0) removeFromSyncQueue(staleIds);
+
   if (queue.length === 0 && deleteQueue.length === 0) {
     return { success: true, reason: 'nothing_to_sync' };
+  }
+
+  if (toSync.length === 0 && deleteQueue.length === 0) {
+    return { success: true, reason: 'stale_queue_cleared', discarded: staleCount };
   }
 
   try {
@@ -681,7 +717,9 @@ export async function syncToServer(students, schoolId) {
 
     if (toSync.length > 0) {
       await supabaseUpsert(cfg, toSync);
-      clearQueue();
+      // Keep edits queued while this request was in flight; remove only the
+      // records that were part of this upload.
+      removeFromSyncQueue(toSync.map(student => student.id));
     }
 
     let activeSchoolName = "";
@@ -690,7 +728,28 @@ export async function syncToServer(students, schoolId) {
     }
 
     saveLastSync(new Date());
-    const freshData = await supabaseFetchAll(cfg, schoolId, activeSchoolName);
+
+    const queuedSchoolIds = [...new Set(
+      toSync
+        .map(student => student.schoolId || student.school_id)
+        .filter(Boolean)
+        .map(String)
+    )];
+    const effectiveSchoolId = schoolId || (queuedSchoolIds.length === 1 ? queuedSchoolIds[0] : null);
+
+    // Never download every school's records after a manual upload. If a school
+    // cannot be identified, keep this device's current list after the upload.
+    if (!effectiveSchoolId) {
+      return {
+        success: true,
+        synced: toSync.length,
+        deleted: deleteQueue.length,
+        discarded: staleCount,
+        students,
+      };
+    }
+
+    const freshData = await supabaseFetchAll(cfg, effectiveSchoolId, activeSchoolName);
     
     // Prefer the cloud's photo_url — that's the source of truth other
     // devices write to. Only fall back to this device's local SQLite photo
@@ -710,6 +769,7 @@ export async function syncToServer(students, schoolId) {
       success: true,
       synced: toSync.length,
       deleted: deleteQueue.length,
+      discarded: staleCount,
       students: mergedData,
     };
   } catch (e) {

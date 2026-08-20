@@ -1,4 +1,17 @@
 export const RELEASE_NOTES = {
+  '2.0.6': {
+    title: 'v2.0.6',
+    sections: [
+      {
+        heading: 'Sync Queue Fix',
+        items: [
+          'Stale pending uploads are now removed automatically instead of leaving an unsynced counter that cannot finish.',
+          'Added a confirmed stop button that clears pending uploads without deleting the learner records stored on the device or in the cloud.',
+          'Manual uploads now remain scoped to the active school to prevent another class or school copy from being downloaded after syncing.',
+        ],
+      },
+    ],
+  },
   '2.0.5': {
     title: 'v2.0.5',
     sections: [

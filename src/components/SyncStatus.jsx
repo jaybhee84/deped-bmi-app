@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   isOnline, isSupabaseConfigured, getQueueLength,
-  loadLastSync, syncToServer,
+  loadLastSync, syncToServer, pruneSyncQueue, discardPendingUploads,
 } from '../utils/syncService';
 import './SyncStatus.css';
 
-export default function SyncStatus({ students }) {
+export default function SyncStatus({ students, schoolId }) {
   const [online,      setOnline]      = useState(isOnline());
   const [configured,  setConfigured]  = useState(isSupabaseConfigured());
   const [queueLen,    setQueueLen]    = useState(getQueueLength());
@@ -43,6 +43,9 @@ export default function SyncStatus({ students }) {
 
   // Refresh queue count whenever students change
   useEffect(() => {
+    // An empty list is also the initial loading state, so do not clear a valid
+    // offline queue before SQLite has finished loading.
+    if (students.length > 0) pruneSyncQueue(students);
     setQueueLen(getQueueLength());
   }, [students]);
 
@@ -50,14 +53,34 @@ export default function SyncStatus({ students }) {
     if (syncing) return;
     setSyncing(true);
     setSyncMsg(null);
-    const result = await syncToServer(students);
+    const result = await syncToServer(students, schoolId);
     setSyncing(false);
     refresh();
     if (result.success) {
-      setSyncMsg({ type: 'ok', text: result.synced ? `✓ Synced ${result.synced} records` : '✓ Already up to date' });
+      setSyncMsg({
+        type: 'ok',
+        text: result.synced
+          ? `✓ Synced ${result.synced} records`
+          : result.discarded
+            ? `Removed ${result.discarded} stale upload requests`
+            : '✓ Already up to date',
+      });
     } else {
       setSyncMsg({ type: 'err', text: result.message || 'Sync failed' });
     }
+    setTimeout(() => setSyncMsg(null), 4000);
+  }
+
+  function handleDiscard() {
+    const confirmed = window.confirm(
+      `Stop uploading these ${queueLen} pending records?\n\n` +
+      'The records will remain on this device. This only clears the pending upload list and does not delete cloud data.'
+    );
+    if (!confirmed) return;
+
+    const discarded = discardPendingUploads();
+    refresh();
+    setSyncMsg({ type: 'ok', text: `Stopped ${discarded} pending uploads` });
     setTimeout(() => setSyncMsg(null), 4000);
   }
 
@@ -82,11 +105,23 @@ export default function SyncStatus({ students }) {
     );
   } else if (!online) {
     pill = (
-      <div className="sync-pill sync-offline" title="No internet — changes queued for upload">
-        <span className="sync-dot offline" />
-        <span className="sync-text">
-          Offline{queueLen > 0 ? ` · ${queueLen} pending` : ''}
-        </span>
+      <div className="sync-pending-actions">
+        <div className="sync-pill sync-offline" title="No internet — changes queued for upload">
+          <span className="sync-dot offline" />
+          <span className="sync-text">
+            Offline{queueLen > 0 ? ` · ${queueLen} pending` : ''}
+          </span>
+        </div>
+        {queueLen > 0 && (
+          <button
+            className="sync-discard"
+            onClick={handleDiscard}
+            title="Stop and discard these pending uploads"
+            aria-label="Stop and discard pending uploads"
+          >
+            ×
+          </button>
+        )}
       </div>
     );
   } else if (syncing) {
@@ -98,10 +133,20 @@ export default function SyncStatus({ students }) {
     );
   } else if (queueLen > 0) {
     pill = (
-      <button className="sync-pill sync-pending" onClick={handleSync} title="Click to sync now">
-        <span className="sync-dot pending" />
-        <span className="sync-text">{queueLen} unsynced · Tap to upload</span>
-      </button>
+      <div className="sync-pending-actions">
+        <button className="sync-pill sync-pending" onClick={handleSync} title="Click to sync now">
+          <span className="sync-dot pending" />
+          <span className="sync-text">{queueLen} unsynced · Tap to upload</span>
+        </button>
+        <button
+          className="sync-discard"
+          onClick={handleDiscard}
+          title="Stop and discard these pending uploads"
+          aria-label="Stop and discard pending uploads"
+        >
+          ×
+        </button>
+      </div>
     );
   } else {
     pill = (
