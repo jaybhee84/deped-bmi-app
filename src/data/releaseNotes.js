@@ -1,4 +1,31 @@
 export const RELEASE_NOTES = {
+  '3.0.0': {
+    title: 'v3.0.0',
+    sections: [
+      {
+        heading: 'Division-Scale Learner Synchronization',
+        items: [
+          'Supabase downloads now use pagination so school and division databases load every learner beyond the previous 1,000-row response limit.',
+          'Learners remain recorded and accounted for in the Database even when measurements or nutritional-status data are incomplete.',
+        ],
+      },
+      {
+        heading: 'SBFP Data and Grade Support',
+        items: [
+          'Added SNED as a supported grade level across entry, database, dashboard, reports, registry numbers, and SBFP workflows.',
+          'Added a Nutritional Status filter to SBFP Beneficiaries for faster review, reporting, printing, and CSV export.',
+          'Parent consent now defaults to Y, remains editable in SBFP Forms and the Database, and synchronizes consistently with Supabase.',
+        ],
+      },
+      {
+        heading: 'Modern Learner Databases',
+        items: [
+          'Refreshed the School and SDO database screens with clearer learner counts, modern filter panels, compact Y/N status controls, and cleaner table styling.',
+          'Improved responsive behavior and scrolling so wide learner records remain usable on laptops and smaller displays.',
+        ],
+      },
+    ],
+  },
   '2.0.9': {
     title: 'v2.0.9',
     sections: [
