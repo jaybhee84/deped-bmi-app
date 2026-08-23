@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import { supabase } from '../utils/supabaseClient';
+import { supabase } from "../utils/supabaseClient";
 import {
   calcBMI,
   getBMIStatus,
@@ -544,30 +544,7 @@ export default function SBFPBeneficiaries({
           : null;
         const grade = s.section?.split(" - ")[0] || s.grade || "";
 
-        let isBen = false;
-        if (rec) {
-          const gradeInclusion = config.grades?.includes(grade);
-
-          const hasBmiMatch = config.criteria?.includes(baz?.label);
-          const bmiRestrictionActive =
-            config.criterionGradeRestrictions?.[baz?.label] !== undefined;
-          const passesBmiRestriction = bmiRestrictionActive
-            ? config.criterionGradeRestrictions[baz.label].includes(grade)
-            : true;
-          const bazInclusion = hasBmiMatch && passesBmiRestriction;
-
-          const hasHazMatch = config.criteria?.includes(haz?.label);
-          const hazRestrictionActive =
-            config.criterionGradeRestrictions?.[haz?.label] !== undefined;
-          const passesHazRestriction = hazRestrictionActive
-            ? config.criterionGradeRestrictions[haz.label].includes(grade)
-            : true;
-          const hazInclusion = hasHazMatch && passesHazRestriction;
-
-          isBen = gradeInclusion || bazInclusion || hazInclusion;
-        } else {
-          isBen = true;
-        }
+        const isBen = isOfficialBeneficiary({ ...s, grade }, baz, haz, config);
 
         return { ...s, bmi, baz, haz, grade, rec, isBen };
       })
@@ -595,13 +572,7 @@ export default function SBFPBeneficiaries({
         (s.lrn || "").includes(searchQ);
       return matchGrade && matchSection && matchNutrition && matchSearch;
     });
-  }, [
-    beneficiaries,
-    filterGrade,
-    filterSection,
-    filterNutrition,
-    searchQ,
-  ]);
+  }, [beneficiaries, filterGrade, filterSection, filterNutrition, searchQ]);
 
   // Only offered once a specific grade is chosen - sections aren't
   // meaningful to pick from until the list is scoped to one grade.
@@ -671,30 +642,10 @@ export default function SBFPBeneficiaries({
     return a.name.localeCompare(b.name);
   });
 
-  const nutritionReport = useMemo(() => {
-    const report = buildNutritionReport(students, filterSY, filterPeriod);
-
-    report.rows.forEach((r) => {
-      const male = Number(manualEnrolment[`${r.grade}_M`] || 0);
-      const female = Number(manualEnrolment[`${r.grade}_F`] || 0);
-
-      r.M = { ...r.M, enrolment: male };
-      r.F = { ...r.F, enrolment: female };
-      r.Total = { ...r.Total, enrolment: male + female };
-    });
-
-    const grandMale = report.rows.reduce((sum, r) => sum + r.M.enrolment, 0);
-    const grandFemale = report.rows.reduce((sum, r) => sum + r.F.enrolment, 0);
-
-    report.grand = {
-      ...report.grand,
-      M: { ...report.grand.M, enrolment: grandMale },
-      F: { ...report.grand.F, enrolment: grandFemale },
-      Total: { ...report.grand.Total, enrolment: grandMale + grandFemale },
-    };
-
-    return report;
-  }, [students, filterSY, filterPeriod, manualEnrolment]);
+  const nutritionReport = useMemo(
+    () => buildNutritionReport(students, filterSY, filterPeriod),
+    [students, filterSY, filterPeriod],
+  );
 
   async function handlePrint() {
     document.title = `SBFP Beneficiaries - ${filterSY} - ${filterPeriod}`;
@@ -943,212 +894,222 @@ export default function SBFPBeneficiaries({
         </div>
       )}
 
-      <div
-        className="sbfp-enrolment-row no-print"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          gap: "10px",
-          margin: "8px 0 16px",
-          padding: "10px 12px",
-          background: "#F9FAFB",
-          border: "1px solid #E5E7EB",
-          borderRadius: "8px",
-        }}
-      >
+      {false && (
         <div
+          className="sbfp-enrolment-row no-print"
           style={{
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            width: "100%",
-          }}
-        >
-          <span
-            className="sbfp-config-label"
-            style={{ fontWeight: 600, marginRight: "4px" }}
-          >
-            Enrolment (official, per grade):
-          </span>
-          {isLocked && (
-            <span
-              style={{
-                fontSize: "12px",
-                fontWeight: 600,
-                color: "#6B7280",
-                background: "#E5E7EB",
-                padding: "2px 8px",
-                borderRadius: "12px",
-              }}
-            >
-              🔒 Inputs Locked
-            </span>
-          )}
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "16px",
-            width: "100%",
-            marginTop: "12px",
-          }}
-        >
-          {[
-            "Kinder",
-            "Grade 1",
-            "Grade 2",
-            "Grade 3",
-            "Grade 4",
-            "Grade 5",
-            "Grade 6",
-            "SNED",
-            "SPED",
-          ].map((g) => (
-            <div
-              key={g}
-              style={{
-                background: "#FFFFFF",
-                border: "1px solid #E5E7EB",
-                borderRadius: "12px",
-                padding: "12px",
-                boxShadow: "0 1px 4px rgba(0,0,0,.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: "14px",
-                  color: "#1E3A5F",
-                  borderBottom: "1px solid #E5E7EB",
-                  paddingBottom: "8px",
-                  marginBottom: "10px",
-                }}
-              >
-                {g}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginBottom: "8px",
-                }}
-              >
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontWeight: 500,
-                  }}
-                >
-                  <span style={{ color: "#3B82F6", fontSize: "16px" }}>🚹</span>
-                  Male
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  disabled={isLocked}
-                  value={manualEnrolment[`${g}_M`] ?? ""}
-                  onChange={(e) =>
-                    handleEnrolmentChange(`${g}_M`, e.target.value)
-                  }
-                  style={{
-                    ...enrolmentInputStyle,
-                    background: isLocked ? "#F3F4F6" : "#FFFFFF",
-                    cursor: isLocked ? "not-allowed" : "text",
-                  }}
-                />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontWeight: 500,
-                  }}
-                >
-                  <span style={{ color: "#EC4899", fontSize: "16px" }}>🚺</span>
-                  Female
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  disabled={isLocked}
-                  value={manualEnrolment[`${g}_F`] ?? ""}
-                  onChange={(e) =>
-                    handleEnrolmentChange(`${g}_F`, e.target.value)
-                  }
-                  style={{
-                    ...enrolmentInputStyle,
-                    background: isLocked ? "#F3F4F6" : "#FFFFFF",
-                    cursor: isLocked ? "not-allowed" : "text",
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div
-          style={{
-            display: "flex",
+            flexWrap: "wrap",
             alignItems: "center",
             gap: "10px",
-            marginTop: "16px",
-            width: "100%",
+            margin: "8px 0 16px",
+            padding: "10px 12px",
+            background: "#F9FAFB",
+            border: "1px solid #E5E7EB",
+            borderRadius: "8px",
           }}
         >
-          <button
-            type="button"
-            disabled={!isDirty || isLocked}
-            onClick={handleSaveEnrolment}
+          <div
             style={{
-              padding: "10px 24px",
-              background: isDirty && !isLocked ? "#16A34A" : "#9CA3AF",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              fontWeight: 600,
-              cursor: isDirty && !isLocked ? "pointer" : "not-allowed",
-              opacity: isDirty && !isLocked ? 1 : 0.8,
-              transition: "all .2s ease",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              width: "100%",
             }}
           >
-            {isDirty ? "💾 Save Enrolment" : "✓ Enrolment Saved"}
-          </button>
+            <span
+              className="sbfp-config-label"
+              style={{ fontWeight: 600, marginRight: "4px" }}
+            >
+              Enrolment (official, per grade):
+            </span>
+            {isLocked && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#6B7280",
+                  background: "#E5E7EB",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                }}
+              >
+                🔒 Inputs Locked
+              </span>
+            )}
+          </div>
 
-          {isLocked && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: "16px",
+              width: "100%",
+              marginTop: "12px",
+            }}
+          >
+            {[
+              "Kinder",
+              "Grade 1",
+              "Grade 2",
+              "Grade 3",
+              "Grade 4",
+              "Grade 5",
+              "Grade 6",
+              "SNED",
+              "SPED",
+            ].map((g) => (
+              <div
+                key={g}
+                style={{
+                  background: "#FFFFFF",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: "12px",
+                  padding: "12px",
+                  boxShadow: "0 1px 4px rgba(0,0,0,.06)",
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: 700,
+                    fontSize: "14px",
+                    color: "#1E3A5F",
+                    borderBottom: "1px solid #E5E7EB",
+                    paddingBottom: "8px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  {g}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span style={{ color: "#3B82F6", fontSize: "16px" }}>
+                      🚹
+                    </span>
+                    Male
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    disabled={isLocked}
+                    value={manualEnrolment[`${g}_M`] ?? ""}
+                    onChange={(e) =>
+                      handleEnrolmentChange(`${g}_M`, e.target.value)
+                    }
+                    style={{
+                      ...enrolmentInputStyle,
+                      background: isLocked ? "#F3F4F6" : "#FFFFFF",
+                      cursor: isLocked ? "not-allowed" : "text",
+                    }}
+                  />
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <span style={{ color: "#EC4899", fontSize: "16px" }}>
+                      🚺
+                    </span>
+                    Female
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    disabled={isLocked}
+                    value={manualEnrolment[`${g}_F`] ?? ""}
+                    onChange={(e) =>
+                      handleEnrolmentChange(`${g}_F`, e.target.value)
+                    }
+                    style={{
+                      ...enrolmentInputStyle,
+                      background: isLocked ? "#F3F4F6" : "#FFFFFF",
+                      cursor: isLocked ? "not-allowed" : "text",
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginTop: "16px",
+              width: "100%",
+            }}
+          >
             <button
               type="button"
-              className="btn btn-primary"
-              onClick={() => setIsLocked(false)}
+              disabled={!isDirty || isLocked}
+              onClick={handleSaveEnrolment}
+              style={{
+                padding: "10px 24px",
+                background: isDirty && !isLocked ? "#16A34A" : "#9CA3AF",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                fontWeight: 600,
+                cursor: isDirty && !isLocked ? "pointer" : "not-allowed",
+                opacity: isDirty && !isLocked ? 1 : 0.8,
+                transition: "all .2s ease",
+              }}
             >
-              ✏️ Edit Enrolment
+              {isDirty ? "💾 Save Enrolment" : "✓ Enrolment Saved"}
             </button>
-          )}
 
-          {saveMessage && (
-            <span
-              style={{ color: "#15803d", fontWeight: 600, marginLeft: "10px" }}
-            >
-              {saveMessage}
-            </span>
-          )}
+            {isLocked && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setIsLocked(false)}
+              >
+                ✏️ Edit Enrolment
+              </button>
+            )}
+
+            {saveMessage && (
+              <span
+                style={{
+                  color: "#15803d",
+                  fontWeight: 600,
+                  marginLeft: "10px",
+                }}
+              >
+                {saveMessage}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div
         className="filter-row no-print"

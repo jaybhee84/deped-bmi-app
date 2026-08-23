@@ -10,27 +10,25 @@ import Badge from "./Badge";
 import "./Dashboard.css";
 import { fetchSchoolById } from "../utils/syncService";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
-import { loadSbfpEnrolment } from "../utils/sbfpConfig";
 import {
-  chooseEnrolmentTotal,
-  countPortalEnrolments,
-  totalManualEnrolment,
-} from "../utils/enrolmentTotals";
+  DEFAULT_SBFP_CONFIG,
+  isOfficialBeneficiary,
+  loadSbfpConfig,
+} from "../utils/sbfpConfig";
 
 export default function Dashboard({ students, currentUser, onOpenProfile }) {
   const [filterSY, setFilterSY] = useState("2026–2027");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [schoolLogo, setSchoolLogo] = useState(null);
   const [schoolName, setSchoolName] = useState("");
-  const [schoolId, setSchoolId] = useState(
-    currentUser?.school_id ||
-      window.localStorage.getItem("current_school_id") ||
-      "",
-  );
-  const [totalEnrolment, setTotalEnrolment] = useState(0);
+  const [sbfpConfig, setSbfpConfig] = useState(DEFAULT_SBFP_CONFIG);
 
   const schoolYears = getSchoolYears();
   const incompleteDataRef = useRef(null);
+
+  useEffect(() => {
+    loadSbfpConfig().then(setSbfpConfig);
+  }, []);
 
   useEffect(() => {
     async function loadSchoolDb() {
@@ -39,8 +37,6 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
       const targetSchoolId =
         currentUser?.school_id ||
         window.localStorage.getItem("current_school_id");
-
-      if (targetSchoolId) setSchoolId(targetSchoolId);
 
       if (currentName) {
         setSchoolName(currentName);
@@ -122,46 +118,8 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
     loadSchoolDb();
   }, [currentUser]);
 
-  useEffect(() => {
-    if (!schoolId) {
-      setTotalEnrolment(0);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function fetchEnrolmentTotal() {
-      try {
-        // loadSbfpEnrolment is already offline-first: it reads local SQLite
-        // immediately, then (if online) refreshes from Supabase and
-        // re-caches that locally. No need to duplicate that logic here.
-        const enrolmentData = await loadSbfpEnrolment(schoolId, filterSY);
-        const total = totalManualEnrolment(enrolmentData);
-        if (!cancelled) setTotalEnrolment(total);
-      } catch (err) {
-        console.error("[Dashboard] Failed to load enrolment total:", err);
-        if (!cancelled) setTotalEnrolment(0);
-      }
-    }
-
-    fetchEnrolmentTotal();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [schoolId, filterSY]);
-
   const syStudents = students.filter((s) =>
     s.records.some((r) => r.sy === filterSY),
-  );
-
-  const portalEnrolment = useMemo(
-    () => countPortalEnrolments(students, filterSY),
-    [students, filterSY],
-  );
-  const preferredEnrolment = chooseEnrolmentTotal(
-    portalEnrolment,
-    totalEnrolment,
   );
 
   const allLatestBMI = useMemo(() => {
@@ -186,6 +144,30 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
       })
       .filter(Boolean);
   }, [students, filterSY, filterPeriod]);
+
+  const sbfpBeneficiaryCount = useMemo(
+    () =>
+      students.filter((student) => {
+        const record = student.records?.find(
+          (item) => item.sy === filterSY && item.q === filterPeriod,
+        );
+        if (!record) return false;
+        const bmi = calcBMI(record.weight, record.height);
+        const bmiStatus = bmi
+          ? getBMIStatus(bmi, student.sex, student.birthdate, record.date)
+          : null;
+        const hazStatus = record.height
+          ? getHAZStatus(
+              record.height,
+              student.sex,
+              student.birthdate,
+              record.date,
+            )
+          : null;
+        return isOfficialBeneficiary(student, bmiStatus, hazStatus, sbfpConfig);
+      }).length,
+    [students, filterSY, filterPeriod, sbfpConfig],
+  );
 
   const incompleteLearners = students.filter((s) => {
     const recs = s.records.filter(
@@ -646,7 +628,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         {[
           {
             label: "Total Students",
-            val: preferredEnrolment,
+            val: syStudents.length,
             border: "#cbd5e1",
             color: "#0f172a",
           },
@@ -655,6 +637,14 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
             val: allLatestBMI.length,
             border: "#10b981",
             color: "#059669",
+          },
+          {
+            label: "No Data",
+            val: statusCounts["No Data"],
+            border: "#f43f5e",
+            color: "#e11d48",
+            click: true,
+            hint: "Click to view list",
           },
           {
             label: "Normal BMI",
@@ -711,11 +701,10 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
             color: "#2563eb",
           },
           {
-            label: "No Data",
-            val: statusCounts["No Data"],
-            border: "#f43f5e",
-            color: "#e11d48",
-            click: true,
+            label: "SBFP Beneficiaries",
+            val: sbfpBeneficiaryCount,
+            border: "#0f766e",
+            color: "#0f766e",
           },
         ].map((s) => (
           <div
@@ -765,6 +754,11 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
             >
               {s.label}
             </div>
+            {s.hint && (
+              <div style={{ marginTop: 6, fontSize: 11, color: s.color }}>
+                {s.hint}
+              </div>
+            )}
           </div>
         ))}
       </div>

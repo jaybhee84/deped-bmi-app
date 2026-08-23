@@ -80,7 +80,12 @@ export async function saveSbfpConfig(config) {
 export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
   if (!config || typeof config.then === "function") return false;
 
-  const grade = student.section?.split(" - ")[0] || "";
+  // Some imported and older learner records store the grade separately from
+  // the section. Falling back to `student.grade` keeps those records (notably
+  // SNED learners without a named section) from being excluded from forms.
+  const grade = String(student.section || student.grade || "")
+    .split(" - ")[0]
+    .trim();
 
   const configGrades = config.grades || [];
   const configCriteria = config.criteria || [];
@@ -95,7 +100,7 @@ export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
   if (bmiStatus?.label && configCriteria.includes(bmiStatus.label)) {
     const allowedGrades = restrictions[bmiStatus.label];
 
-    if (!allowedGrades || allowedGrades.length === 0) {
+    if (allowedGrades === undefined) {
       return true;
     }
 
@@ -108,7 +113,7 @@ export function isOfficialBeneficiary(student, bmiStatus, hazStatus, config) {
   if (hazStatus?.label && configCriteria.includes(hazStatus.label)) {
     const allowedGrades = restrictions[hazStatus.label];
 
-    if (!allowedGrades || allowedGrades.length === 0) {
+    if (allowedGrades === undefined) {
       return true;
     }
 

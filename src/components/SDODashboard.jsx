@@ -19,6 +19,11 @@ import {
   combineSchoolEnrolmentTotals,
   normalizeSchoolYear,
 } from "../utils/enrolmentTotals";
+import {
+  DEFAULT_SBFP_CONFIG,
+  isOfficialBeneficiary,
+  loadSbfpConfig,
+} from "../utils/sbfpConfig";
 
 // ── Multi-Segment SVG Donut Chart Component ──────────────────────────────────
 import { SCHOOL_OPTIONS } from "../utils/schools";
@@ -118,6 +123,7 @@ export default function SDODashboard({
 
   // ── Modal popout state for enlarged charts ──
   const [modalChart, setModalChart] = useState(null);
+  const [showNoDataList, setShowNoDataList] = useState(false);
 
   // ── School registry pulled from Supabase (source of truth) ─────────
   const [schools, setSchools] = useState([]);
@@ -133,6 +139,11 @@ export default function SDODashboard({
 
   // Preferred enrolment: matching portal rows first, manual SBFP fallback.
   const [schoolEnrolment, setSchoolEnrolment] = useState(0);
+  const [sbfpConfig, setSbfpConfig] = useState(DEFAULT_SBFP_CONFIG);
+
+  useEffect(() => {
+    loadSbfpConfig().then(setSbfpConfig);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -385,6 +396,30 @@ export default function SDODashboard({
       .filter(Boolean);
   }, [students, filterSY, filterPeriod]);
 
+  const sbfpBeneficiaryCount = useMemo(
+    () =>
+      students.filter((student) => {
+        const record = student.records?.find(
+          (item) => item.sy === filterSY && item.q === filterPeriod,
+        );
+        if (!record) return false;
+        const bmi = calcBMI(record.weight, record.height);
+        const bmiStatus = bmi
+          ? getBMIStatus(bmi, student.sex, student.birthdate, record.date)
+          : null;
+        const hazStatus = record.height
+          ? getHAZStatus(
+              record.height,
+              student.sex,
+              student.birthdate,
+              record.date,
+            )
+          : null;
+        return isOfficialBeneficiary(student, bmiStatus, hazStatus, sbfpConfig);
+      }).length,
+    [students, filterSY, filterPeriod, sbfpConfig],
+  );
+
   const statusCounts = useMemo(() => {
     const c = {
       "Severely Wasted": 0,
@@ -414,6 +449,22 @@ export default function SDODashboard({
     });
     return c;
   }, [syStudents, filterSY, filterPeriod]);
+
+  const noDataLearners = useMemo(
+    () =>
+      syStudents.filter((student) => {
+        const record = student.records?.find(
+          (item) => item.sy === filterSY && item.q === filterPeriod,
+        );
+        if (!record) return true;
+        const bmi = calcBMI(record.weight, record.height);
+        return (
+          !bmi ||
+          !getBMIStatus(bmi, student.sex, student.birthdate, record.date)
+        );
+      }),
+    [syStudents, filterSY, filterPeriod],
+  );
 
   const hfaCounts = useMemo(() => {
     const c = {
@@ -1110,7 +1161,7 @@ export default function SDODashboard({
               {[
                 {
                   label: "Total Learners",
-                  val: totalEnrollees,
+                  val: syStudents.length,
                   border: "#cbd5e1",
                   color: "#0f172a",
                 },
@@ -1119,6 +1170,14 @@ export default function SDODashboard({
                   val: totalForPeriod,
                   border: "#10b981",
                   color: "#059669",
+                },
+                {
+                  label: "No Data",
+                  val: statusCounts["No Data"],
+                  border: "#f43f5e",
+                  color: "#e11d48",
+                  click: true,
+                  hint: "Click to view list",
                 },
                 {
                   label: "Normal",
@@ -1174,6 +1233,12 @@ export default function SDODashboard({
                   border: "#3b82f6",
                   color: "#2563eb",
                 },
+                {
+                  label: "SBFP Beneficiaries",
+                  val: sbfpBeneficiaryCount,
+                  border: "#0f766e",
+                  color: "#0f766e",
+                },
               ].map((s) => (
                 <div
                   key={s.label}
@@ -1184,6 +1249,19 @@ export default function SDODashboard({
                     boxShadow:
                       "0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.02)",
                     borderTop: `4px solid ${s.border}`,
+                    cursor: s.click ? "pointer" : "default",
+                  }}
+                  onClick={() => {
+                    if (!s.click) return;
+                    setShowNoDataList(true);
+                    setTimeout(
+                      () =>
+                        incompleteRef.current?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        }),
+                      0,
+                    );
                   }}
                 >
                   <div
@@ -1207,6 +1285,11 @@ export default function SDODashboard({
                   >
                     {s.label}
                   </div>
+                  {s.hint && (
+                    <div style={{ marginTop: 4, fontSize: 10, color: s.color }}>
+                      {s.hint}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1570,6 +1653,40 @@ export default function SDODashboard({
               </div>
             )}
           </div>
+
+          {showNoDataList && (
+            <div
+              ref={incompleteRef}
+              className="card"
+              style={{ marginBottom: 24 }}
+            >
+              <h3 className="card-title" style={{ color: "#e11d48" }}>
+                Learners with No Data ({noDataLearners.length})
+              </h3>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left", padding: 8 }}>Learner</th>
+                      <th style={{ textAlign: "left", padding: 8 }}>School</th>
+                      <th style={{ textAlign: "left", padding: 8 }}>Section</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {noDataLearners.map((student) => (
+                      <tr key={student.id}>
+                        <td style={{ padding: 8 }}>{student.name}</td>
+                        <td style={{ padding: 8 }}>
+                          {student.schoolName || student.school_name || "—"}
+                        </td>
+                        <td style={{ padding: 8 }}>{student.section || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* ── Side-by-side distribution graphs ── */}
           <div

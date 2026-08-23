@@ -1,4 +1,33 @@
 export const RELEASE_NOTES = {
+  '3.0.1': {
+    title: 'v3.0.1',
+    sections: [
+      {
+        heading: 'Consistent SBFP Configuration',
+        items: [
+          'Added SNED to SDO SBFP settings and made beneficiary lists, reports, forms, and dashboards consistently follow the grade levels and nutritional-status criteria configured by the SDO.',
+          'Dashboard learner totals and nutrition-report enrollment totals now come directly from current learner records instead of the retired manual enrollment entries.',
+          'Added SBFP Beneficiaries and clickable No Data summaries to both school and SDO dashboards.',
+        ],
+      },
+      {
+        heading: 'Previous-Year Beneficiary Data',
+        items: [
+          'SBFP forms now determine previous-year beneficiary status from the immediately preceding school year Baseline record when that data is available.',
+          'Added an IECES-only Previous-Year Form 1 Excel import as a fallback when prior-year records are unavailable, with conservative name, sex, and birthdate matching.',
+          'Matched Form 1 learners are marked as previous-year beneficiaries, and uploaded 4Ps membership is carried into the current learner record when marked Yes.',
+        ],
+      },
+      {
+        heading: 'Forms and Reporting Improvements',
+        items: [
+          'Form 2 now allows the feeding start date to be entered manually once and automatically displays the same date for all beneficiary rows and Excel exports.',
+          'Improved the SBFP Forms filter and upload layout for clearer use on smaller screens.',
+          'Baseline, Midline, and Endline nutritional classifications remain tied to each saved measurement record and measurement date.',
+        ],
+      },
+    ],
+  },
   '3.0.0': {
     title: 'v3.0.0',
     sections: [

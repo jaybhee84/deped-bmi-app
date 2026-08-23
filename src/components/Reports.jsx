@@ -120,7 +120,9 @@ export default function Reports({ students = [] }) {
   const filtered = !sy
     ? []
     : students.filter((s) => {
-        const studentGrade = s.section?.split(" - ")[0] || "";
+        const studentGrade = String(s.section || s.grade || "")
+          .split(" - ")[0]
+          .trim();
         const matchGrade = gradeLevel === "All" || studentGrade === gradeLevel;
         const matchSection = section === "All" || s.section === section;
         const hasRecordForSelectedPeriod = s.records?.some(
@@ -155,7 +157,9 @@ export default function Reports({ students = [] }) {
         bmi,
         status,
         haz,
-        grade: s.section?.split(" - ")[0] || "",
+        grade: String(s.section || s.grade || "")
+          .split(" - ")[0]
+          .trim(),
         lastRec: selectedRecord,
       };
     })

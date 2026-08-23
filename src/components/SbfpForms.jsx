@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import ExcelJS from "exceljs";
 import {
   calcBMI,
   getBMIStatus,
@@ -18,6 +19,7 @@ import {
   buildForm2Rows,
   exportSbfpForm2Excel,
 } from "../utils/exportSbfpForm2Excel";
+import { getSchoolAbbreviation } from "../utils/schoolLogoMap";
 import "./SbfpForms.css";
 import "./SbfpFormsOverrides.css";
 
@@ -84,6 +86,141 @@ function sortBeneficiaries(list) {
       sexRank(a.sex) - sexRank(b.sex) ||
       String(a.name || "").localeCompare(String(b.name || "")),
   );
+}
+
+function normalizedLearnerName(value) {
+  const normalized = String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  // The previous-year workbook uses "LAST, FIRST M.I." while some current
+  // records use "FIRST M.I. LAST". Sorting the normalized tokens allows both
+  // formats to match without fuzzy/partial matching. Duplicate signatures are
+  // still rejected by the importer as ambiguous.
+  return normalized ? normalized.split(" ").sort().join(" ") : "";
+}
+
+function learnerNamesMatch(left, right) {
+  const leftTokens = normalizedLearnerName(left).split(" ").filter(Boolean);
+  const rightTokens = normalizedLearnerName(right).split(" ").filter(Boolean);
+  if (leftTokens.length !== rightTokens.length) return false;
+
+  const remaining = [...rightTokens];
+  return leftTokens.every((token) => {
+    const matchIndex = remaining.findIndex(
+      (candidate) =>
+        candidate === token ||
+        (token.length === 1 && candidate.startsWith(token)) ||
+        (candidate.length === 1 && token.startsWith(candidate)),
+    );
+    if (matchIndex === -1) return false;
+    remaining.splice(matchIndex, 1);
+    return true;
+  });
+}
+
+function learnerNameScore(left, right) {
+  const leftName = normalizedLearnerName(left);
+  const rightName = normalizedLearnerName(right);
+  if (!leftName || !rightName) return 0;
+  if (leftName === rightName) return 120;
+  if (learnerNamesMatch(left, right)) return 100;
+
+  const leftTokens = leftName.split(" ");
+  const rightTokens = rightName.split(" ");
+  const shorter =
+    leftTokens.length <= rightTokens.length ? leftTokens : rightTokens;
+  const longer = shorter === leftTokens ? rightTokens : leftTokens;
+  const remaining = [...longer];
+  let fullTokenMatches = 0;
+  const allShorterTokensMatch = shorter.every((token) => {
+    const matchIndex = remaining.findIndex(
+      (candidate) =>
+        candidate === token ||
+        (token.length === 1 && candidate.startsWith(token)) ||
+        (candidate.length === 1 && token.startsWith(candidate)),
+    );
+    if (matchIndex === -1) return false;
+    if (token.length > 1 && remaining[matchIndex].length > 1)
+      fullTokenMatches++;
+    remaining.splice(matchIndex, 1);
+    return true;
+  });
+  return allShorterTokensMatch && fullTokenMatches >= 2 ? 70 : 0;
+}
+
+function dateIdentity(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function sexIdentity(value) {
+  const sex = String(value || "")
+    .trim()
+    .toUpperCase();
+  return sex.startsWith("M") ? "M" : sex.startsWith("F") ? "F" : "";
+}
+
+function normalizedSchoolYear(value) {
+  return String(value || "")
+    .replace(/[–—]/g, "-")
+    .trim();
+}
+
+function previousSchoolYear(value) {
+  const match = normalizedSchoolYear(value).match(/^(\d{4})-(\d{4})$/);
+  if (!match) return "";
+  const start = Number(match[1]);
+  return `${start - 1}-${start}`;
+}
+
+function previousYearBeneficiaryValue(student, schoolYear, config) {
+  const priorYear = previousSchoolYear(schoolYear);
+  const priorRecord = student.records?.find(
+    (record) =>
+      normalizedSchoolYear(record.sy) === priorYear && record.q === "Baseline",
+  );
+
+  // The Excel upload is a fallback only when the preceding year's Baseline
+  // record is unavailable from Supabase/local sync.
+  if (!priorRecord) return student.previousSbfpBeneficiary || "N";
+
+  const heightCm = normalizeHeightCm(priorRecord.height);
+  const bmi = calcBMI(priorRecord.weight, heightCm);
+  const bmiStatus = bmi
+    ? getBMIStatus(bmi, student.sex, student.birthdate, priorRecord.date)
+    : null;
+  const hazStatus = getHAZStatus(
+    heightCm,
+    student.sex,
+    student.birthdate,
+    priorRecord.date,
+  );
+  const priorStudent = {
+    ...student,
+    section: priorRecord.section || student.section,
+  };
+  return isOfficialBeneficiary(priorStudent, bmiStatus, hazStatus, config)
+    ? "Y"
+    : "N";
+}
+
+function excelText(cell) {
+  if (cell?.text) return String(cell.text).trim();
+  if (cell?.value && typeof cell.value === "object") {
+    return String(cell.value.result ?? cell.value.text ?? "").trim();
+  }
+  return String(cell?.value ?? "").trim();
 }
 
 function formDetailsStorageKey(currentUser, schoolName) {
@@ -180,10 +317,17 @@ export default function SbfpForms({
   );
   const [yesNoEdits, setYesNoEdits] = useState({});
   const [selectedCells, setSelectedCells] = useState([]);
+  const [importMessage, setImportMessage] = useState("");
+  const [importingPrevious, setImportingPrevious] = useState(false);
   const [form2Details, setForm2Details] = useState(() =>
     initialForm2Details(currentUser, schoolName),
   );
   const selectingCells = useRef(false);
+  const previousYearFileInput = useRef(null);
+  const isIeces =
+    getSchoolAbbreviation(
+      schoolName || currentUser?.school_name || "",
+    )?.toLowerCase() === "ieces";
   useEffect(() => {
     loadSbfpConfig().then(setConfig);
   }, []);
@@ -240,6 +384,11 @@ export default function SbfpForms({
               rec,
               heightCm,
               bmi,
+              previousSbfpBeneficiary: previousYearBeneficiaryValue(
+                student,
+                schoolYear,
+                config,
+              ),
               baz: bmi
                 ? getBMIStatus(bmi, student.sex, student.birthdate, rec.date)
                 : null,
@@ -259,15 +408,7 @@ export default function SbfpForms({
       ),
     [students, schoolYear, period, config],
   );
-  const batchFeedingDate = useMemo(
-    () =>
-      beneficiaries
-        .map((student) => student.rec?.date)
-        .filter(Boolean)
-        .sort()[0] || "",
-    [beneficiaries],
-  );
-  const feedingStartDate = batchFeedingDate || form2Details.feedingStartDate;
+  const feedingStartDate = form2Details.feedingStartDate;
   const feedingStartDateDisplay = formDate(feedingStartDate);
   const yesNoKey = (student, index, field) => `${student.id ?? index}:${field}`;
   const startCellSelection = (event, key) => {
@@ -339,6 +480,163 @@ export default function SbfpForms({
       student.previousSbfpBeneficiary,
   }));
   const form2Rows = buildForm2Rows(exportBeneficiaries);
+  const importPreviousYearForm = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !setStudents || readOnly || !isIeces) return;
+
+    setImportingPrevious(true);
+    setImportMessage("");
+    try {
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(await file.arrayBuffer());
+      if (!workbook.worksheets.length)
+        throw new Error("The workbook does not contain a worksheet.");
+
+      let sheet = null;
+      let headerRow = 0;
+      let nameColumn = 0;
+      let bestHeaderScore = -1;
+      workbook.worksheets.forEach((candidateSheet) => {
+        const scanRows = Math.min(candidateSheet.rowCount, 40);
+        const scanColumns = Math.min(candidateSheet.columnCount, 30);
+        for (let row = 1; row <= scanRows; row++) {
+          for (let column = 1; column <= scanColumns; column++) {
+            const header = excelText(
+              candidateSheet.getCell(row, column),
+            ).toUpperCase();
+            if (!header.includes("NAME") || header.includes("SCHOOL")) continue;
+            const score =
+              (header.includes("BENEFICIAR") || header.includes("LEARNER")
+                ? 10
+                : 0) + (row >= 10 ? 2 : 0);
+            if (score > bestHeaderScore) {
+              sheet = candidateSheet;
+              headerRow = row;
+              nameColumn = column;
+              bestHeaderScore = score;
+            }
+          }
+        }
+      });
+      sheet ||= workbook.worksheets[1] || workbook.worksheets[0];
+
+      let fourPsColumn = 0;
+      const scanColumns = Math.min(sheet.columnCount, 30);
+      if (!nameColumn) {
+        // Official SBFP Form 1 stores learner names in column B.
+        nameColumn = 2;
+        headerRow = 13;
+      }
+      for (let row = Math.max(1, headerRow - 3); row <= headerRow + 3; row++) {
+        for (let column = 1; column <= scanColumns; column++) {
+          const header = excelText(sheet.getCell(row, column))
+            .toUpperCase()
+            .replace(/\s+/g, "");
+          if (header.includes("4PS")) fourPsColumn = column;
+        }
+      }
+      if (!fourPsColumn) fourPsColumn = 15;
+
+      const uploadedByName = new Map();
+      for (let row = headerRow + 1; row <= sheet.rowCount; row++) {
+        const learnerNumber = excelText(sheet.getCell(row, 1));
+        if (!/^\d+$/.test(learnerNumber)) continue;
+        const name = normalizedLearnerName(
+          excelText(sheet.getCell(row, nameColumn)),
+        );
+        if (!name) continue;
+        const fourPs = excelText(sheet.getCell(row, fourPsColumn))
+          .toUpperCase()
+          .trim();
+        uploadedByName.set(name, {
+          fourPs: fourPs === "Y" || fourPs === "YES",
+          sex: sexIdentity(excelText(sheet.getCell(row, 3))),
+          birthdate: dateIdentity(sheet.getCell(row, 5).value),
+        });
+      }
+
+      const matchesByStudentId = new Map();
+      let ambiguous = 0;
+      uploadedByName.forEach((uploaded, uploadedName) => {
+        const candidates = students
+          .map((student) => {
+            const nameScore = learnerNameScore(student.name, uploadedName);
+            const studentSex = sexIdentity(student.sex);
+            const studentBirthdate = dateIdentity(student.birthdate);
+            if (
+              !nameScore ||
+              (uploaded.sex && studentSex && uploaded.sex !== studentSex)
+            )
+              return null;
+
+            const birthdateMatches =
+              uploaded.birthdate &&
+              studentBirthdate &&
+              uploaded.birthdate === studentBirthdate;
+            // A shortened/omitted-middle-name match needs the same birthdate.
+            if (nameScore < 100 && !birthdateMatches) return null;
+            return {
+              student,
+              score: nameScore + (birthdateMatches ? 40 : 0),
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.score - a.score);
+
+        const best = candidates[0];
+        const tied = best && candidates[1]?.score === best.score;
+        if (best && !tied) {
+          const studentId = String(best.student.id);
+          matchesByStudentId.set(studentId, {
+            uploadedName,
+            fourPs:
+              uploaded.fourPs || matchesByStudentId.get(studentId)?.fourPs,
+          });
+        } else if (best) {
+          ambiguous++;
+        }
+      });
+
+      let matched = 0;
+      let fourPsMatched = 0;
+      let fourPsUpdated = 0;
+      const matchedNames = new Set();
+      setStudents((current) =>
+        current.map((student) => {
+          const uploaded = matchesByStudentId.get(String(student.id));
+          if (!uploaded) return student;
+          matched++;
+          matchedNames.add(uploaded.uploadedName);
+          if (uploaded.fourPs) fourPsMatched++;
+          if (uploaded.fourPs && student.member4ps !== "Y") fourPsUpdated++;
+          return {
+            ...student,
+            previousSbfpBeneficiary: "Y",
+            member4ps: uploaded.fourPs ? "Y" : student.member4ps,
+          };
+        }),
+      );
+      setYesNoEdits({});
+      const unmatched = [...uploadedByName.keys()].filter(
+        (name) => !matchedNames.has(name),
+      ).length;
+      setImportMessage(
+        `Imported ${matched} matched learner${matched === 1 ? "" : "s"}; ` +
+          `${fourPsMatched} matched with 4Ps = Y (${fourPsUpdated} newly updated). ` +
+          `${unmatched} unmatched` +
+          (ambiguous
+            ? `; ${ambiguous} ambiguous duplicate name${ambiguous === 1 ? "" : "s"}`
+            : "") +
+          ".",
+      );
+    } catch (error) {
+      console.error("Unable to import the previous-year SBFP workbook.", error);
+      setImportMessage(error.message || "Unable to read the Excel workbook.");
+    } finally {
+      setImportingPrevious(false);
+    }
+  };
   const download = async () => {
     setDownloading(true);
     try {
@@ -391,26 +689,56 @@ export default function SbfpForms({
             beneficiaries.
           </p>
         </div>
-        <div className="sbfp-forms-filters">
-          <label>
-            School Year
-            <select
-              value={schoolYear}
-              onChange={(e) => setSchoolYear(e.target.value)}
-            >
-              {SCHOOL_YEARS.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Period
-            <select value={period} onChange={(e) => setPeriod(e.target.value)}>
-              {QUARTERS.map((item) => (
-                <option key={item}>{item}</option>
-              ))}
-            </select>
-          </label>
+        <div className="sbfp-forms-controls">
+          <div className="sbfp-forms-filters">
+            {isIeces && !readOnly && (
+              <div className="sbfp-previous-upload">
+                <span>Previous-Year Data</span>
+                <input
+                  ref={previousYearFileInput}
+                  className="sbfp-hidden-file-input"
+                  type="file"
+                  accept=".xlsx,.xlsm"
+                  onChange={importPreviousYearForm}
+                />
+                <button
+                  className="sbfp-upload-button"
+                  type="button"
+                  disabled={importingPrevious}
+                  onClick={() => previousYearFileInput.current?.click()}
+                >
+                  {importingPrevious ? "Reading Excel…" : "Upload Form 1"}
+                </button>
+              </div>
+            )}
+            <label>
+              School Year
+              <select
+                value={schoolYear}
+                onChange={(e) => setSchoolYear(e.target.value)}
+              >
+                {SCHOOL_YEARS.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Period
+              <select
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
+              >
+                {QUARTERS.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {isIeces && importMessage && (
+            <p className="sbfp-import-message" role="status">
+              {importMessage}
+            </p>
+          )}
         </div>
       </div>
       <div className="sbfp-form-tabs">
@@ -667,12 +995,8 @@ export default function SbfpForms({
                     inputMode="numeric"
                     placeholder="MM/DD/YYYY"
                     value={feedingStartDateDisplay}
-                    readOnly={readOnly || Boolean(batchFeedingDate)}
-                    title={
-                      batchFeedingDate
-                        ? "Date loaded from Batch Entry"
-                        : "No Batch Entry date found; enter a date"
-                    }
+                    readOnly={readOnly}
+                    title="Enter the feeding start date for all Form 2 rows"
                     onChange={(event) =>
                       updateForm2Detail("feedingStartDate", event.target.value)
                     }
@@ -774,7 +1098,27 @@ export default function SbfpForms({
                           row.repeaters,
                           feedingStartDateDisplay,
                         ].map((value, cell) => (
-                          <td key={cell}>{value}</td>
+                          <td key={cell}>
+                            {cell === 19 && index === 0 ? (
+                              <input
+                                className="form2-feeding-date-input"
+                                type="text"
+                                inputMode="numeric"
+                                placeholder="MM/DD/YYYY"
+                                value={feedingStartDateDisplay}
+                                readOnly={readOnly}
+                                aria-label="Date feeding started or ended for all rows"
+                                onChange={(event) =>
+                                  updateForm2Detail(
+                                    "feedingStartDate",
+                                    event.target.value,
+                                  )
+                                }
+                              />
+                            ) : (
+                              value
+                            )}
+                          </td>
                         ))}
                       </tr>
                     ))}

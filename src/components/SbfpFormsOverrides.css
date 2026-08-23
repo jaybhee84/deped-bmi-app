@@ -39,6 +39,68 @@
   outline: 2px solid rgba(15, 81, 50, 0.18);
   outline-offset: 1px;
 }
+
+.form2-feeding-date-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 88px;
+  border: 1px solid #94a3b8;
+  border-radius: 3px;
+  padding: 3px 4px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+.form2-feeding-date-input:focus {
+  border-color: #2563eb;
+  outline: 2px solid rgb(37 99 235 / 20%);
+}
+.sbfp-forms-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+}
+.sbfp-previous-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 150px;
+  color: #0f5132;
+  font-size: 12px;
+  font-weight: 700;
+}
+.sbfp-hidden-file-input {
+  display: none;
+}
+.sbfp-upload-button {
+  box-sizing: border-box;
+  height: 38px;
+  border: 1px solid #86b99d;
+  border-radius: 6px;
+  padding: 0 14px;
+  background: #fff;
+  color: #0f5132;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sbfp-upload-button:hover:not(:disabled) {
+  border-color: #0f5132;
+  background: #e7f4eb;
+}
+.sbfp-upload-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.sbfp-import-message {
+  margin: 0;
+  color: #334155;
+  font-size: 13px;
+  text-align: right;
+}
 .sbfp-inline-detail {
   width: 220px;
   padding: 1px 2px;

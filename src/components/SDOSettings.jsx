@@ -9,10 +9,14 @@ import "./SDOSettings.css";
 
 const BMI_CRITERIA = ["Wasted", "Severely Wasted", "Overweight", "Obese"];
 const HAZ_CRITERIA = ["Stunted", "Severely Stunted"];
+// Keep SNED explicit here because this is the authoritative list shown to the
+// SDO when configuring beneficiary grade levels. The Set prevents a duplicate
+// when it is also present in the shared application grade list.
+const SBFP_GRADE_LEVELS = [...new Set([...GRADE_LEVELS, "SNED"])];
 
 function sortByGradeOrder(grades) {
   return [...grades].sort(
-    (a, b) => GRADE_LEVELS.indexOf(a) - GRADE_LEVELS.indexOf(b),
+    (a, b) => SBFP_GRADE_LEVELS.indexOf(a) - SBFP_GRADE_LEVELS.indexOf(b),
   );
 }
 
@@ -196,7 +200,7 @@ export default function SDOSettings({ currentUser }) {
       }
       return {
         ...prev,
-        grades: [...GRADE_LEVELS],
+        grades: [...SBFP_GRADE_LEVELS],
         criterionGradeRestrictions: nextRestrictions,
       };
     });
@@ -252,7 +256,7 @@ export default function SDOSettings({ currentUser }) {
   function renderCriterionOption(c) {
     const isSelected = config.criteria.includes(c);
     const isRestricted = config.criterionGradeRestrictions?.[c] !== undefined;
-    const availableGrades = GRADE_LEVELS.filter(
+    const availableGrades = SBFP_GRADE_LEVELS.filter(
       (grade) => !config.grades.includes(grade),
     );
 
@@ -369,7 +373,7 @@ export default function SDOSettings({ currentUser }) {
                 All learners in selected grades are automatic beneficiaries.
               </p>
               <div className="sbfp-options-list">
-                {GRADE_LEVELS.map((grade) => (
+                {SBFP_GRADE_LEVELS.map((grade) => (
                   <label
                     key={grade}
                     className={`sbfp-option ${config.grades.includes(grade) ? "selected" : ""}`}
