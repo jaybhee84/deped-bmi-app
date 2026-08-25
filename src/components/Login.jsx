@@ -174,6 +174,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
   async function handleRegister(e) {
     e.preventDefault();
     const finalUsername = form.username.trim();
+    const normalizedEmail = form.email.trim().toLowerCase();
 
     if (!form.lastName.trim() || !form.firstName.trim()) {
       setError("Last name and first name are required.");
@@ -201,6 +202,18 @@ function RegisterForm({ role, onSuccess, onBack }) {
     }
 
     try {
+      const { data: allowed, error: allowError } = await supabase.rpc(
+        "is_app_email_allowed",
+        { app_key: "bmi", candidate_email: normalizedEmail },
+      );
+
+      if (allowError || !allowed) {
+        setError(
+          "Email not authorized to register. Contact your administrator.",
+        );
+        return;
+      }
+
       const fullName = buildFullName(
         form.lastName,
         form.firstName,
@@ -208,7 +221,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
       );
 
       const { data, error } = await supabase.auth.signUp({
-        email: form.email,
+        email: normalizedEmail,
         password: form.password,
       });
 
@@ -223,7 +236,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
         .insert({
           id: data.user.id,
           username: finalUsername,
-          email: form.email,
+          email: normalizedEmail,
           lastname: form.lastName,
           firstname: form.firstName,
           middleinitial: form.middleInitial,
