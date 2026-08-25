@@ -1,4 +1,15 @@
 export const RELEASE_NOTES = {
+  '3.0.3': {
+    title: 'v3.0.3',
+    sections: [
+      {
+        heading: 'Flexible Sign In',
+        items: [
+          'Users can now sign in with either their username or registered email address.',
+        ],
+      },
+    ],
+  },
   '3.0.2': {
     title: 'v3.0.2',
     sections: [

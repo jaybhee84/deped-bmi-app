@@ -494,12 +494,16 @@ export default function Login({ onLogin }) {
     setLoading(true);
     setError("");
 
-    let email, lookupError;
+    const identifier = username.trim().toLowerCase();
+    let email = identifier;
+    let lookupError;
     try {
-      ({ data: email, error: lookupError } = await supabase.rpc(
-        "get_email_by_username",
-        { lookup_username: username.trim() },
-      ));
+      if (!identifier.includes("@")) {
+        ({ data: email, error: lookupError } = await supabase.rpc(
+          "get_email_by_username",
+          { lookup_username: identifier },
+        ));
+      }
     } catch (networkErr) {
       return attemptOfflineFallback(networkErr);
     }
@@ -675,10 +679,10 @@ export default function Login({ onLogin }) {
           <>
             <form className="login-form" onSubmit={handleLogin}>
               <div className="login-field">
-                <label className="form-label">Username</label>
+                <label className="form-label">Username or email</label>
                 <input
                   className="form-input login-input"
-                  placeholder="Enter your Username"
+                  placeholder="Enter username or email"
                   value={username}
                   ref={usernameInputRef}
                   autoComplete="username"
