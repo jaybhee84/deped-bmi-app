@@ -1,4 +1,16 @@
 export const RELEASE_NOTES = {
+  '3.0.2': {
+    title: 'v3.0.2',
+    sections: [
+      {
+        heading: 'Managed Registration Access',
+        items: [
+          'Registration now requires the email address to be approved for DepEd BMI in the IECES Dashboard Manager.',
+          'Email addresses are normalized before account and profile creation for consistent access checks.',
+        ],
+      },
+    ],
+  },
   '3.0.1': {
     title: 'v3.0.1',
     sections: [
