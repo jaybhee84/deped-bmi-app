@@ -1,4 +1,16 @@
 export const RELEASE_NOTES = {
+  '3.0.4': {
+    title: 'v3.0.4',
+    sections: [
+      {
+        heading: 'Shared Owner Access',
+        items: [
+          'The IECES system owner can now sign in to DepEd BMI with the same secured account used by the Dashboard Manager.',
+          'Missing owner access is initialized automatically after successful authentication without storing or hardcoding a password.',
+        ],
+      },
+    ],
+  },
   '3.0.3': {
     title: 'v3.0.3',
     sections: [
