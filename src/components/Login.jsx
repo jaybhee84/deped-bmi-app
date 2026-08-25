@@ -503,6 +503,12 @@ export default function Login({ onLogin }) {
           "get_email_by_username",
           { lookup_username: identifier },
         ));
+        if (!email && identifier === "admin") {
+          ({ data: email, error: lookupError } = await supabase.rpc(
+            "dashboard_login_email",
+            { candidate_username: identifier },
+          ));
+        }
       }
     } catch (networkErr) {
       return attemptOfflineFallback(networkErr);
@@ -544,6 +550,17 @@ export default function Login({ onLogin }) {
         if (isNetworkish(error)) return attemptOfflineFallback(error);
         setLoading(false);
         setError("Invalid username or password.");
+        return;
+      }
+
+      const { error: ownerAccessError } = await supabase.rpc(
+        "ensure_owner_app_access",
+        { app_key: "bmi" },
+      );
+      if (ownerAccessError) {
+        setLoading(false);
+        await supabase.auth.signOut();
+        setError("Could not verify application access. Please try again.");
         return;
       }
 
