@@ -698,7 +698,21 @@ export default function App() {
       }
 
       const schoolId = await getLocalSchoolId();
-      await syncToServer(latestStudents, schoolId);
+      const uploadResult = await syncToServer(latestStudents, schoolId);
+
+      // When connectivity returns, preserve pending local edits first. Only
+      // after a successful upload do we refresh SQLite from the online source.
+      if (!uploadResult.success) return;
+
+      const serverData = await syncFromServer(schoolId);
+      if (serverData.success && Array.isArray(serverData.students)) {
+        if (window.sqlite?.saveStudents) {
+          await window.sqlite.saveStudents(serverData.students, false);
+        } else {
+          await localSaveStudents(serverData.students);
+        }
+        setStudents(serverData.students);
+      }
 
       if (window.sqlite?.markStudentsClean) {
         await window.sqlite.markStudentsClean();
@@ -724,9 +738,9 @@ export default function App() {
           localStudents = await localLoadStudents();
         }
 
-        if (localStudents && localStudents.length > 0) {
-          setStudents(localStudents);
-        }
+        const loadLocalFallback = () => {
+          setStudents(Array.isArray(localStudents) ? localStudents : []);
+        };
 
         if (normalizedRole === "division") {
           const serverData = await syncFromServer(null);
@@ -737,15 +751,15 @@ export default function App() {
               await localSaveStudents(serverData.students);
             }
             setStudents(serverData.students);
+          } else {
+            loadLocalFallback();
           }
           return;
         }
 
         const targetId = session.school_id || (await getLocalSchoolId());
         if (!targetId) {
-          if (!localStudents || localStudents.length === 0) {
-            setStudents([]);
-          }
+          loadLocalFallback();
           return;
         }
 
@@ -753,10 +767,16 @@ export default function App() {
         // from Supabase so a login cannot replace an unsynced import with the
         // older server snapshot. If the upload fails, keep the local copy.
         if (localStudents.length > 0 && getQueueLength() > 0) {
-          if (!isOnline() || !isSupabaseConfigured()) return;
+          if (!isOnline() || !isSupabaseConfigured()) {
+            loadLocalFallback();
+            return;
+          }
 
           const uploadResult = await syncToServer(localStudents, targetId);
-          if (!uploadResult.success) return;
+          if (!uploadResult.success) {
+            loadLocalFallback();
+            return;
+          }
 
           if (Array.isArray(uploadResult.students)) {
             if (window.sqlite?.saveStudents) {
@@ -777,6 +797,8 @@ export default function App() {
             await localSaveStudents(serverData.students);
           }
           setStudents(serverData.students);
+        } else {
+          loadLocalFallback();
         }
       } catch (err) {
         console.error(err);

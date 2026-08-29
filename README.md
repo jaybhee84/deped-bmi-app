@@ -93,6 +93,11 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-publishable-anon-key
 ```
 
+The packaged defaults point to the division Supabase project. School `126001`
+is the only school eligible for the optional server-side mirror to the original
+school project. Keep the destination project's service-role key in Supabase
+function secrets; never add it to this repository or a `VITE_` variable.
+
 Create a local `.env` file when using a separate Supabase project. Environment files are ignored by Git. Use only a publishable/anonymous client key in the renderer; never place a Supabase service-role key in the application.
 
 Database changes are stored in [`supabase/migrations`](supabase/migrations). Apply the required migrations to the target Supabase project before testing cloud-backed features.

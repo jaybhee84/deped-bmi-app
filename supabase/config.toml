@@ -1,0 +1,5 @@
+[functions.mirror-school-data]
+verify_jwt = false
+
+[functions.upload-learner-photo]
+verify_jwt = true

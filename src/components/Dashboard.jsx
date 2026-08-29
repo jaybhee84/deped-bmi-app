@@ -55,7 +55,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
             if (resolvedName) {
               setSchoolName(resolvedName);
               const supabaseUrl =
-                schoolData.logo_url || getSchoolLogoUrl(resolvedName);
+                getSchoolLogoUrl(resolvedName) || schoolData.logo_url;
               if (supabaseUrl) {
                 setSchoolLogo(supabaseUrl);
                 return;
@@ -71,7 +71,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
             if (resolvedName) {
               setSchoolName(resolvedName);
               const supabaseUrl =
-                schoolData.logo_url || getSchoolLogoUrl(resolvedName);
+                getSchoolLogoUrl(resolvedName) || schoolData.logo_url;
               if (supabaseUrl) {
                 setSchoolLogo(supabaseUrl);
                 return;
@@ -88,7 +88,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
               if (remoteName) {
                 setSchoolName(remoteName);
                 const supabaseUrl =
-                  boundSchool.logo_url || getSchoolLogoUrl(remoteName);
+                  getSchoolLogoUrl(remoteName) || boundSchool.logo_url;
                 if (supabaseUrl) {
                   setSchoolLogo(supabaseUrl);
                   if (window.sqlite?.saveSchool) {

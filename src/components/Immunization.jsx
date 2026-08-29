@@ -551,11 +551,19 @@ export default function Immunization({
       ? selectedRegionObj.regionName || selectedRegionObj.name
       : selectedRegionCode;
 
+    const payloadSchool = students.find(
+      (student) =>
+        (student.schoolName || student.school_name) === schoolName &&
+        (student.schoolId || student.school_id),
+    );
+    const payloadSchoolId = payloadSchool?.schoolId || payloadSchool?.school_id || "";
+
     const payload = {
       id: `${schoolName}_${sy}_${selectedProgramKey}_${Date.now()}`.replace(
         /\s+/g,
         "_",
       ),
+      school_id: payloadSchoolId,
       school_name: schoolName,
       school_year: sy,
       vaccine_program: selectedProgramKey,

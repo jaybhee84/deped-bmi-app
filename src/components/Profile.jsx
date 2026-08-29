@@ -473,18 +473,37 @@ export default function Profile({
           const fileName = `${safeRegistryName}.${fileExt}`;
           const filePath = `avatars/${fileName}`;
 
-          const { error: uploadError } = await supabase.storage
-            .from("profiles")
-            .upload(filePath, file, {
-              upsert: true,
-              contentType: `image/${fileExt}`,
-            });
+          const isIeceStudent = String(student.schoolId || student.school_id || "") === "126001";
+          let publicUrl;
 
-          if (uploadError) throw uploadError;
+          if (isIeceStudent) {
+            const formData = new FormData();
+            formData.append("student_id", String(student.id));
+            formData.append("filename", fileName);
+            formData.append("file", file);
 
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from("profiles").getPublicUrl(filePath);
+            const { data, error: routedUploadError } = await supabase.functions.invoke(
+              "upload-learner-photo",
+              { body: formData },
+            );
+
+            if (routedUploadError) throw routedUploadError;
+            publicUrl = data?.publicUrl;
+          } else {
+            const { error: uploadError } = await supabase.storage
+              .from("profiles")
+              .upload(filePath, file, {
+                upsert: true,
+                contentType: `image/${fileExt}`,
+              });
+
+            if (uploadError) throw uploadError;
+
+            const { data } = supabase.storage.from("profiles").getPublicUrl(filePath);
+            publicUrl = data.publicUrl;
+          }
+
+          if (!publicUrl) throw new Error("Supabase did not return a learner photo URL.");
 
           setStudents((prev) =>
             prev.map((s) =>

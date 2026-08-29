@@ -1,4 +1,15 @@
 export const RELEASE_NOTES = {
+  '3.0.5': {
+    title: 'v3.0.5',
+    sections: [
+      {
+        heading: 'New Database and Migration of Data',
+        items: [
+          'Standalone Data in place.',
+        ],
+      },
+    ],
+  },
   '3.0.4': {
     title: 'v3.0.4',
     sections: [

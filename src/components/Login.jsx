@@ -28,6 +28,9 @@ import bg9 from "../images/bg9.png";
 
 const BG_IMAGES = [bg1, bg2, bg3, bg4, bg5, bg6, bg7, bg8, bg9];
 
+const CREATOR_SDO_EMAIL = "jaybhee84@gmail.com";
+const CREATOR_SCHOOL_EMAIL = "jl3hee@gmail.com";
+
 // ── Subcomponent: Role picker ─────────────────────────────────────────────
 function RolePicker({ onPick }) {
   return (
@@ -186,8 +189,30 @@ function RegisterForm({ role, onSuccess, onBack }) {
       return;
     }
 
+    const isCreatorSdo = role === ROLES.DIVISION && normalizedEmail === CREATOR_SDO_EMAIL;
+    const isCreatorSchool = role === ROLES.SCHOOL && normalizedEmail === CREATOR_SCHOOL_EMAIL;
+
+    if (
+      !normalizedEmail.endsWith("@deped.gov.ph") &&
+      !isCreatorSdo &&
+      !isCreatorSchool
+    ) {
+      setError("Registration requires an official @deped.gov.ph email address.");
+      return;
+    }
+
     if (!finalUsername) {
       setError("Username is required.");
+      return;
+    }
+
+    const normalizedUsername = finalUsername.toLowerCase();
+    if (normalizedUsername === "admin1" && !isCreatorSdo) {
+      setError("The admin1 username is reserved for the system creator's SDO account.");
+      return;
+    }
+    if (normalizedUsername === "admin" && !isCreatorSchool) {
+      setError("The admin username is reserved for the system creator's School-Based account.");
       return;
     }
 
@@ -202,16 +227,18 @@ function RegisterForm({ role, onSuccess, onBack }) {
     }
 
     try {
-      const { data: allowed, error: allowError } = await supabase.rpc(
-        "is_app_email_allowed",
-        { app_key: "bmi", candidate_email: normalizedEmail },
-      );
-
-      if (allowError || !allowed) {
-        setError(
-          "Email not authorized to register. Contact your administrator.",
+      if (isSchool && !isCreatorSchool) {
+        const { data: allowed, error: allowError } = await supabase.rpc(
+          "is_app_email_allowed",
+          { app_key: "bmi", candidate_email: normalizedEmail },
         );
-        return;
+
+        if (allowError || !allowed) {
+          setError(
+            "Email not authorized to register. Contact your administrator.",
+          );
+          return;
+        }
       }
 
       const fullName = buildFullName(
@@ -220,34 +247,25 @@ function RegisterForm({ role, onSuccess, onBack }) {
         form.middleInitial,
       );
 
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password: form.password,
+        options: {
+          data: {
+            username: finalUsername,
+            lastname: form.lastName.trim(),
+            firstname: form.firstName.trim(),
+            middleinitial: form.middleInitial.trim(),
+            fullname: fullName,
+            role,
+            position: form.position,
+          },
+        },
       });
 
       if (error) {
         console.error("SIGNUP ERROR", error);
         setError(error.message);
-        return;
-      }
-
-      const { error: profileError } = await supabase
-        .from("bmi_profiles")
-        .insert({
-          id: data.user.id,
-          username: finalUsername,
-          email: normalizedEmail,
-          lastname: form.lastName,
-          firstname: form.firstName,
-          middleinitial: form.middleInitial,
-          fullname: fullName,
-          role,
-          position: form.position,
-        });
-
-      if (profileError) {
-        console.error("PROFILE ERROR", profileError);
-        setError(profileError.message);
         return;
       }
 
@@ -638,11 +656,11 @@ export default function Login({ onLogin }) {
         setError("Incorrect password.");
       } else if (navigator.onLine === false) {
         setError(
-          "You're offline, and this account hasn't signed in on this device before. Connect to the internet to sign in for the first time.",
+          "Offline access is not active for this account yet. Connect to the internet and sign in once to enable offline login on this device.",
         );
       } else {
         setError(
-          "Couldn't reach the server, and this account hasn't signed in on this device before. Check your connection and try again.",
+          "Unable to connect to the online account service. Check your internet connection and sign in once to enable offline login on this device.",
         );
       }
       console.warn("Falling back to offline login due to:", originalErr);

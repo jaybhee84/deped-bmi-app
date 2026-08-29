@@ -120,7 +120,9 @@ export function canViewOnly(session) {
 }
 
 // ── Offline credential cache (Stored in localStorage permanently) ─────────
-const OFFLINE_CACHE_KEY = 'deped_bmi_offline_cache';
+// Versioned for the new division Supabase. The legacy cache may contain
+// credentials for accounts that have not registered in the new Auth project.
+const OFFLINE_CACHE_KEY = 'deped_bmi_offline_cache_division_v1';
 
 export function cacheOfflineCredentials(profile, password) {
   try {
