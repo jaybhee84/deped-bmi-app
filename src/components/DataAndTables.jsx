@@ -6,10 +6,16 @@ export default function DataAndTables({
   grandTotals,
   gradeTotals,
   gradeBg,
+  totalEnrollees,
+  reportingPeriod,
 }) {
+  const classifiedTotal = Number(grandTotals?.Combined?.Total) || 0;
+  const enrolmentTotal = Number(totalEnrollees) || 0;
+  const unclassifiedTotal = Math.max(enrolmentTotal - classifiedTotal, 0);
+
   return (
     <div className="card">
-      <h3 className="card-title">Nutritional Status by Grade Level</h3>
+      <h3 className="card-title sdo-grade-table-title">Nutritional Status by Grade Level</h3>
       <div style={{ overflowX: "auto" }}>
         <table className="sdo-isolated-table">
           <thead>
@@ -145,11 +151,23 @@ export default function DataAndTables({
         </table>
       </div>
 
+      {enrolmentTotal > classifiedTotal && (
+        <div className="sdo-table-reconciliation-note">
+          <strong>Data summary for {reportingPeriod || "the selected period"}</strong>
+          <ul>
+            <li><b>{enrolmentTotal.toLocaleString()}</b> — Total number of enrolled learners</li>
+            <li><b>{classifiedTotal.toLocaleString()}</b> — Learners with complete height and weight data</li>
+            <li><b>{unclassifiedTotal.toLocaleString()}</b> — Learners with incomplete or no measurement data</li>
+          </ul>
+        </div>
+      )}
+
       <div
         style={{
           marginTop: 12,
-          display: "flex",
-          flexWrap: "wrap",
+          display: "grid",
+          gridTemplateColumns: "repeat(3, max-content)",
+          justifyContent: "start",
           gap: 8,
         }}
       >
@@ -162,6 +180,7 @@ export default function DataAndTables({
               background: gradeBg[grade],
               fontSize: 12,
               fontWeight: 600,
+              textAlign: "center",
             }}
           >
             {grade} — {gradeTotals[grade] || 0}

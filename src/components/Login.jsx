@@ -227,7 +227,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
     }
 
     try {
-      if (isSchool && !isCreatorSchool) {
+      if (!isCreatorSdo && !isCreatorSchool) {
         const { data: allowed, error: allowError } = await supabase.rpc(
           "is_app_email_allowed",
           { app_key: "bmi", candidate_email: normalizedEmail },

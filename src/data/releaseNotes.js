@@ -1,4 +1,33 @@
 export const RELEASE_NOTES = {
+  '3.0.6': {
+    title: 'v3.0.6',
+    sections: [
+      {
+        heading: 'Managed School User Access',
+        items: [
+          'Added an SDO Allowed Users page for managing authorized DepEd email addresses and viewing registered School-Based accounts.',
+          'Registered-user details now include the full name, email, school name and logo, position, online status, and last activity.',
+          'BMI registration now uses bmi_allowed_users as the authoritative email allowlist, while registered profiles remain in bmi_profiles.',
+        ],
+      },
+      {
+        heading: 'Clearer SDO Dashboard Analytics',
+        items: [
+          'Replaced misleading category line profiles with animated count bars and percentage-based stacked period comparisons.',
+          'Added clear no-data states and an enrolment reconciliation summary for learners without complete height and weight measurements.',
+          'Corrected total learner calculations to use IECES enrolled learners and the Baseline learner entries saved under each other school ID.',
+        ],
+      },
+      {
+        heading: 'Interface Improvements',
+        items: [
+          'Improved sidebar contrast, navigation ordering, icons, and profile-card alignment.',
+          'Enhanced the SDO Information page with a responsive creator image panel.',
+          'Improved grade-level table headings, legends, school details, and responsive column layouts.',
+        ],
+      },
+    ],
+  },
   '3.0.5': {
     title: 'v3.0.5',
     sections: [

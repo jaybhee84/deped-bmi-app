@@ -28,6 +28,47 @@ import {
 // ── Multi-Segment SVG Donut Chart Component ──────────────────────────────────
 import { SCHOOL_OPTIONS } from "../utils/schools";
 
+const BMI_TREND_CATEGORIES = [
+  { key: "Normal", label: "Normal", color: "#10b981" },
+  { key: "Wasted", label: "Wasted", color: "#f59e0b" },
+  { key: "Severely Wasted", label: "Severely Wasted", color: "#ef4444" },
+  { key: "Overweight", label: "Overweight", color: "#6366f1" },
+  { key: "Obese", label: "Obese", color: "#b91c1c" },
+];
+
+const HFA_TREND_CATEGORIES = [
+  { key: "Normal Height", label: "Normal Height", color: "#10b981" },
+  { key: "Stunted", label: "Stunted", color: "#f59e0b" },
+  { key: "Severely Stunted", label: "Severely Stunted", color: "#ef4444" },
+  { key: "Tall", label: "Tall", color: "#3b82f6" },
+];
+
+const IECES_SCHOOL_ID = "126001";
+const IECES_SCHOOL_NAME = "Isabela East Central Elementary School";
+
+function PeriodBarChart({ data, categories }) {
+  const values = categories.map((item) => Number(data?.[item.key]) || 0);
+  const total = values.reduce((sum, value) => sum + value, 0);
+  const max = Math.max(...values, 1);
+  if (!total) return <div className="trend-no-data">No data recorded</div>;
+  return <div className="trend-bars">{categories.map((item, index) => <div className="trend-bar-item" key={item.key}><div className="trend-bar-value" style={{ animationDelay: `${index * 90 + 250}ms` }}>{values[index]}</div><div className="trend-bar-track"><div className="trend-bar-fill" style={{ height: `${Math.max((values[index] / max) * 100, values[index] ? 4 : 0)}%`, background: item.color, animationDelay: `${index * 90}ms` }} /></div><div className="trend-bar-label">{item.label}</div></div>)}</div>;
+}
+
+function StackedPeriodChart({ periods, categories }) {
+  return <div className="trend-stacked-chart">{periods.map((data, periodIndex) => {
+    const total = categories.reduce((sum, item) => sum + (Number(data?.[item.key]) || 0), 0);
+    return <div className="trend-stacked-period" key={data?.period || periodIndex}><div className="trend-stacked-bar">{total ? categories.map((item, categoryIndex) => { const value = Number(data?.[item.key]) || 0; return value ? <div key={item.key} title={`${item.label}: ${value} (${((value / total) * 100).toFixed(1)}%)`} style={{ width: `${(value / total) * 100}%`, background: item.color, animationDelay: `${periodIndex * 140 + categoryIndex * 60}ms` }} /> : null; }) : <span>No data</span>}</div><strong>{data?.period || ["Baseline", "Midline", "Endline"][periodIndex]}</strong><small>{total ? `${total.toLocaleString()} learners` : "No measurements"}</small></div>;
+  })}</div>;
+}
+
+function TrendChartSection({ timelineData, hfaTimelineData, onOpen, school, schoolYear }) {
+  const sections = [
+    { title: "Nutritional Status Distribution", categories: BMI_TREND_CATEGORIES, data: timelineData },
+    { title: "Height-for-Age (HFA) Distribution", categories: HFA_TREND_CATEGORIES, data: hfaTimelineData },
+  ];
+  return <>{sections.map((section) => <div className="trend-section" key={section.title}><h4>{section.title}</h4><div className="trend-chart-grid">{section.data.map((period) => <button type="button" className="trend-chart-card" key={period.period} onClick={() => onOpen({ title: `${period.period} — ${section.title}`, subtitle: `${school} (${schoolYear})`, content: <PeriodBarChart data={period} categories={section.categories} /> })}><span>{period.period}</span><PeriodBarChart data={period} categories={section.categories} /></button>)}<button type="button" className="trend-chart-card trend-combined-card" onClick={() => onOpen({ title: `Period Comparison — ${section.title}`, subtitle: `${school} (${schoolYear})`, content: <StackedPeriodChart periods={section.data} categories={section.categories} /> })}><span>Period Comparison (%)</span><div className="trend-legend">{section.categories.map((item) => <i key={item.key} style={{ color: item.color }}>● {item.label}</i>)}</div><StackedPeriodChart periods={section.data} categories={section.categories} /></button></div></div>)}</>;
+}
+
 function MultiSegmentDonut({ segments, total, centerNumber, centerLabel }) {
   let currentOffset = 25; // 12 o'clock position
 
@@ -138,7 +179,8 @@ export default function SDODashboard({
   useLogoCacheHydrated();
 
   // Preferred enrolment: matching portal rows first, manual SBFP fallback.
-  const [schoolEnrolment, setSchoolEnrolment] = useState(0);
+  const [, setSchoolEnrolment] = useState(0);
+  const [iecesEnrolment, setIecesEnrolment] = useState(0);
   const [sbfpConfig, setSbfpConfig] = useState(DEFAULT_SBFP_CONFIG);
 
   useEffect(() => {
@@ -285,6 +327,28 @@ export default function SDODashboard({
     };
   }, [selectedSchool, filterSY, schools]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const schoolYear = normalizeSchoolYear(filterSY);
+
+    supabase
+      .from("students")
+      .select("id", { count: "exact", head: true })
+      .eq("school_id", IECES_SCHOOL_ID)
+      .eq("school_year", schoolYear)
+      .then(({ count, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.warn("[SDODashboard] IECES enrolment unavailable:", error.message);
+          setIecesEnrolment(0);
+        } else {
+          setIecesEnrolment(Number(count) || 0);
+        }
+      });
+
+    return () => { cancelled = true; };
+  }, [filterSY]);
+
   const schoolNames = useMemo(() => {
     const fallbackSchools = [
       "Isabela East Central Elementary School",
@@ -373,8 +437,33 @@ export default function SDODashboard({
   );
 
   const totalEnrollees = useMemo(() => {
-    return schoolEnrolment;
-  }, [schoolEnrolment]);
+    if (selectedSchool === IECES_SCHOOL_NAME) {
+      return iecesEnrolment || syStudents.length;
+    }
+
+    if (selectedSchool !== "ALL SCHOOLS") {
+      return syStudents.length;
+    }
+
+    const otherSchoolsBaselineTotal = Object.entries(allSchoolsData)
+      .filter(([schoolName]) => schoolName !== IECES_SCHOOL_NAME)
+      .reduce(
+        (total, [, schoolStudents]) => total + (schoolStudents || []).filter((student) =>
+          student.records?.some(
+            (record) => record.sy === filterSY && record.q === "Baseline",
+          ),
+        ).length,
+        0,
+      );
+
+    const iecesFallback = (allSchoolsData[IECES_SCHOOL_NAME] || []).filter((student) =>
+      student.records?.some(
+        (record) => record.sy === filterSY && record.q === "Baseline",
+      ),
+    ).length;
+
+    return (iecesEnrolment || iecesFallback) + otherSchoolsBaselineTotal;
+  }, [selectedSchool, iecesEnrolment, syStudents, allSchoolsData, filterSY]);
 
   const allLatestBMI = useMemo(() => {
     return students
@@ -636,9 +725,7 @@ export default function SDODashboard({
     return totals;
   }, [gradeSummary]);
 
-  const totalForPeriod = students.filter((s) =>
-    s.records.some((r) => r.sy === filterSY && r.q === filterPeriod),
-  ).length;
+  const completeMeasurementsForPeriod = allLatestBMI.length;
 
   const timelineData = useMemo(() => {
     return ["Baseline", "Midline", "Endline"].map((period) => {
@@ -1125,8 +1212,8 @@ export default function SDODashboard({
                     <strong>{totalEnrollees}</strong> total learners
                   </span>
                   <span>
-                    <strong>{totalForPeriod}</strong> with {filterPeriod}{" "}
-                    records
+                    <strong>{completeMeasurementsForPeriod}</strong> with complete {filterPeriod}{" "}
+                    measurements
                   </span>
                 </div>
               </div>
@@ -1161,19 +1248,19 @@ export default function SDODashboard({
               {[
                 {
                   label: "Total Learners",
-                  val: syStudents.length,
+                  val: totalEnrollees,
                   border: "#cbd5e1",
                   color: "#0f172a",
                 },
                 {
-                  label: `Learners with Records out of ${totalEnrollees}`,
-                  val: totalForPeriod,
+                  label: `Complete Height & Weight Data out of ${totalEnrollees}`,
+                  val: completeMeasurementsForPeriod,
                   border: "#10b981",
                   color: "#059669",
                 },
                 {
                   label: "No Data",
-                  val: statusCounts["No Data"],
+                  val: Math.max(totalEnrollees - completeMeasurementsForPeriod, 0),
                   border: "#f43f5e",
                   color: "#e11d48",
                   click: true,
@@ -1777,9 +1864,19 @@ export default function SDODashboard({
                 marginBottom: "28px",
               }}
             >
-              Dynamic phase trajectory metrics mapped natively using continuous
-              line profiles. Click any chart card below to enlarge.
+              Compare category counts within each period and percentage shares
+              across periods. Click any chart card below to enlarge.
             </p>
+
+            <TrendChartSection
+              timelineData={timelineData}
+              hfaTimelineData={hfaTimelineData}
+              onOpen={setModalChart}
+              school={selectedSchool}
+              schoolYear={filterSY}
+            />
+
+            <div style={{ display: "none" }} aria-hidden="true">
 
             <h4
               style={{
@@ -2854,6 +2951,7 @@ export default function SDODashboard({
                 );
               })()}
             </div>
+            </div>
           </div>
 
           {/* ── Grade level breakdown table isolated component ── */}
@@ -2863,6 +2961,8 @@ export default function SDODashboard({
             grandTotals={grandTotals}
             gradeTotals={gradeTotals}
             gradeBg={gradeBg}
+            totalEnrollees={totalEnrollees}
+            reportingPeriod={filterPeriod}
           />
         </>
       )}

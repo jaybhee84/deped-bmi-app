@@ -4,6 +4,7 @@ import Dashboard from "./components/Dashboard";
 import SDODashboard from "./components/SDODashboard";
 import SDOInformation from "./components/SDOInformation";
 import SDOSettings from "./components/SDOSettings";
+import SDOAllowedUsers from "./components/SDOAllowedUsers";
 import Database from "./components/Database";
 import SDOStudents from "./components/SDODatabase";
 import Profile from "./components/Profile";
@@ -288,6 +289,9 @@ function AppContent({
         )}
 
         {page === "sdo-info" && isSDO && <SDOInformation />}
+        {page === "sdo-users" && (
+          <SDOAllowedUsers currentUser={session} />
+        )}
         {page === "sdo-settings" && isSDO && (
           <SDOSettings currentUser={session} />
         )}

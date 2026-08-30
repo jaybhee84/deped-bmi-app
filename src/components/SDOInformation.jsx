@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
 import "./Information.css";
 import { RELEASE_NOTES } from "../data/releaseNotes";
+import jibianime from "../images/jibianime.png";
 
 export default function SDOInformation() {
   const [version, setVersion] = useState("");
@@ -23,7 +24,7 @@ export default function SDOInformation() {
         BMI and Height-for-Age classification reference
       </p>
 
-      <div className="settings-grid">
+      <div className="settings-grid sdo-information-grid">
         {/* Card 1: Reference Charts */}
         <div className="card">
           <h3 className="card-title">BMI-for-Age Classification</h3>
@@ -99,10 +100,10 @@ export default function SDOInformation() {
           </div>
         </div>
 
-        <div className="settings-column">
+        <div className="settings-column sdo-information-column">
           {/* Card 2: Release Notes Card */}
           {latestRelease && (
-            <div className="card" style={{ marginBottom: "1.5rem" }}>
+            <div className="card">
               <h3 className="card-title">📋 Release Notes</h3>
               <div
                 style={{
@@ -244,6 +245,10 @@ export default function SDOInformation() {
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="sdo-information-art" aria-hidden="true">
+          <img src={jibianime} alt="" />
         </div>
       </div>
     </div>
