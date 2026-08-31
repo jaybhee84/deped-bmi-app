@@ -7,6 +7,7 @@ import {
 import { RELEASE_NOTES } from "../data/releaseNotes";
 import "./Information.css";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
+import jibianime from "../images/jibianime.png";
 import {
   DEFAULT_SBFP_CONFIG,
   loadSbfpConfig,
@@ -229,7 +230,7 @@ export default function Information({
         Active system telemetry profile and reference records
       </p>
 
-      <div className="settings-grid">
+      <div className="settings-grid school-information-grid">
         {/* ── CARD 1: School Profile Workspace ── */}
         <div className="information-card-column">
           <div className="card">
@@ -380,8 +381,8 @@ export default function Information({
         </div>
 
         {/* ── CARD 2: BMI Reference Charts & Framework Metadata ── */}
-        <div>
-          <div className="card">
+        <div className="information-reference-column">
+          <div className="card information-reference-card">
             <h3 className="card-title">BMI Classification Reference</h3>
             <p className="settings-ref-sub">
               Official WHO BMI-for-Age reference used by DepEd (6–19 years).
@@ -478,6 +479,10 @@ export default function Information({
         </div>
 
         {/* ── CARD 3: Release Notes Pane Block ── */}
+        <div className="sdo-information-art" aria-hidden="true">
+          <img src={jibianime} alt="" />
+        </div>
+
         <div className="card settings-full-span" style={{ marginTop: "6px" }}>
           <div
             style={{

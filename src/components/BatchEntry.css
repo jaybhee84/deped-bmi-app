@@ -27,21 +27,25 @@
 }
 
 .batch-header-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(125px, 0.9fr) minmax(135px, 1fr) minmax(135px, 1fr) minmax(125px, 0.9fr) minmax(105px, 0.75fr) minmax(125px, 0.9fr) minmax(145px, 1fr);
   gap: 10px;
   align-items: flex-end;
   margin-bottom: 0.85rem;
 }
 
 .batch-header-grid .form-group {
-  min-width: 130px;
-  flex: 1;
+  min-width: 0;
 }
 
-.teacher-group {
-  min-width: 190px !important;
-  flex: 2 !important;
+.batch-header-grid .form-label {
+  white-space: nowrap;
+}
+
+@media (max-width: 1200px) {
+  .batch-header-grid {
+    grid-template-columns: repeat(4, minmax(130px, 1fr));
+  }
 }
 
 /* ── Section Preview ──────────────────────────────────────── */

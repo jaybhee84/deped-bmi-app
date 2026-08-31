@@ -146,6 +146,7 @@ ipcMain.handle("app:getVersion", () => {
 });
 
 const BUNDLED_TEMPLATE_FILES = new Set([
+  "NS REPORT.xlsx",
   "SBFP FORM 1.xlsx",
   "SBFP FORM 2.xlsx",
 ]);

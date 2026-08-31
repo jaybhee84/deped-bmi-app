@@ -14,8 +14,20 @@ function toArrayBuffer(value) {
 
 export async function loadExcelTemplate(filename) {
   if (window.electronAPI?.loadBundledTemplate) {
-    const templateBytes = await window.electronAPI.loadBundledTemplate(filename);
-    return toArrayBuffer(templateBytes);
+    try {
+      const templateBytes =
+        await window.electronAPI.loadBundledTemplate(filename);
+      return toArrayBuffer(templateBytes);
+    } catch (error) {
+      // A renderer update can be active before Electron's main process has
+      // restarted with a newly added template allowlist entry. The same
+      // bundled file is also available from Vite/public (development) and
+      // dist/templates (packaged builds), so continue to that safe fallback.
+      console.warn(
+        `Electron could not load the bundled ${filename} template; using the static bundled copy.`,
+        error,
+      );
+    }
   }
 
   const templateUrl = new URL(

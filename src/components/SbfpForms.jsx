@@ -6,6 +6,7 @@ import {
   getHAZStatus,
   normalizeHeightCm,
   formatHeightMeters,
+  ageInMonths,
   SCHOOL_YEARS,
   QUARTERS,
 } from "../utils/bmi";
@@ -19,7 +20,9 @@ import {
   buildForm2Rows,
   exportSbfpForm2Excel,
 } from "../utils/exportSbfpForm2Excel";
-import { getSchoolAbbreviation } from "../utils/schoolLogoMap";
+import { exportNsReportExcel } from "../utils/exportNsReportExcel";
+import { gradeFromSection } from "../utils/registry";
+import { fetchIecesAdvisers, isIecesSchool } from "../utils/iecesOrgChart";
 import "./SbfpForms.css";
 import "./SbfpFormsOverrides.css";
 
@@ -41,11 +44,12 @@ function formDate(value) {
   const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return match ? `${match[2]}/${match[3]}/${match[1]}` : String(value || "");
 }
-function age(value) {
+function age(value, referenceDate = new Date()) {
   const m = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return "—";
   const d = new Date(+m[1], +m[2] - 1, +m[3]),
-    n = new Date();
+    n = new Date(referenceDate);
+  if (Number.isNaN(n.getTime())) return "—";
   let months =
     (n.getFullYear() - d.getFullYear()) * 12 + n.getMonth() - d.getMonth();
   if (n.getDate() < d.getDate()) months--;
@@ -85,6 +89,139 @@ function sortBeneficiaries(list) {
       ) ||
       sexRank(a.sex) - sexRank(b.sex) ||
       String(a.name || "").localeCompare(String(b.name || "")),
+  );
+}
+
+function teacherFromSection(section) {
+  const parts = String(section || "").split(" - ").map((part) => part.trim()).filter(Boolean);
+  if (parts.length < 2) return "";
+  const teacherParts = parts.slice(1);
+  if (["Morning", "Afternoon"].includes(teacherParts.at(-1))) teacherParts.pop();
+  return teacherParts.join(" - ");
+}
+
+function teacherDisplayName(value) {
+  const name = String(value || "").trim().replace(/\s+/g, " ");
+  if (!name) return "";
+  if (name.includes(",")) {
+    const [lastName, givenNames = ""] = name.split(/,(.+)/);
+    const parts = givenNames.trim().split(" ").filter(Boolean);
+    if (parts.length < 2) return `${lastName.trim()}, ${givenNames.trim()}`.trim();
+    return `${lastName.trim()}, ${parts[0]} ${parts.slice(1).map((part) => `${part.charAt(0)}.`).join(" ")}`;
+  }
+  const parts = name.split(" ");
+  if (parts.length < 3) return name;
+  return `${parts[0]} ${parts.slice(1, -1).map((part) => `${part.charAt(0)}.`).join(" ")} ${parts.at(-1)}`;
+}
+
+const normalizedPersonName = (value) =>
+  String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+
+function adviserNameForSection(advisers, section) {
+  const familyName = normalizedPersonName(teacherFromSection(section));
+  const grade = normalizedPersonName(gradeFromSection(section));
+  const adviser = advisers.find(
+    (person) =>
+      normalizedPersonName(person.family_name) === familyName &&
+      normalizedPersonName(person.grade_level) === grade,
+  );
+  if (!adviser) return null;
+  const middleInitial = String(adviser.middle_name || "").trim();
+  return {
+    fullName: [adviser.first_name, adviser.middle_name, adviser.family_name].filter(Boolean).join(" "),
+    displayName: [
+      adviser.first_name,
+      middleInitial ? `${middleInitial.charAt(0)}.` : "",
+      adviser.family_name,
+    ].filter(Boolean).join(" "),
+  };
+}
+
+function nsSummaryFor(students) {
+  const countStatus = (field, label, targetSex) =>
+    students.filter(
+      (student) =>
+        student[field]?.label === label &&
+        String(student.sex || "").toUpperCase().startsWith(targetSex),
+    ).length;
+  const totalSex = (targetSex) =>
+    students.filter((student) =>
+      String(student.sex || "").toUpperCase().startsWith(targetSex),
+    ).length;
+  const rows = (field, labels) => [
+    { label: "No. of Cases", male: totalSex("M"), female: totalSex("F") },
+    ...labels.map((label) => ({
+      label,
+      male: countStatus(field, label, "M"),
+      female: countStatus(field, label, "F"),
+    })),
+  ].map((row) => ({ ...row, total: row.male + row.female }));
+  return {
+    bmi: rows("baz", ["Severely Wasted", "Wasted", "Normal", "Overweight", "Obese"]),
+    hfa: rows("haz", ["Severely Stunted", "Stunted", "Normal", "Tall"]),
+  };
+}
+
+function NsReportPage({ students, section, schoolName, cityBarangay, period, schoolYear }) {
+  const summary = nsSummaryFor(students);
+  const teacherRecord = students.find((student) => student.rec?.teacherName)?.rec;
+  const teacher = teacherRecord?.teacherDisplayName || teacherDisplayName(
+    teacherRecord?.teacherName || teacherFromSection(section),
+  );
+  const measuredOn = students[0]?.rec?.date;
+  return (
+    <article className="ns-report-exact-page">
+      <header className="ns-report-page-header">
+        <h2>NUTRITIONAL STATUS REPORT</h2>
+        <strong>{schoolName || "School not set"}</strong>
+        <span>{cityBarangay}</span>
+        <span>{period} SY {schoolYear}</span>
+      </header>
+      <div className="ns-report-page-meta">
+        <span><strong>Date of Weighing:</strong> {date(measuredOn)}</span>
+        <span><strong>Grade/Class:</strong> {section}</span>
+      </div>
+      <table className="ns-report-exact-table">
+        <colgroup>{Array.from({ length: 11 }, (_, index) => <col key={index} />)}</colgroup>
+        <thead>
+          <tr>
+            <th>No.</th><th>Names</th><th>Birthday<br />mm/dd/yyyy</th><th>Weight<br />(kg)</th>
+            <th>Height<br />(meters)</th><th>Sex</th><th>Height²<br />(m²)</th>
+            <th>Age<br /><small>(year) (month)</small></th>
+            <th>Body Mass<br />Index</th><th>Nutritional Status</th><th>Height-for-Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...students, null].map((student, index) => {
+            const months = student ? ageInMonths(student.birthdate, student.rec?.date) : null;
+            const height = student ? Number(formatHeightMeters(student.heightCm)) : null;
+            return (
+              <tr key={student?.id ?? `blank-${index}`}>
+                <td>{student ? index + 1 : ""}</td><td>{student?.name || ""}</td>
+                <td>{student ? date(student.birthdate) : ""}</td><td>{student?.rec?.weight ?? ""}</td>
+                <td>{student ? Number(formatHeightMeters(student.heightCm)).toFixed(2) : ""}</td><td>{student?.sex || ""}</td>
+                <td>{Number.isFinite(height) ? (height * height).toFixed(4) : ""}</td>
+                <td>{months == null ? "" : `${Math.floor(months / 12)}.${months % 12}`}</td><td>{student?.bmi?.toFixed(1) || ""}</td>
+                <td>{student?.baz?.label || ""}</td><td>{student?.haz?.label || ""}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="ns-report-summary">
+        <table><thead><tr><th>Body Mass Index</th><th>M</th><th>F</th><th>T</th></tr></thead>
+          <tbody>{summary.bmi.map((row) => <tr key={row.label}><td>{row.label}</td><td>{row.male}</td><td>{row.female}</td><td>{row.total}</td></tr>)}</tbody>
+        </table>
+        <table><thead><tr><th>HFA</th><th>M</th><th>F</th><th>TOTAL</th></tr></thead>
+          <tbody>
+            {summary.hfa.map((row) => <tr key={row.label}><td>{row.label === "Severely Stunted" ? "Sev. Stunted" : row.label}</td><td>{row.male}</td><td>{row.female}</td><td>{row.total}</td></tr>)}
+            <tr className="ns-report-summary-spacer" aria-hidden="true"><td>&nbsp;</td><td></td><td></td><td></td></tr>
+          </tbody>
+        </table>
+        <div className="ns-report-formula-note"><strong>Body Mass Index =</strong><span>Weight (kgs)</span><span>Height squared (m²)</span></div>
+        <div className="ns-report-prepared"><span>Prepared by:</span><strong>{teacher}</strong><small>Class Adviser</small></div>
+      </div>
+    </article>
   );
 }
 
@@ -307,11 +444,13 @@ export default function SbfpForms({
   initialSchoolYear = "2026–2027",
   initialPeriod = "Baseline",
 }) {
-  const [form, setForm] = useState("form1"),
+  const [form, setForm] = useState("nsReport"),
     [schoolYear, setSchoolYear] = useState(initialSchoolYear),
     [period, setPeriod] = useState(initialPeriod),
     [config, setConfig] = useState(DEFAULT_SBFP_CONFIG),
     [downloading, setDownloading] = useState(false);
+  const [nsGrade, setNsGrade] = useState("All");
+  const [nsClass, setNsClass] = useState("All");
   const [formDetails, setFormDetails] = useState(() =>
     initialFormDetails(currentUser, schoolName),
   );
@@ -319,15 +458,24 @@ export default function SbfpForms({
   const [selectedCells, setSelectedCells] = useState([]);
   const [importMessage, setImportMessage] = useState("");
   const [importingPrevious, setImportingPrevious] = useState(false);
+  const [iecesAdvisers, setIecesAdvisers] = useState([]);
   const [form2Details, setForm2Details] = useState(() =>
     initialForm2Details(currentUser, schoolName),
   );
   const selectingCells = useRef(false);
   const previousYearFileInput = useRef(null);
-  const isIeces =
-    getSchoolAbbreviation(
-      schoolName || currentUser?.school_name || "",
-    )?.toLowerCase() === "ieces";
+  const isIeces = isIecesSchool(currentUser?.school_id || currentUser?.schoolId);
+  useEffect(() => {
+    if (!isIeces) {
+      setIecesAdvisers([]);
+      return;
+    }
+    let active = true;
+    fetchIecesAdvisers()
+      .then((advisers) => { if (active) setIecesAdvisers(advisers); })
+      .catch((error) => console.warn("Unable to load IECES advisers for NS Report:", error.message));
+    return () => { active = false; };
+  }, [isIeces]);
   useEffect(() => {
     loadSbfpConfig().then(setConfig);
   }, []);
@@ -382,6 +530,7 @@ export default function SbfpForms({
             return {
               ...student,
               rec,
+              section: rec.section || student.section,
               heightCm,
               bmi,
               previousSbfpBeneficiary: previousYearBeneficiaryValue(
@@ -408,6 +557,96 @@ export default function SbfpForms({
       ),
     [students, schoolYear, period, config],
   );
+  const nsReportStudents = useMemo(
+    () =>
+      sortBeneficiaries(
+        students
+          .map((student) => {
+            const rec = student.records?.find(
+              (record) => record.sy === schoolYear && record.q === period,
+            );
+            if (!rec) return null;
+            const section = rec.section || student.section || student.grade;
+            const orgAdviser = isIeces ? adviserNameForSection(iecesAdvisers, section) : null;
+            const teacherName = rec.teacherName || orgAdviser?.fullName || "";
+            const heightCm = normalizeHeightCm(rec.height);
+            const bmi = calcBMI(rec.weight, heightCm);
+            return {
+              ...student,
+              rec: {
+                ...rec,
+                teacherName,
+                teacherDisplayName: rec.teacherDisplayName || orgAdviser?.displayName || "",
+              },
+              section,
+              heightCm,
+              bmi,
+              baz: bmi
+                ? getBMIStatus(bmi, student.sex, student.birthdate, rec.date)
+                : null,
+              haz: getHAZStatus(
+                heightCm,
+                student.sex,
+                student.birthdate,
+                rec.date,
+              ),
+            };
+          })
+          .filter(Boolean),
+      ),
+    [students, schoolYear, period, isIeces, iecesAdvisers],
+  );
+  const nsGradeOptions = useMemo(
+    () =>
+      [...new Set(nsReportStudents.map((student) => gradeFromSection(student.section || student.grade)).filter(Boolean))]
+        .sort((left, right) => {
+          const leftRank = GRADE_ORDER.indexOf(left);
+          const rightRank = GRADE_ORDER.indexOf(right);
+          return (leftRank < 0 ? 99 : leftRank) - (rightRank < 0 ? 99 : rightRank) || left.localeCompare(right);
+        }),
+    [nsReportStudents],
+  );
+  const nsClassOptions = useMemo(
+    () =>
+      [...new Set(
+        nsReportStudents
+          .filter((student) => nsGrade === "All" || gradeFromSection(student.section || student.grade) === nsGrade)
+          .map((student) => student.section || student.grade)
+          .filter(Boolean),
+      )].sort(),
+    [nsReportStudents, nsGrade],
+  );
+  const displayedNsStudents = useMemo(
+    () =>
+      nsReportStudents.filter(
+        (student) =>
+          (nsGrade === "All" || gradeFromSection(student.section || student.grade) === nsGrade) &&
+          (nsClass === "All" || (student.section || student.grade) === nsClass),
+      ),
+    [nsReportStudents, nsGrade, nsClass],
+  );
+  const nsDisplayGroups = useMemo(() => {
+    const groups = new Map();
+    displayedNsStudents.forEach((student) => {
+      const section = student.section || student.grade || "Unassigned";
+      if (!groups.has(section)) groups.set(section, []);
+      groups.get(section).push(student);
+    });
+    return [...groups.entries()];
+  }, [displayedNsStudents]);
+  const nsSummary = useMemo(
+    () => nsSummaryFor(displayedNsStudents),
+    [displayedNsStudents],
+  );
+  const displayedTeacher =
+    nsClass === "All"
+      ? ""
+      : (() => {
+          const teacherRecord = displayedNsStudents.find((student) => student.rec?.teacherName)?.rec;
+          return teacherRecord?.teacherDisplayName || teacherDisplayName(
+            teacherRecord?.teacherName || teacherFromSection(nsClass),
+          );
+        })();
   const feedingStartDate = form2Details.feedingStartDate;
   const feedingStartDateDisplay = formDate(feedingStartDate);
   const yesNoKey = (student, index, field) => `${student.id ?? index}:${field}`;
@@ -657,6 +896,26 @@ export default function SbfpForms({
       setDownloading(false);
     }
   };
+  const downloadNsReport = async () => {
+    setDownloading(true);
+    try {
+      await exportNsReportExcel({
+        students: displayedNsStudents,
+        schoolName,
+        schoolYear,
+        period,
+        selectedClass: nsClass,
+        cityBarangay: formDetails.cityBarangay,
+        preparedBy: formDetails.focalPerson,
+        principalName: formDetails.principal,
+      });
+    } catch (error) {
+      console.error(error);
+      window.alert(error.message || "Unable to create the NS Report file.");
+    } finally {
+      setDownloading(false);
+    }
+  };
   const downloadForm2 = async () => {
     setDownloading(true);
     try {
@@ -733,6 +992,30 @@ export default function SbfpForms({
                 ))}
               </select>
             </label>
+            {form === "nsReport" && (
+              <>
+                <label>
+                  Grade Level
+                  <select
+                    value={nsGrade}
+                    onChange={(event) => {
+                      setNsGrade(event.target.value);
+                      setNsClass("All");
+                    }}
+                  >
+                    <option value="All">All Grade Levels</option>
+                    {nsGradeOptions.map((grade) => <option key={grade}>{grade}</option>)}
+                  </select>
+                </label>
+                <label>
+                  Class
+                  <select value={nsClass} onChange={(event) => setNsClass(event.target.value)}>
+                    <option value="All">All Classes</option>
+                    {nsClassOptions.map((section) => <option key={section}>{section}</option>)}
+                  </select>
+                </label>
+              </>
+            )}
           </div>
           {isIeces && importMessage && (
             <p className="sbfp-import-message" role="status">
@@ -742,6 +1025,12 @@ export default function SbfpForms({
         </div>
       </div>
       <div className="sbfp-form-tabs">
+        <button
+          className={form === "nsReport" ? "active" : ""}
+          onClick={() => setForm("nsReport")}
+        >
+          NS Report
+        </button>
         <button
           className={form === "form1" ? "active" : ""}
           onClick={() => setForm("form1")}
@@ -755,7 +1044,95 @@ export default function SbfpForms({
           Form 2
         </button>
       </div>
-      {form === "form1" ? (
+      {form === "nsReport" ? (
+        <>
+          <button
+            className="sbfp-download-button"
+            disabled={downloading}
+            onClick={downloadNsReport}
+          >
+            {downloading ? "Preparing NS Report…" : "Download NS Report"}
+          </button>
+          <div className="sbfp-form-sheet-wrap">
+            <div className="ns-report-pages">
+              {nsDisplayGroups.map(([section, sectionStudents]) => (
+                <NsReportPage
+                  key={section}
+                  students={sectionStudents}
+                  section={section}
+                  schoolName={schoolName}
+                  cityBarangay={formDetails.cityBarangay}
+                  period={period}
+                  schoolYear={schoolYear}
+                />
+              ))}
+            </div>
+            <div className="sbfp-form-sheet ns-report-sheet">
+              <p className="form-sheet-label">Nutritional Status Report</p>
+              <h2>NUTRITIONAL STATUS REPORT</h2>
+              <h3>{schoolName || "School not set"}</h3>
+              <p>{formDetails.cityBarangay}</p>
+              <p>{period} SY {schoolYear}</p>
+              <div className="sbfp-table-scroll">
+                <table className="sbfp-form-table ns-report-table">
+                  <colgroup>
+                    {Array.from({ length: 11 }, (_, index) => (
+                      <col key={index} />
+                    ))}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>No.</th><th>Names</th><th>Grade/Section</th><th>Birthday</th>
+                      <th>Weight (kg)</th><th>Height (meters)</th><th>Sex</th>
+                      <th>Age</th><th>Body Mass Index</th><th>Nutritional Status</th>
+                      <th>Height-for-Age</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayedNsStudents.map((student, index) => (
+                      <tr key={student.id ?? `${student.name}-${index}`}>
+                        <td>{index + 1}</td><td>{student.name}</td>
+                        <td>{student.section || student.grade || "—"}</td>
+                        <td>{date(student.birthdate)}</td><td>{student.rec?.weight ?? "—"}</td>
+                        <td>{formatHeightMeters(student.heightCm)}</td><td>{student.sex}</td>
+                        <td>{age(student.birthdate, student.rec?.date)}</td><td>{student.bmi?.toFixed(1) ?? "—"}</td>
+                        <td>{student.baz?.label || "—"}</td><td>{student.haz?.label || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="ns-report-summary">
+                <table>
+                  <thead><tr><th>Body Mass Index</th><th>M</th><th>F</th><th>T</th></tr></thead>
+                  <tbody>{nsSummary.bmi.map((row) => (
+                    <tr key={row.label}><td>{row.label}</td><td>{row.male}</td><td>{row.female}</td><td>{row.total}</td></tr>
+                  ))}</tbody>
+                </table>
+                <table>
+                  <thead><tr><th>HFA</th><th>M</th><th>F</th><th>TOTAL</th></tr></thead>
+                  <tbody>{nsSummary.hfa.map((row) => (
+                    <tr key={row.label}><td>{row.label === "Severely Stunted" ? "Sev. Stunted" : row.label}</td><td>{row.male}</td><td>{row.female}</td><td>{row.total}</td></tr>
+                  ))}</tbody>
+                </table>
+                <div className="ns-report-formula-note">
+                  <strong>Body Mass Index =</strong>
+                  <span>Weight (kgs)</span>
+                  <span>Height squared (m²)</span>
+                </div>
+                <div className="ns-report-prepared">
+                  <span>Prepared by:</span>
+                  <strong>{displayedTeacher || (nsClass === "All" ? "Individual class teachers" : "")}</strong>
+                  <small>{displayedTeacher ? "Class Adviser" : ""}</small>
+                </div>
+              </div>
+              {displayedNsStudents.length === 0 && (
+                <p className="sbfp-empty">No learner measurements found for the selected school year and period.</p>
+              )}
+            </div>
+          </div>
+        </>
+      ) : form === "form1" ? (
         <>
           <button
             className="sbfp-download-button"

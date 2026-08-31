@@ -7,6 +7,7 @@ import {
   GRADE_LEVELS,
 } from "../utils/bmi";
 import Badge from "./Badge";
+import TrendChartSection from "./TrendChartSection";
 import "./Dashboard.css";
 import { fetchSchoolById } from "../utils/syncService";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
@@ -22,6 +23,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
   const [schoolLogo, setSchoolLogo] = useState(null);
   const [schoolName, setSchoolName] = useState("");
   const [sbfpConfig, setSbfpConfig] = useState(DEFAULT_SBFP_CONFIG);
+  const [modalChart, setModalChart] = useState(null);
 
   const schoolYears = getSchoolYears();
   const incompleteDataRef = useRef(null);
@@ -230,7 +232,13 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
   // Timeline Trends
   const timelineData = useMemo(() => {
     return ["Baseline", "Midline", "Endline"].map((period) => {
-      const counts = { Normal: 0, Wasted: 0, Overweight: 0 };
+      const counts = {
+        Normal: 0,
+        Wasted: 0,
+        "Severely Wasted": 0,
+        Overweight: 0,
+        Obese: 0,
+      };
       syStudents.forEach((s) => {
         const recs = s.records.filter(
           (r) => r.sy === filterSY && r.q === period,
@@ -241,9 +249,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         if (!bmi) return;
         const status = getBMIStatus(bmi, s.sex, s.birthdate, last.date);
         const lbl = status?.label;
-        if (lbl === "Normal") counts.Normal++;
-        else if (lbl === "Wasted" || lbl === "Severely Wasted") counts.Wasted++;
-        else if (lbl === "Overweight" || lbl === "Obese") counts.Overweight++;
+        if (counts[lbl] !== undefined) counts[lbl]++;
       });
       return { period, ...counts };
     });
@@ -252,9 +258,9 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
   const hfaTimelineData = useMemo(() => {
     return ["Baseline", "Midline", "Endline"].map((period) => {
       const counts = {
-        NormalHeight: 0,
+        "Normal Height": 0,
         Stunted: 0,
-        SeverelyStunted: 0,
+        "Severely Stunted": 0,
         Tall: 0,
       };
       syStudents.forEach((s) => {
@@ -265,12 +271,17 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         const last = recs[recs.length - 1];
         if (!last.height) return;
         const haz = getHAZStatus(last.height, s.sex, s.birthdate, last.date);
-        if (haz?.label === "Normal") counts.NormalHeight++;
+        if (haz?.label === "Normal") counts["Normal Height"]++;
         else if (haz?.label === "Stunted") counts.Stunted++;
-        else if (haz?.label === "Severely Stunted") counts.SeverelyStunted++;
+        else if (haz?.label === "Severely Stunted") counts["Severely Stunted"]++;
         else if (haz?.label === "Tall") counts.Tall++;
       });
-      return { period, ...counts };
+      return {
+        period,
+        ...counts,
+        NormalHeight: counts["Normal Height"],
+        SeverelyStunted: counts["Severely Stunted"],
+      };
     });
   }, [syStudents, filterSY]);
 
@@ -482,6 +493,16 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
         fontFamily: "system-ui, sans-serif",
       }}
     >
+      {modalChart && (
+        <div className="school-chart-modal-overlay" onClick={() => setModalChart(null)}>
+          <div className="school-chart-modal-content" onClick={(event) => event.stopPropagation()}>
+            <button className="school-chart-modal-close" onClick={() => setModalChart(null)} title="Close">×</button>
+            <h3 style={{ margin: "0 42px 4px 0", color: "#0f172a", fontSize: "20px", fontWeight: 800 }}>{modalChart.title}</h3>
+            {modalChart.subtitle && <p style={{ margin: "0 0 20px", color: "#64748b", fontSize: "13px" }}>{modalChart.subtitle}</p>}
+            <div style={{ marginTop: "12px" }}>{modalChart.content}</div>
+          </div>
+        </div>
+      )}
       {/* BRANDED HEADER ROW BANNER */}
       <div
         style={{
@@ -924,10 +945,19 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
           Nutritional Trends across Reporting Periods
         </h3>
         <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "28px" }}>
-          Dynamic phase trajectory metrics mapped natively using continuous line
-          profiles.
+          Compare category counts within each period and percentage shares
+          across periods. Click any chart card below to enlarge.
         </p>
 
+        <TrendChartSection
+          timelineData={timelineData}
+          hfaTimelineData={hfaTimelineData}
+          onOpen={setModalChart}
+          school={schoolName || currentUser?.school_name || "School"}
+          schoolYear={filterSY}
+        />
+
+        <div style={{ display: "none" }} aria-hidden="true">
         {/* 1. NUTRITIONAL STATUS DISTRIBUTION SEGMENT */}
         <h4
           style={{
@@ -1769,6 +1799,7 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
               </text>
             </svg>
           </div>
+        </div>
         </div>
       </div>
 

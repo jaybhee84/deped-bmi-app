@@ -1,4 +1,32 @@
 export const RELEASE_NOTES = {
+  '3.0.7': {
+    title: 'v3.0.7',
+    sections: [
+      {
+        heading: 'Nutritional Status Reports',
+        items: [
+          'Added a class-based Nutritional Status Report preview and Excel download with learner measurements, BMI and height-for-age classifications, summary counts, and adviser details.',
+          'Improved folio-page sizing, column widths, merged headers, equal row heights, signature spacing, and print-ready Excel formatting.',
+          'Excel reports now keep one blank row after the final learner, remove unused template rows and artifacts, and use a floating BMI formula image that does not disturb worksheet borders.',
+        ],
+      },
+      {
+        heading: 'School Dashboard Charts',
+        items: [
+          'Replaced the school-based dashboard line graphs with the same animated period bars and percentage comparisons used by the SDO dashboard.',
+          'Added click-to-enlarge chart cards for Baseline, Midline, Endline, and combined period comparisons.',
+          'Corrected school chart category mappings so Normal Height, Severely Stunted, Severely Wasted, and Obese counts display independently and accurately.',
+        ],
+      },
+      {
+        heading: 'Data and Classification Improvements',
+        items: [
+          'Improved measurement-date age handling and nutritional-status classification consistency across data entry, reports, and exported workbooks.',
+          'Improved IECES adviser and school-report information used in class-based outputs.',
+        ],
+      },
+    ],
+  },
   '3.0.6': {
     title: 'v3.0.6',
     sections: [
