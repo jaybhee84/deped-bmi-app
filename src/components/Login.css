@@ -455,6 +455,12 @@
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
 }
 
+.role-card.selected {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.25);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4);
+}
+
 .role-card-icon {
   font-size: 44px;
   display: block;

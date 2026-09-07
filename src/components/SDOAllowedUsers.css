@@ -5,6 +5,7 @@
 .sdo-users-card { margin-bottom: 0; }
 .sdo-users-message { margin-bottom: 12px; padding: 9px 12px; border-radius: 7px; background: #eff6ff; color: #1e3a5f; font-size: 13px; }
 .sdo-allow-form { display: flex; gap: 10px; max-width: 620px; }
+.sdo-role-select { flex: 0 0 150px; }
 .sdo-email-input { display: flex; flex: 1; align-items: stretch; }
 .sdo-email-input .form-input { min-width: 0; flex: 1; border-radius: 6px 0 0 6px; }
 .sdo-email-input span { display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--gray-200); border-left: 0; border-radius: 0 6px 6px 0; background: var(--gray-50); color: var(--gray-700); font-size: 13px; font-weight: 600; white-space: nowrap; }
@@ -49,4 +50,4 @@
 .sdo-presence.online i { background: #22c55e; box-shadow: 0 0 0 3px #dcfce7; }
 .sdo-presence.offline { color: #64748b; }
 .sdo-users-empty { padding: 28px; text-align: center; color: var(--gray-500); }
-@media (max-width: 700px) { .sdo-allow-form { flex-direction: column; } .sdo-email-input { width: 100%; } .sdo-users-tabs { overflow-x: auto; } .sdo-users-tabs button { white-space: nowrap; } }
+@media (max-width: 700px) { .sdo-allow-form { flex-direction: column; } .sdo-email-input { width: 100%; } .sdo-role-select { flex: 0 0 auto; width: 100%; } .sdo-users-tabs { overflow-x: auto; } .sdo-users-tabs button { white-space: nowrap; } }

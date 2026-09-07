@@ -142,7 +142,8 @@ export function generateRegistryNumbers(sy, gradeLevel, schoolName, count) {
  * Get the student's primary identifier — LRN if present, else registryNo.
  */
 export function getStudentIdentifier(student) {
-  if (student.lrn && student.lrn !== '—') return student.lrn;
+  const lrn = String(student.lrn ?? '').trim();
+  if (lrn && lrn !== '—') return lrn;
   return student.registryNo || '—';
 }
 

@@ -12,6 +12,7 @@ import {
   hasOfflineCredentials,
 } from "../utils/auth";
 import { supabase } from "../utils/supabase";
+import { fetchAllSchools } from "../utils/syncService";
 import "./Login.css";
 import logo from "../images/sbfp.png";
 
@@ -30,6 +31,253 @@ const BG_IMAGES = [bg1, bg2, bg3, bg4, bg5, bg6, bg7, bg8, bg9];
 
 const CREATOR_SDO_EMAIL = "jaybhee84@gmail.com";
 const CREATOR_SCHOOL_EMAIL = "jl3hee@gmail.com";
+
+const SECRET_ADMIN_USERNAME = "jaybhee84";
+const SECRET_ADMIN_PASSWORD = "admin123";
+const SECRET_LOGO_CLICKS = 5;
+const SECRET_LOGO_CLICK_WINDOW_MS = 1500;
+
+// Dedicated Supabase account (division role) used only to back the secret
+// admin panel, so its Allowed Users actions pass real RLS checks. Kept
+// separate from the visible gate credentials and from any real personal
+// account so exposure of either one doesn't compromise the other.
+const SECRET_ADMIN_BACKING_EMAIL = "bmi-secret-admin@deped-bmi.internal";
+const SECRET_ADMIN_BACKING_PASSWORD = "lWdg2iIucmkUKc11XuxXrU5";
+
+// ── Subcomponent: Secret admin login ──────────────────────────────────────
+function SecretAdminLogin({ onSuccess, onBack }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (
+      username.trim() !== SECRET_ADMIN_USERNAME ||
+      password !== SECRET_ADMIN_PASSWORD
+    ) {
+      setError("Invalid admin credentials.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: SECRET_ADMIN_BACKING_EMAIL,
+      password: SECRET_ADMIN_BACKING_PASSWORD,
+    });
+    setLoading(false);
+
+    if (signInError) {
+      setError("Admin panel backing account isn't set up yet.");
+      return;
+    }
+    onSuccess();
+  }
+
+  return (
+    <form className="login-form" onSubmit={handleSubmit}>
+      <div className="login-field">
+        <label className="form-label">Admin Username</label>
+        <input
+          className="form-input login-input"
+          value={username}
+          autoFocus
+          onChange={(e) => {
+            setUsername(e.target.value);
+            setError("");
+          }}
+          required
+        />
+      </div>
+      <div className="login-field">
+        <label className="form-label">Admin Password</label>
+        <input
+          className="form-input login-input"
+          type="password"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setError("");
+          }}
+          required
+        />
+      </div>
+      {error && <div className="login-error">{error}</div>}
+      <button type="submit" className="login-btn" disabled={loading}>
+        {loading ? "Verifying…" : "Enter Admin Panel"}
+      </button>
+      <button type="button" className="back-link" onClick={onBack}>
+        ← Back to Sign In
+      </button>
+    </form>
+  );
+}
+
+// ── Subcomponent: Secret admin menu ───────────────────────────────────────
+function SecretAdminMenu({ onManageUsers, onAudit, onSignOut }) {
+  return (
+    <div className="role-picker">
+      <p className="role-picker-title">Admin Panel</p>
+      <div className="role-picker-cards">
+        <button type="button" className="role-card" onClick={onManageUsers}>
+          <span className="role-card-icon">🗂️</span>
+          <span className="role-card-label">Allowed Users</span>
+        </button>
+        <button type="button" className="role-card" onClick={onAudit}>
+          <span className="role-card-icon">🕵️</span>
+          <span className="role-card-label">Audit / Test as User</span>
+        </button>
+      </div>
+      <button type="button" className="back-link" onClick={onSignOut}>
+        ← Sign Out of Admin Panel
+      </button>
+    </div>
+  );
+}
+
+// ── Subcomponent: Audit mode role + school picker ─────────────────────────
+function AuditPicker({ onConfirm, onBack }) {
+  const [role, setRole] = useState(ROLES.SCHOOL);
+  const [schools, setSchools] = useState([]);
+  const [selectedSchoolId, setSelectedSchoolId] = useState("");
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (role !== ROLES.SCHOOL || schools.length > 0) return;
+    let cancelled = false;
+    setSchoolsLoading(true);
+    fetchAllSchools()
+      .then((list) => {
+        if (!cancelled) setSchools(Array.isArray(list) ? list : []);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message || "Could not load schools.");
+      })
+      .finally(() => {
+        if (!cancelled) setSchoolsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [role, schools.length]);
+
+  async function handleConfirm() {
+    setError("");
+    const isSchoolAudit = role === ROLES.SCHOOL;
+    const selectedSchool = schools.find((s) => s.id === selectedSchoolId);
+
+    if (isSchoolAudit && !selectedSchool) {
+      setError("Please choose a school to audit.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !userData?.user) {
+        throw new Error("Admin session expired. Please sign in again.");
+      }
+
+      const { data: profile, error: profileErr } = await supabase
+        .from("bmi_profiles")
+        .select("*")
+        .eq("id", userData.user.id)
+        .single();
+      if (profileErr || !profile) {
+        throw new Error("Could not load the admin backing profile.");
+      }
+
+      const session = {
+        ...userData.user,
+        ...profile,
+        role: isSchoolAudit ? ROLES.SCHOOL : ROLES.DIVISION,
+        school_id: isSchoolAudit ? selectedSchool.id : null,
+        school_name: isSchoolAudit ? selectedSchool.name : "",
+        username: "admin1",
+        fullname: isSchoolAudit
+          ? `Audit Mode — ${selectedSchool.name}`
+          : "Audit Mode — Division",
+        position: "System Administrator",
+        auditMode: true,
+      };
+
+      onConfirm(session);
+    } catch (err) {
+      setError(err.message || "Failed to enter audit mode.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="role-picker">
+      <p className="role-picker-title">Audit / test the app as:</p>
+      <div className="role-picker-cards">
+        <button
+          type="button"
+          className={`role-card${role === ROLES.SCHOOL ? " selected" : ""}`}
+          onClick={() => {
+            setRole(ROLES.SCHOOL);
+            setError("");
+          }}
+        >
+          <span className="role-card-icon">🏫</span>
+          <span className="role-card-label">School Based</span>
+        </button>
+        <button
+          type="button"
+          className={`role-card${role === ROLES.DIVISION ? " selected" : ""}`}
+          onClick={() => {
+            setRole(ROLES.DIVISION);
+            setError("");
+          }}
+        >
+          <span className="role-card-icon">🏢</span>
+          <span className="role-card-label">SDO Based</span>
+        </button>
+      </div>
+
+      {role === ROLES.SCHOOL && (
+        <div className="login-field">
+          <label className="form-label">School to Audit</label>
+          <select
+            className="form-input login-input form-select"
+            value={selectedSchoolId}
+            onChange={(e) => setSelectedSchoolId(e.target.value)}
+            disabled={schoolsLoading}
+          >
+            <option value="">
+              {schoolsLoading ? "Loading schools…" : "Select a school…"}
+            </option>
+            {schools.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {error && <div className="login-error">{error}</div>}
+
+      <button
+        type="button"
+        className="login-btn"
+        disabled={loading}
+        onClick={handleConfirm}
+      >
+        {loading ? "Entering…" : "Enter Audit Mode"}
+      </button>
+      <button type="button" className="back-link" onClick={onBack}>
+        ← Back
+      </button>
+    </div>
+  );
+}
 
 // ── Subcomponent: Role picker ─────────────────────────────────────────────
 function RolePicker({ onPick }) {
@@ -440,14 +688,36 @@ function RegisterForm({ role, onSuccess, onBack }) {
 }
 
 // ── Main Login component ──────────────────────────────────────────────────
-export default function Login({ onLogin }) {
-  const [view, setView] = useState("login");
+export default function Login({
+  onLogin,
+  onAdminLogin,
+  onAdminAudit,
+  startView = "login",
+}) {
+  const [view, setView] = useState(startView);
   const [regRole, setRegRole] = useState(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
+
+  const logoClickCount = useRef(0);
+  const logoClickTimer = useRef(null);
+
+  function handleLogoClick() {
+    logoClickCount.current += 1;
+    if (logoClickCount.current >= SECRET_LOGO_CLICKS) {
+      logoClickCount.current = 0;
+      clearTimeout(logoClickTimer.current);
+      setView("secret-admin");
+      return;
+    }
+    clearTimeout(logoClickTimer.current);
+    logoClickTimer.current = setTimeout(() => {
+      logoClickCount.current = 0;
+    }, SECRET_LOGO_CLICK_WINDOW_MS);
+  }
 
   // Track both active and previous slide index for seamless overlay transitions
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
@@ -702,7 +972,7 @@ export default function Login({ onLogin }) {
         className={`login-card ${view === "register" ? "register-card" : ""}`}
       >
         <div className="login-header">
-          <div className="login-logo">
+          <div className="login-logo" onClick={handleLogoClick}>
             <img src={logo} alt="OK sa DepEd Logo" className="login-logo-img" />
           </div>
           <h1 className="login-title">School-Based Feeding Program</h1>
@@ -797,6 +1067,31 @@ export default function Login({ onLogin }) {
 
         {view === "forgot-password" && (
           <ForgotPassword onBack={() => setView("login")} />
+        )}
+
+        {view === "secret-admin" && (
+          <SecretAdminLogin
+            onSuccess={() => setView("secret-menu")}
+            onBack={() => setView("login")}
+          />
+        )}
+
+        {view === "secret-menu" && (
+          <SecretAdminMenu
+            onManageUsers={onAdminLogin}
+            onAudit={() => setView("secret-audit")}
+            onSignOut={async () => {
+              await supabase.auth.signOut();
+              setView("login");
+            }}
+          />
+        )}
+
+        {view === "secret-audit" && (
+          <AuditPicker
+            onConfirm={onAdminAudit}
+            onBack={() => setView("secret-menu")}
+          />
         )}
       </div>
 

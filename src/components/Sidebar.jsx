@@ -17,15 +17,6 @@ const SDO_NAV = [
   { id: "database", icon: "🎒", label: "Database" },
   { id: "reports", icon: "📄", label: "Reports" },
   { id: "sdo-settings", icon: "🍽️", label: "Feeding Coverage Setup" },
-  {
-    id: "sdo-users",
-    icon: (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M16 11a4 4 0 1 0-3.47-5.98A5 5 0 0 1 14 8.5c0 .88-.23 1.7-.63 2.42A6.5 6.5 0 0 1 18.5 17v1H22v-1a6 6 0 0 0-6-6ZM8.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM8.5 13C4.91 13 2 15.46 2 18.5V20h13v-1.5C15 15.46 12.09 13 8.5 13Z" />
-      </svg>
-    ),
-    label: "Allowed Users",
-  },
   { id: "sdo-info", icon: "ℹ️", label: "Information" },
 ];
 
@@ -35,6 +26,7 @@ export default function Sidebar({
   schoolName,
   session,
   onLogout,
+  onChangeAuditRole,
 }) {
   const [version, setVersion] = useState("");
   const [updateStatus, setUpdateStatus] = useState("");
@@ -172,6 +164,11 @@ export default function Sidebar({
             <span aria-hidden="true">🏛️</span> SDO / Division View
           </div>
         )}
+        {session?.auditMode && (
+          <div className="sidebar-view-tag sidebar-audit-tag">
+            <span aria-hidden="true">🕵️</span> Audit Mode — {isSDO ? "Division" : "School"}
+          </div>
+        )}
       </div>
 
       <nav className="sidebar-nav">
@@ -185,7 +182,7 @@ export default function Sidebar({
             }`}
             onClick={() => setPage(item.id)}
           >
-            <span className={`nav-icon ${item.id === "sdo-users" ? "nav-icon-users" : ""}`}>{item.icon}</span>
+            <span className="nav-icon">{item.icon}</span>
             <span>{item.label}</span>
           </button>
         ))}
@@ -220,6 +217,16 @@ export default function Sidebar({
           >
             {isChecking ? "⏳ Checking…" : "🔄 Check for Updates"}
           </button>
+
+          {session?.auditMode && (
+            <button
+              className="update-btn"
+              style={{ background: "#b45309", marginBottom: "10px" }}
+              onClick={onChangeAuditRole}
+            >
+              🔁 Change Role / School
+            </button>
+          )}
 
           {updateStatus && (
             <div

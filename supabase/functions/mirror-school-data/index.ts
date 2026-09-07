@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { BMI_FIELDS } from "../sync-bmi-school-data/sync.mjs";
 
 const MIRROR_SCHOOL_ID = "126001";
 
@@ -66,8 +66,39 @@ async function handleRequest(request: Request) {
 
   const headers = {
     apikey: destinationKey,
+    ...(destinationKey.startsWith("eyJ") ? { Authorization: `Bearer ${destinationKey}` } : {}),
     "content-type": "application/json",
   };
+
+  if (table === "students" && (operation === "INSERT" || operation === "UPDATE")) {
+    const divisionUrl = Deno.env.get("SUPABASE_URL");
+    const divisionKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!divisionUrl || !divisionKey) return json(500, { error: "Division is not configured" });
+    // Read the current row: webhook events may arrive out of order. Never send
+    // the historical whole-row payload over newer portal edits.
+    const select = ["id", "school_id", "updated_at", ...BMI_FIELDS].join(",");
+    const currentResponse = await fetch(`${divisionUrl}/rest/v1/students?id=eq.${encodeURIComponent(String(row.id))}&school_id=eq.${MIRROR_SCHOOL_ID}&select=${select}`, {
+      headers: { apikey: divisionKey, Authorization: `Bearer ${divisionKey}` },
+    });
+    if (!currentResponse.ok) return json(502, { error: "Could not read current BMI student" });
+    const currentRows = await currentResponse.json();
+    if (!currentRows.length) return json(202, { mirrored: false, reason: "student_no_longer_present" });
+    // Create new BMI learners in the school database, but never overwrite an
+    // existing learner here. The reconciler sends only fields actually edited.
+    const inserted = await fetch(`${destinationUrl}/rest/v1/students?on_conflict=id`, {
+      method: "POST",
+      headers: { ...headers, prefer: "resolution=ignore-duplicates,return=minimal" },
+      body: JSON.stringify(currentRows[0]),
+    });
+    if (!inserted.ok) return json(502, { error: "Could not mirror new BMI student", status: inserted.status });
+    const synced = await fetch(`${divisionUrl}/functions/v1/sync-bmi-school-data`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-mirror-secret": webhookSecret },
+      body: JSON.stringify({ dry_run: false }),
+    });
+    if (!synced.ok) return json(502, { error: "Field reconciliation failed; scheduled retry will follow" });
+    return json(200, { mirrored: true, table, operation, mode: "bmi_fields_only" });
+  }
 
   let response: Response;
   if (operation === "DELETE") {
@@ -90,8 +121,7 @@ async function handleRequest(request: Request) {
   }
 
   if (!response.ok) {
-    const detail = await response.text();
-    console.error(`Mirror failed for ${table}: ${response.status} ${detail}`);
+    console.error(`Mirror failed for ${table}: ${response.status}`);
     return json(502, { error: "Destination rejected mirror write", table, status: response.status });
   }
 

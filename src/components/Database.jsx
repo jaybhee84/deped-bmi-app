@@ -130,7 +130,7 @@ export default function Database({
         String(s.name || "")
           .toLowerCase()
           .includes(searchQ.toLowerCase()) ||
-        String(s.lrn || "").includes(searchQ);
+        String(getStudentIdentifier(s)).toLowerCase().includes(searchQ.toLowerCase());
 
       return matchGrade && matchSec && matchQ;
     });
@@ -312,7 +312,7 @@ export default function Database({
               borderRadius: "6px",
               border: "1px solid #cbd5e1",
             }}
-            placeholder="Search by name or LRN…"
+            placeholder="Search by name, LRN, or registry number…"
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
           />
@@ -538,21 +538,12 @@ export default function Database({
                         className="clickable-row"
                       >
                         <td>
-                          <div className="cell-truncate">
-                            {s.lrn && s.lrn !== "—" ? (
-                              s.lrn
-                            ) : (
-                              <span className="muted">—</span>
-                            )}
+                          <div
+                            className={`cell-truncate${String(s.lrn ?? '').trim() && String(s.lrn).trim() !== '—' ? '' : ' muted'}`}
+                            title={getStudentIdentifier(s)}
+                          >
+                            {getStudentIdentifier(s)}
                           </div>
-                          {s.registryNo && (
-                            <div
-                              className="registry-number-sub"
-                              title={s.registryNo}
-                            >
-                              🔖 {s.registryNo}
-                            </div>
-                          )}
                         </td>
                         <td className="name-cell">
                           <div className="cell-truncate" title={s.name}>

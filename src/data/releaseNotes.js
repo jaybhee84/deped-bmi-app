@@ -1,4 +1,25 @@
 export const RELEASE_NOTES = {
+  '3.0.8': {
+    title: 'v3.0.8',
+    sections: [
+      {
+        heading: 'Learner Records',
+        items: [
+          'Learner ID columns now show the registry number automatically when a learner has no LRN yet, so every row stays identifiable.',
+          'Search by name, LRN, or registry number in both the school and SDO learner databases.',
+          'LRNs recorded in the IECES portal now sync into BMI automatically, accepting both 12- and 13-digit formats.',
+        ],
+      },
+      {
+        heading: 'Allowed Users',
+        items: [
+          'Adding a registration email now also sets whether that account registers as School-Based or SDO Based, so it lands in the right role even from the wrong register card.',
+          'Removing a user now fully deletes their Supabase sign-in, registered profile, and allowlist entry in one action instead of leaving orphaned accounts behind.',
+          'Added a manual refresh button and a live "last updated" status to the Allowed Users list.',
+        ],
+      },
+    ],
+  },
   '3.0.7': {
     title: 'v3.0.7',
     sections: [

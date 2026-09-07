@@ -4,7 +4,7 @@ import Dashboard from "./components/Dashboard";
 import SDODashboard from "./components/SDODashboard";
 import SDOInformation from "./components/SDOInformation";
 import SDOSettings from "./components/SDOSettings";
-import SDOAllowedUsers from "./components/SDOAllowedUsers";
+import SecretAdminDashboard from "./components/SecretAdminDashboard";
 import Database from "./components/Database";
 import SDOStudents from "./components/SDODatabase";
 import Profile from "./components/Profile";
@@ -94,6 +94,7 @@ function AppContent({
   handleSetPage,
   showOnboarding,
   setShowOnboarding,
+  onChangeAuditRole,
 }) {
   return (
     <div className="app-shell" style={{ position: "relative" }}>
@@ -103,6 +104,7 @@ function AppContent({
         schoolName={schoolName}
         session={session}
         onLogout={handleLogout}
+        onChangeAuditRole={onChangeAuditRole}
       />
 
       <main className="main-content">
@@ -289,9 +291,6 @@ function AppContent({
         )}
 
         {page === "sdo-info" && isSDO && <SDOInformation />}
-        {page === "sdo-users" && (
-          <SDOAllowedUsers currentUser={session} />
-        )}
         {page === "sdo-settings" && isSDO && (
           <SDOSettings currentUser={session} />
         )}
@@ -411,6 +410,8 @@ export default function App() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
   const [pendingSession, setPendingSession] = useState(null);
+  const [isSecretAdmin, setIsSecretAdmin] = useState(false);
+  const [showAuditPicker, setShowAuditPicker] = useState(false);
   const presenceUserId = session?.id;
   const presenceEmail = session?.email;
 
@@ -962,6 +963,26 @@ export default function App() {
     }, 50);
   }
 
+  function handleChangeAuditRole() {
+    const ok = window.confirm(
+      "Return to the role/school picker? Your admin sign-in stays active.",
+    );
+    window.electronAPI?.forceRefocusWindow?.();
+    if (!ok) return;
+
+    setSession(null);
+    setStudents([]);
+    setSchoolName("");
+    setPage("dashboard");
+    setSelectedSchool("ALL SCHOOLS");
+    setDashboardSchool("ALL SCHOOLS");
+    setReportsSchool("CONSOLIDATED");
+    setSelectedPeriod("Baseline");
+    setSelectedSY("2026-2027");
+    sessionStorage.removeItem("sb_current_session");
+    setShowAuditPicker(true);
+  }
+
   function viewProfile(student) {
     if (!student) return;
     setProfileId(student.id);
@@ -1004,9 +1025,20 @@ export default function App() {
   }, [safeStudents, session, schoolName]);
 
   if (!session) {
+    if (isSecretAdmin) {
+      return <SecretAdminDashboard onExit={() => setIsSecretAdmin(false)} />;
+    }
     return (
       <>
-        <Login onLogin={handleLogin} />
+        <Login
+          onLogin={handleLogin}
+          onAdminLogin={() => setIsSecretAdmin(true)}
+          onAdminAudit={(auditSession) => {
+            setShowAuditPicker(false);
+            handleLogin(auditSession);
+          }}
+          startView={showAuditPicker ? "secret-audit" : "login"}
+        />
         {showSplash && <SplashScreen onDone={handleSplashDone} />}
       </>
     );
@@ -1068,6 +1100,7 @@ export default function App() {
         handleSetPage={handleSetPage}
         showOnboarding={showOnboarding}
         setShowOnboarding={setShowOnboarding}
+        onChangeAuditRole={handleChangeAuditRole}
       />
     </SchoolProvider>
   );

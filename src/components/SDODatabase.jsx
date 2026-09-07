@@ -11,6 +11,7 @@ import Modal from "./Modal";
 import "./SDODatabase.css";
 import { queueStudentForDelete } from "../utils/syncService";
 import { SCHOOL_OPTIONS } from "../utils/schools";
+import { getStudentIdentifier } from "../utils/registry";
 
 const ELEMENTARY_SCHOOL_OPTIONS = [
   "ALL SCHOOLS",
@@ -153,11 +154,11 @@ export default function SDOStudents({
         const matchSec = filterSection === "All" || s.section === filterSection;
 
         const sName = s.name || "";
-        const sLrn = s.lrn || "";
+        const identifier = String(getStudentIdentifier(s));
         const matchSearch =
           searchQ === "" ||
           sName.toLowerCase().includes(searchQ.toLowerCase()) ||
-          sLrn.includes(searchQ);
+          identifier.toLowerCase().includes(searchQ.toLowerCase());
 
         return (
           matchSchool &&
@@ -280,7 +281,7 @@ export default function SDOStudents({
       <div className="sdo-filter-row">
         <input
           className="sdo-form-input sdo-search-input"
-          placeholder="Search by name or LRN…"
+          placeholder="Search by name, LRN, or registry number…"
           value={searchQ}
           onChange={(e) => setSearchQ(e.target.value)}
         />
@@ -447,7 +448,12 @@ export default function SDOStudents({
                       onClick={() => onViewProfile && onViewProfile(s)}
                       style={{ cursor: "pointer" }}
                     >
-                      <td>{s.lrn || <span className="sdo-muted">—</span>}</td>
+                      <td
+                        className={String(s.lrn ?? '').trim() && String(s.lrn).trim() !== '—' ? undefined : 'sdo-muted'}
+                        title={getStudentIdentifier(s)}
+                      >
+                        {getStudentIdentifier(s)}
+                      </td>
                       <td className="sdo-name-cell">{s.name}</td>
                       <td style={{ textAlign: "center" }}>
                         {s.birthdate ? (
