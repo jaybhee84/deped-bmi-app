@@ -33,7 +33,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "jaybhee84",
+      "owner": "buzzjay84",
       "repo": "deped-bmi-app",
       "releaseType": "release"
     },
