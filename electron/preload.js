@@ -103,12 +103,12 @@ contextBridge.exposeInMainWorld("electron", {
 // PRINT, PREVIEW & SYSTEM APIS
 // =========================
 contextBridge.exposeInMainWorld("electronAPI", {
-  // Generates print preview
-  generatePrintPreview: (payload) =>
-    ipcRenderer.send("generate-pdf-preview", payload),
-
-  // Triggers final printed hardcopies
-  printReport: () => ipcRenderer.invoke("print-report"),
+  // In-app Print Preview (see electron/printing.js)
+  printPrepare: (document) => ipcRenderer.invoke("print:prepare", document),
+  printGetPrinters: () => ipcRenderer.invoke("print:get-printers"),
+  printRenderPreview: (settings) => ipcRenderer.invoke("print:render-preview", settings),
+  printExecute: (settings) => ipcRenderer.invoke("print:execute", settings),
+  printCleanupPreview: () => ipcRenderer.invoke("print:cleanup-preview"),
 
   // Application Details & Updater Callbacks
   getAppVersion: () => ipcRenderer.invoke("app:getVersion"),

@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from "react";
+import { filterByLearnerScope, useSbfpConfig } from "../utils/sbfpBeneficiary";
 import {
   calcBMI,
   getBMIStatus,
@@ -13,13 +14,20 @@ import { fetchSchoolById } from "../utils/syncService";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 import {
   DEFAULT_SBFP_CONFIG,
-  isOfficialBeneficiary,
   loadSbfpConfig,
 } from "../utils/sbfpConfig";
 
-export default function Dashboard({ students, currentUser, onOpenProfile }) {
+export default function Dashboard({ students: allStudents, currentUser, onOpenProfile }) {
   const [filterSY, setFilterSY] = useState("2026–2027");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
+  const [learnerScope, setLearnerScope] = useState("all");
+  const scopeConfig = useSbfpConfig();
+  // Every card, chart and table below reads `students`, so the SBFP filter
+  // applies to the whole dashboard.
+  const students = useMemo(
+    () => filterByLearnerScope(allStudents, learnerScope, filterSY, scopeConfig),
+    [allStudents, learnerScope, filterSY, scopeConfig],
+  );
   const [schoolLogo, setSchoolLogo] = useState(null);
   const [schoolName, setSchoolName] = useState("");
   const [sbfpConfig, setSbfpConfig] = useState(DEFAULT_SBFP_CONFIG);
@@ -147,28 +155,11 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
       .filter(Boolean);
   }, [students, filterSY, filterPeriod]);
 
+  // Same rule as the SBFP Beneficiaries filter: qualified at this SY's Baseline.
   const sbfpBeneficiaryCount = useMemo(
     () =>
-      students.filter((student) => {
-        const record = student.records?.find(
-          (item) => item.sy === filterSY && item.q === filterPeriod,
-        );
-        if (!record) return false;
-        const bmi = calcBMI(record.weight, record.height);
-        const bmiStatus = bmi
-          ? getBMIStatus(bmi, student.sex, student.birthdate, record.date)
-          : null;
-        const hazStatus = record.height
-          ? getHAZStatus(
-              record.height,
-              student.sex,
-              student.birthdate,
-              record.date,
-            )
-          : null;
-        return isOfficialBeneficiary(student, bmiStatus, hazStatus, sbfpConfig);
-      }).length,
-    [students, filterSY, filterPeriod, sbfpConfig],
+      filterByLearnerScope(allStudents, "sbfp", filterSY, sbfpConfig).length,
+    [allStudents, filterSY, sbfpConfig],
   );
 
   const incompleteLearners = students.filter((s) => {
@@ -631,6 +622,28 @@ export default function Dashboard({ students, currentUser, onOpenProfile }) {
                 {sy}
               </option>
             ))}
+          </select>
+          <select
+            className="form-select"
+            value={learnerScope}
+            onChange={(e) => setLearnerScope(e.target.value)}
+            aria-label="Learners"
+            title="SBFP Beneficiaries are the learners who qualified at this school year's Baseline."
+            style={{
+              border: "none",
+              fontWeight: "600",
+              color: "#ffffff",
+              backgroundColor: "transparent",
+              outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            <option value="all" style={{ color: "#475569" }}>
+              All Learners
+            </option>
+            <option value="sbfp" style={{ color: "#475569" }}>
+              SBFP Beneficiaries
+            </option>
           </select>
         </div>
       </div>

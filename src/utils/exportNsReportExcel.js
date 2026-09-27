@@ -1,429 +1,291 @@
-import ExcelJS from "exceljs";
-import FileSaver from "file-saver";
-import { ageInMonths, formatHeightMeters } from "./bmi";
+import { strToU8, zipSync } from "fflate";
 import { getSchoolAbbreviation } from "./schoolLogoMap";
-import { loadExcelTemplate } from "./loadExcelTemplate";
 
-const { saveAs } = FileSaver;
+// Builds the Nutritional Status Report as .xlsx with the same layout as the
+// on-screen Folio sheet and its printout (see NsReportSheet.jsx): one
+// worksheet per class, built from buildNsReportClasses().
 
-const safe = (value) => String(value || "School").replace(/[^a-zA-Z0-9]+/g, "_");
-const sex = (student) =>
-  String(student.sex || "").toUpperCase().startsWith("M") ? "M" : "F";
-const count = (students, predicate) => students.filter(predicate).length;
+const NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const COLS = "ABCDEFGHIJK".split("");
+// Printed table proportions, widened so Arial headers fit Excel's character widths.
+const WIDTHS = [27, 11.5, 7, 8.5, 4.3, 7.5, 3.3, 3.3, 6.5, 15, 16];
+const EMU_PER_PX = 9525;
+const SEAL_PX = 48; // 36pt
+// Excel paper size 14 is "Folio 8.5 x 13 in".
+const FOLIO_PAPER = 14;
 
-function bmiFormulaImage() {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="120" viewBox="0 0 300 120"><rect x="1" y="1" width="298" height="118" fill="white" stroke="#111" stroke-width="2"/><text x="150" y="29" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700">Body Mass Index =</text><line x1="48" y1="41" x2="252" y2="41" stroke="#64748b" stroke-width="1"/><text x="150" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="15">Weight (kgs)</text><text x="150" y="101" text-anchor="middle" font-family="Arial, sans-serif" font-size="15">Height squared (m²)</text></svg>`;
-  return `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`;
+const xml = (value) => String(value ?? "")
+  .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+  .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+const documentXml = (body) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>${body}`;
+const numeric = (value) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+
+// Use UTC calendar dates so exports do not shift birthdays with the user's timezone.
+function excelDate(value) {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ""));
+  if (!iso) return null;
+  const [year, month, day] = iso.slice(1).map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  return (date.getTime() - Date.UTC(1899, 11, 30)) / 86400000;
 }
 
-function teacherFromSection(section) {
-  const parts = String(section || "").split(" - ").map((part) => part.trim()).filter(Boolean);
-  if (parts.length < 2) return "";
-  const teacherParts = parts.slice(1);
-  if (["Morning", "Afternoon"].includes(teacherParts.at(-1))) teacherParts.pop();
-  return teacherParts.join(" - ");
+// "June 09, 2026", as printed after "Date of Weighing:".
+function longDate(value) {
+  const serial = excelDate(value);
+  if (serial == null) return "—";
+  const date = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+  return date.toLocaleDateString("en-US", { month: "long", day: "2-digit", year: "numeric", timeZone: "UTC" });
 }
 
-function teacherDisplayName(value) {
-  const name = String(value || "").trim().replace(/\s+/g, " ");
-  if (!name) return "";
-  if (name.includes(",")) {
-    const [lastName, givenNames = ""] = name.split(/,(.+)/);
-    const parts = givenNames.trim().split(" ").filter(Boolean);
-    if (parts.length < 2) return `${lastName.trim()}, ${givenNames.trim()}`.trim();
-    return `${lastName.trim()}, ${parts[0]} ${parts.slice(1).map((part) => `${part.charAt(0)}.`).join(" ")}`;
+// Style indexes into STYLES_XML's cellXfs.
+const S = {
+  plain: 0, title: 1, subtitle: 2, metaLeft: 3, metaRight: 4, th: 5, thBold: 6,
+  name: 7, center: 8, date: 9, dec3: 10, dec4: 11, dec2: 12, tallyTh: 13, tallyTd: 14,
+  formula: 15, signLabel: 16, signLine: 17, signName: 18, signTitle: 19,
+};
+
+const font = (size, { bold = false, color = "FF000000" } = {}) =>
+  `<font>${bold ? "<b/>" : ""}<sz val="${size}"/><color rgb="${color}"/><name val="Arial"/><family val="2"/></font>`;
+const thin = (color) => `<left style="thin"><color rgb="${color}"/></left><right style="thin"><color rgb="${color}"/></right><top style="thin"><color rgb="${color}"/></top><bottom style="thin"><color rgb="${color}"/></bottom>`;
+const xf = (fontId, { fill = 0, border = 0, numFmt = 0, h = "center", v = "center", wrap = false, shrink = false } = {}) =>
+  `<xf numFmtId="${numFmt}" fontId="${fontId}" fillId="${fill}" borderId="${border}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${h}" vertical="${v}"${wrap ? ' wrapText="1"' : ""}${shrink ? ' shrinkToFit="1"' : ""}/></xf>`;
+
+const STYLES_XML = `<styleSheet xmlns="${NS}">
+<numFmts count="4"><numFmt numFmtId="164" formatCode="mm/dd/yyyy"/><numFmt numFmtId="165" formatCode="0.000"/><numFmt numFmtId="166" formatCode="0.0000"/><numFmt numFmtId="167" formatCode="0.00"/></numFmts>
+<fonts count="7">${[
+  font(10), font(10, { bold: true }), font(11), font(11, { bold: true }),
+  font(7), font(11, { color: "FF374151" }), font(11, { bold: true, color: "FF111827" }),
+].join("")}</fonts>
+<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2EDE9"/><bgColor indexed="64"/></patternFill></fill></fills>
+<borders count="4"><border><left/><right/><top/><bottom/><diagonal/></border><border>${thin("FF000000")}<diagonal/></border><border>${thin("FF999999")}<diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FF333333"/></bottom><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="20">${[
+  xf(0, { h: "general" }),
+  xf(6), xf(5), xf(1, { h: "left" }), xf(1, { h: "right" }),
+  xf(0, { border: 1, wrap: true }), xf(1, { border: 1, wrap: true }),
+  xf(0, { border: 1, h: "left", shrink: true }), xf(0, { border: 1 }),
+  xf(0, { border: 1, numFmt: 164 }), xf(0, { border: 1, numFmt: 165 }), xf(0, { border: 1, numFmt: 166 }), xf(0, { border: 1, numFmt: 167 }),
+  xf(1, { border: 2, fill: 2 }), xf(0, { border: 2 }),
+  xf(4, { h: "left" }), xf(2, { h: "left", v: "bottom" }), xf(0, { border: 3 }), xf(6), xf(5),
+].join("")}</cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+
+function cellXml(address, style, value) {
+  const attrs = `r="${address}" s="${style}"`;
+  if (value == null || value === "") return `<c ${attrs}/>`;
+  if (typeof value === "number") return `<c ${attrs}><v>${value}</v></c>`;
+  if (Array.isArray(value)) {
+    // Rich text runs: [[text, bold], ...]
+    const runs = value.map(([text, bold]) => `<r><rPr>${bold ? "<b/>" : ""}<sz val="7"/><rFont val="Arial"/></rPr><t xml:space="preserve">${xml(text)}</t></r>`).join("");
+    return `<c ${attrs} t="inlineStr"><is>${runs}</is></c>`;
   }
-  const parts = name.split(" ");
-  if (parts.length < 3) return name;
-  return `${parts[0]} ${parts.slice(1, -1).map((part) => `${part.charAt(0)}.`).join(" ")} ${parts.at(-1)}`;
+  // Inline strings also keep names beginning with '=' from becoming formulas.
+  return `<c ${attrs} t="inlineStr"><is><t xml:space="preserve">${xml(value)}</t></is></c>`;
 }
 
 function cleanSheetName(value, used) {
-  const base = String(value || "Unassigned").replace(/[\\/*?:[\]]/g, " ").trim().slice(0, 31) || "Unassigned";
+  const base = String(value || "Nutritional Status")
+    .replace(/[\u0000-\u001F[\]:*?/\\]/g, " ").replace(/^'+|'+$/g, "").trim().slice(0, 31).replace(/'+$/g, "") || "Nutritional Status";
   let name = base;
   let number = 2;
-  while (used.has(name)) {
+  while (used.has(name.toLowerCase())) {
     const suffix = ` ${number++}`;
     name = `${base.slice(0, 31 - suffix.length)}${suffix}`;
   }
-  used.add(name);
+  used.add(name.toLowerCase());
   return name;
 }
 
-function dateValue(value) {
-  const date = value ? new Date(value) : null;
-  return date && !Number.isNaN(date.getTime()) ? date : "";
-}
-
-function summary(sheet, students) {
-  const bmi = [
-    [77, "No. of Cases", () => true],
-    [78, "Severely Wasted", (student) => student.baz?.label === "Severely Wasted"],
-    [79, "Wasted", (student) => student.baz?.label === "Wasted"],
-    [80, "Normal", (student) => student.baz?.label === "Normal"],
-    [81, "Overweight", (student) => student.baz?.label === "Overweight"],
-    [82, "Obese", (student) => student.baz?.label === "Obese"],
-  ];
-  bmi.forEach(([row, label, predicate]) => {
-    const male = count(students, (student) => sex(student) === "M" && predicate(student));
-    const female = count(students, (student) => sex(student) === "F" && predicate(student));
-    sheet.getCell(`C${row}`).value = label;
-    sheet.getCell(`D${row}`).value = male;
-    sheet.getCell(`E${row}`).value = female;
-    sheet.getCell(`F${row}`).value = male + female;
-  });
-  const hfa = [
-    [77, "No. of Cases", () => true],
-    [78, "Sev. Stunted", (student) => student.haz?.label === "Severely Stunted"],
-    [79, "Stunted", (student) => student.haz?.label === "Stunted"],
-    [80, "Normal", (student) => student.haz?.label === "Normal"],
-    [81, "Tall", (student) => student.haz?.label === "Tall"],
-  ];
-  hfa.forEach(([row, label, predicate]) => {
-    const male = count(students, (student) => sex(student) === "M" && predicate(student));
-    const female = count(students, (student) => sex(student) === "F" && predicate(student));
-    sheet.getCell(`G${row}`).value = label;
-    sheet.getCell(`I${row}`).value = male;
-    sheet.getCell(`L${row}`).value = female;
-    sheet.getCell(`M${row}`).value = male + female;
-  });
-}
-
-function mergeSummaryCells(sheet) {
-  // Give the summary labels enough room without forcing the learner table's
-  // individual columns to be unnecessarily wide.
-  for (let row = 76; row <= 82; row++) {
-    const source = sheet.getCell(`C${row}`);
-    const value = source.value;
-    const style = structuredClone(source.style);
-    sheet.mergeCells(`A${row}:C${row}`);
-    const target = sheet.getCell(`A${row}`);
-    target.value = value;
-    target.style = style;
-    target.alignment = {
-      ...target.alignment,
-      horizontal: row === 76 ? "center" : "left",
-      vertical: "middle",
-    };
-    target.border = {
-      top: { style: "thin", color: { argb: "FF000000" } },
-      left: { style: "thin", color: { argb: "FF000000" } },
-      bottom: { style: "thin", color: { argb: "FF000000" } },
-      right: { style: "thin", color: { argb: "FF000000" } },
-    };
-  }
-
-  // Keep M, F, and Total compact. These values do not need the wide merged
-  // ranges used by the original template.
-  for (let row = 76; row <= 81; row++) {
-    const maleCell = sheet.getCell(`I${row}`);
-    const femaleCell = sheet.getCell(`L${row}`);
-    const totalCell = sheet.getCell(`M${row}`);
-    const maleValue = maleCell.value;
-    const femaleValue = femaleCell.value;
-    const totalValue = totalCell.value;
-    const maleStyle = structuredClone(maleCell.style);
-    const femaleStyle = structuredClone(femaleCell.style);
-    const totalStyle = structuredClone(totalCell.style);
-
-    sheet.unMergeCells(`I${row}:K${row}`);
-    sheet.getCell(`I${row}`).value = maleValue;
-    sheet.getCell(`I${row}`).style = maleStyle;
-    sheet.getCell(`J${row}`).value = femaleValue;
-    sheet.getCell(`J${row}`).style = femaleStyle;
-    sheet.getCell(`K${row}`).value = totalValue;
-    sheet.getCell(`K${row}`).style = totalStyle;
-    sheet.getCell(`L${row}`).value = null;
-    sheet.getCell(`L${row}`).style = {};
-    sheet.getCell(`M${row}`).value = null;
-    sheet.getCell(`M${row}`).style = {};
-  }
-}
-
-function unmergeIfPresent(sheet, range) {
-  try {
-    sheet.unMergeCells(range);
-  } catch {
-    // The source template may already have been sanitized.
-  }
-}
-
-function compactLearnerRows(sheet, studentCount) {
-  const firstRemovedRow = 10 + Math.min(studentCount, 65);
-  const removeCount = Math.max(0, 76 - firstRemovedRow);
-  const affectedMerges = Object.values(sheet._merges)
-    .map((merge) => merge.range)
-    .filter((range) => Number(range.match(/\d+/)?.[0]) >= firstRemovedRow);
-  const movedMerges = affectedMerges.filter((range) => {
-    const row = Number(range.match(/\d+/)?.[0]);
-    return row >= 76 && row <= 89;
-  });
-  affectedMerges.forEach((range) => sheet.unMergeCells(range));
-  if (removeCount) sheet.spliceRows(firstRemovedRow, removeCount);
-  movedMerges.forEach((range) => {
-    const shifted = range.replace(/([A-Z]+)(\d+)/g, (_, column, row) =>
-      `${column}${Number(row) - removeCount}`,
-    );
-    sheet.mergeCells(shifted);
-  });
-  const finalRow = 89 - removeCount;
-  if (sheet.rowCount > finalRow) {
-    sheet.spliceRows(finalRow + 1, sheet.rowCount - finalRow);
-  }
-  sheet._rows.length = finalRow;
-  return finalRow;
-}
-
-function populateSheet(sheet, students, details, formulaImageId) {
-  // Size the actual printable columns instead of relying on Excel to scale
-  // oversized or undersized template defaults at print time.
-  const columnWidths = [
-    4, 1, 24, 11, 8, 8, 5, 9, 3, 3, 5, 9, 15, 15,
-  ];
-  columnWidths.forEach((width, index) => {
-    sheet.getColumn(index + 1).width = width;
-  });
-
-  // The source workbook colored ages below 6 red. With the combined
-  // year.month age field, blank reserved rows evaluate like zero in Excel and
-  // incorrectly turn red, so this legacy rule no longer applies.
-  sheet.removeConditionalFormatting(
-    (formatting) => formatting.ref !== "I9:I73",
-  );
-  Object.values(sheet._merges)
-    .map((merge) => merge.range)
-    .filter((range) => [7, 8].includes(Number(range.match(/\d+/)?.[0])))
-    .forEach((range) => sheet.unMergeCells(range));
-  const reportHeaders = [
-    ["A7:A8", "No."],
-    ["B7:C8", "Names"],
-    ["D7:D8", "Birthday\nmm/dd/yyyy"],
-    ["E7:E8", "Weight\n(kg)"],
-    ["F7:F8", "Height\n(meters)"],
-    ["G7:G8", "Sex"],
-    ["H7:H8", "Height²\n(m²)"],
-    ["I7:K8", "Age\n(year) (month)"],
-    ["L7:L8", "Body Mass\nIndex"],
-    ["M7:M8", "Nutritional\nStatus"],
-    ["N7:N8", "Height-for-Age"],
-  ];
-  reportHeaders.forEach(([range, label]) => {
-    sheet.mergeCells(range);
-    const cell = sheet.getCell(range.split(":")[0]);
-    cell.value = label;
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true, shrinkToFit: true };
-    cell.font = { ...cell.font, bold: true, size: 8 };
-    cell.border = {
-      top: { style: "thin", color: { argb: "FF000000" } },
-      left: { style: "thin", color: { argb: "FF000000" } },
-      bottom: { style: "thin", color: { argb: "FF000000" } },
-      right: { style: "thin", color: { argb: "FF000000" } },
-    };
-  });
-  sheet.getRow(7).height = 22;
-  sheet.getRow(8).height = 22;
-  for (let row = 9; row <= 73; row++) {
-    sheet.getRow(row).height = 18;
-    for (let column = 1; column <= 14; column++) sheet.getCell(row, column).value = null;
-    if (!sheet.getCell(`B${row}`).isMerged) sheet.mergeCells(`B${row}:C${row}`);
-    if (!sheet.getCell(`I${row}`).isMerged) sheet.mergeCells(`I${row}:K${row}`);
-    for (let column = 1; column <= 14; column++) {
-      sheet.getCell(row, column).alignment = {
-        horizontal: column === 2 || column === 3 ? "left" : "center",
-        vertical: "bottom",
-        wrapText: false,
-        shrinkToFit: column === 4,
-      };
-    }
-  }
-  sheet.getCell("A1").value = "NUTRITIONAL STATUS REPORT";
-  sheet.getCell("A2").value = details.schoolName || "School not set";
-  sheet.getCell("A3").value = details.cityBarangay || "";
-  sheet.getCell("A4").value = `${details.period} SY ${String(details.schoolYear || "").replace("–", "-")}`;
-  sheet.getCell("A6").value = "Date of Weighing:";
-  sheet.getCell("D6").value = dateValue(students[0]?.rec?.date);
-  sheet.getCell("D6").numFmt = "mm/dd/yyyy";
-  if (!sheet.getCell("M6").isMerged) sheet.mergeCells("M6:N6");
-  sheet.getCell("M6").value = `Grade/Class: ${details.section}`;
-  sheet.getCell("M6").alignment = {
-    horizontal: "right",
-    vertical: "middle",
-    wrapText: false,
-    shrinkToFit: true,
+// One worksheet: { xml, endRow, h1, h2, sealRow }.
+function buildSheet(reportClass, meta, hasSeal) {
+  const { rows, bmiTally, hfaTally } = reportClass;
+  const sheetRows = [];
+  const merges = [];
+  let r = 0;
+  // Adds one row. cells: { A: [style, value], ... }; every column gets a cell so borders render.
+  const add = (height, cells = {}, fill = S.plain) => {
+    r++;
+    const xmlCells = COLS.map((col) => {
+      const [style, value] = cells[col] || [fill, null];
+      return cellXml(`${col}${r}`, style, value);
+    }).join("");
+    sheetRows.push(`<row r="${r}" ht="${height}" customHeight="1">${xmlCells}</row>`);
+    return r;
   };
-  sheet.getRow(6).height = Math.max(sheet.getRow(6).height || 0, 18);
+  const merge = (from, to, row, row2 = row) => merges.push(`${from}${row}:${to}${row2}`);
+  const across = (style, value) => ({ A: [style, value] });
 
-  students.slice(0, 65).forEach((student, index) => {
-    const row = sheet.getRow(9 + index);
-    const months = ageInMonths(student.birthdate, student.rec?.date);
-    const height = Number(formatHeightMeters(student.heightCm));
-    const values = [
-      index + 1, student.name || "", dateValue(student.birthdate),
-      student.rec?.weight ?? "", Number.isFinite(height) ? height : "", sex(student),
-      Number.isFinite(height) ? Number((height * height).toFixed(4)) : "",
-      months == null ? "" : `${Math.floor(months / 12)}.${months % 12}`,
-      student.bmi == null ? "" : Number(student.bmi.toFixed(1)),
-      student.baz?.label || "", student.haz?.label || "",
-    ];
-    const columns = [1, 2, 4, 5, 6, 7, 8, 9, 12, 13, 14];
-    values.forEach((value, index) => { row.getCell(columns[index]).value = value; });
-    row.getCell(4).numFmt = "mm/dd/yyyy";
-    row.getCell(5).numFmt = "0.##";
-    row.getCell(6).numFmt = "0.00";
-    row.getCell(8).numFmt = "0.0000";
-    row.getCell(12).numFmt = "0.0";
+  // Header: seal above the centered title block.
+  const sealRow = add(hasSeal ? 40 : 6);
+  const titleLines = [
+    [S.title, "NUTRITIONAL STATUS REPORT"],
+    [S.title, meta.schoolName || "School not set"],
+    ...(meta.address ? [[S.subtitle, meta.address]] : []),
+    [S.subtitle, `${meta.period} SY ${String(meta.schoolYear || "").replace(/[–—]/g, "-")}`],
+  ];
+  for (const [style, text] of titleLines) merge("A", "K", add(14, across(style, text)));
+  add(6);
+  const metaRow = add(15, {
+    A: [S.metaLeft, `Date of Weighing: ${longDate(reportClass.weighingDate)}`],
+    F: [S.metaRight, reportClass.section],
   });
+  merge("A", "E", metaRow); merge("F", "K", metaRow);
 
-  summary(sheet, students);
-  mergeSummaryCells(sheet);
-  for (let row = 76; row <= 81; row++) {
-    const cell = sheet.getCell(`N${row}`);
-    cell.value = null;
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
-    cell.border = {};
-  }
-  ["I82:L83", "G83:H83", "L84:N84", "L85:N85", "L86:N86", "L87:N87", "F89:M89"]
-    .forEach((range) => unmergeIfPresent(sheet, range));
-  for (let row = 82; row <= 89; row++) {
-    for (let column = 7; column <= 14; column++) {
-      const cell = sheet.getCell(row, column);
-      cell.value = null;
-      cell._comment = undefined;
-      cell.border = {};
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
-    }
-  }
-  sheet.getCell("I82").value = "";
-  sheet.getCell("G82").value = "";
-  const teacherRecord = students.find((student) => student.rec?.teacherName)?.rec;
-  sheet.getCell("G84").value = "Prepared by:";
-  if (!sheet.getCell("G87").isMerged) sheet.mergeCells("G87:K87");
-  if (!sheet.getCell("G88").isMerged) sheet.mergeCells("G88:K88");
-  sheet.getCell("G87").value = teacherRecord?.teacherDisplayName || teacherDisplayName(
-    teacherRecord?.teacherName || teacherFromSection(details.section),
-  );
-  sheet.getCell("G87").font = {
-    ...sheet.getCell("G87").font,
-    size: 12,
-    bold: true,
-  };
-  sheet.getCell("G85").value = "";
-  sheet.getCell("G86").value = "";
-  sheet.getCell("G88").value = "Class Adviser";
-  ["G84", "G87", "G88"].forEach((address) => {
-    sheet.getCell(address).alignment = {
-      horizontal: "left",
-      vertical: "middle",
-      shrinkToFit: false,
-    };
-    sheet.getCell(address)._comment = undefined;
-  });
-  for (let row = 84; row <= 88; row++) {
-    for (let column = 7; column <= 11; column++) {
-      const cell = sheet.getCell(row, column);
-      cell._comment = undefined;
-      cell.border = {};
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
-    }
-  }
-  [84, 85, 86, 87, 88].forEach((row) => {
-    sheet.getRow(row).height = 18;
-  });
-  for (let row = 1; row <= 89; row++) {
-    for (let column = 1; column <= 14; column++) {
-      sheet.getCell(row, column)._comment = undefined;
-    }
-  }
-  const finalRow = compactLearnerRows(sheet, students.length);
-  const summaryRow = 10 + Math.min(students.length, 65);
-  for (let row = summaryRow; row <= summaryRow + 6; row++) {
-    sheet.getRow(row).height = 18;
-  }
-  sheet.addImage(formulaImageId, {
-    tl: { col: 11.45, row: summaryRow - 1 },
-    ext: { width: 150, height: 60 },
-    editAs: "oneCell",
-  });
-  sheet.views = [{ state: "normal", showGridLines: false }];
-  sheet.pageSetup.printArea = `A1:N${finalRow}`;
-  sheet.pageSetup.paperSize = 14;
-  sheet.pageSetup.orientation = "portrait";
-  sheet.pageSetup.fitToPage = true;
-  sheet.pageSetup.fitToWidth = 1;
-  sheet.pageSetup.fitToHeight = 1;
-  sheet.pageSetup.horizontalCentered = true;
-  sheet.pageSetup.verticalCentered = false;
-  sheet.pageSetup.margins = {
-    left: 0.25,
-    right: 0.25,
-    top: 0.35,
-    bottom: 0.35,
-    header: 0.2,
-    footer: 0.2,
-  };
-}
+  // Table header (two rows, "Age" spans y / m).
+  const h1 = add(27, {
+    A: [S.th, "Names"], B: [S.th, "Birthday\nmm/dd/yyyy"], C: [S.th, "Weight\n(kg)"], D: [S.th, "Height\n(meters)"],
+    E: [S.th, "Sex"], F: [S.th, "Height²\n(m²)"], G: [S.th, "Age"], H: [S.th, null], I: [S.th, "Body\nMass\nIndex"],
+    J: [S.thBold, "Nutritional\nStatus"], K: [S.thBold, "Height-For-Age"],
+  }, S.th);
+  const h2 = add(13, { G: [S.thBold, "y"], H: [S.thBold, "m"], J: [S.thBold, null], K: [S.thBold, null] }, S.th);
+  for (const col of "ABCDEFIJK") merge(col, col, h1, h2);
+  merge("G", "H", h1);
 
-export async function buildNsReportWorkbook({ students, schoolName, schoolYear, period, cityBarangay, preparedBy, principalName }) {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(await loadExcelTemplate("NS REPORT.xlsx"));
-  const template = workbook.worksheets[0];
-  if (!template) throw new Error("The NS Report template is unavailable.");
-  const formulaImageId = workbook.addImage({
-    base64: bmiFormulaImage(),
-    extension: "svg",
+  rows.forEach((row, i) => {
+    add(13.5, {
+      A: [S.name, `${i + 1}. ${row.name}`], B: [S.date, excelDate(row.birthdate) ?? "—"], C: [S.center, numeric(row.weightKg) ?? "—"],
+      D: [S.dec3, numeric(row.heightMeters) ?? "—"], E: [S.center, row.sex || "—"], F: [S.dec4, numeric(row.heightSquared) ?? "—"],
+      G: [S.center, row.years ?? "—"], H: [S.center, row.months ?? "—"], I: [S.dec2, numeric(row.bmi) ?? "—"],
+      J: [S.center, row.bmiStatus || "—"], K: [S.center, row.hfaStatus || "—"],
+    });
   });
 
-  const groups = new Map();
-  students.forEach((student) => {
-    const section = student.section || student.grade || "Unassigned";
-    if (!groups.has(section)) groups.set(section, []);
-    groups.get(section).push(student);
+  // Exactly one empty row after the last learner, then the tallies side by side:
+  // BMI in A–D, HFA in F–K (label F:H).
+  add(13.5);
+  const th = add(13.5, {
+    A: [S.tallyTh, "Body Mass Index"], B: [S.tallyTh, "M"], C: [S.tallyTh, "F"], D: [S.tallyTh, "T"],
+    F: [S.tallyTh, "HFA"], G: [S.tallyTh, null], H: [S.tallyTh, null], I: [S.tallyTh, "M"], J: [S.tallyTh, "F"], K: [S.tallyTh, "TOTAL"],
   });
-  if (!groups.size) groups.set("No Learners", []);
-
-  const templateModel = structuredClone(template.model);
-  const templateMergeRanges = Object.values(template._merges).map(
-    (merge) => merge.range,
-  );
-  const usedNames = new Set();
-  [...groups.entries()].forEach(([section, sectionStudents], index) => {
-    const name = cleanSheetName(section, usedNames);
-    let sheet = template;
-    if (index === 0) {
-      sheet.name = name;
-    } else {
-      sheet = workbook.addWorksheet(name);
-      const id = sheet.id;
-      sheet.model = { ...structuredClone(templateModel), id, name };
-      // ExcelJS's worksheet model setter does not reliably rebuild every
-      // merge from a styled template. Restore them explicitly so every class
-      // sheet has the same title, metadata, headers, and summary layout as the
-      // first sheet.
-      const existingMerges = new Set(
-        Object.values(sheet._merges).map((merge) => merge.range),
-      );
-      templateMergeRanges.forEach((range) => {
-        if (!existingMerges.has(range)) sheet.mergeCells(range);
+  merge("F", "H", th);
+  bmiTally.forEach((bmi, i) => {
+    const cells = { A: [S.tallyTd, bmi.label], B: [S.tallyTd, bmi.M], C: [S.tallyTd, bmi.F], D: [S.tallyTd, bmi.T] };
+    const hfa = hfaTally[i];
+    if (hfa) {
+      Object.assign(cells, {
+        F: [S.tallyTd, hfa.label], G: [S.tallyTd, null], H: [S.tallyTd, null],
+        I: [S.tallyTd, hfa.M], J: [S.tallyTd, hfa.F], K: [S.tallyTd, hfa.T],
       });
     }
-    populateSheet(sheet, sectionStudents, {
-      schoolName, schoolYear, period, cityBarangay, preparedBy, principalName, section,
-    }, formulaImageId);
+    const row = add(13.5, cells);
+    if (hfa) merge("F", "H", row);
   });
+  const formula = add(12, { A: [S.formula, [["Body Mass Index = ", true], ["Weight (kgs) / Height squared (m²)", false]]] });
+  merge("A", "E", formula);
 
-  return workbook;
+  // Signature block on the right, with one blank line under "Prepared by:".
+  add(12);
+  const label = add(15, { J: [S.signLabel, "Prepared by:"] }); merge("J", "K", label);
+  add(15);
+  const line = add(15, { J: [S.signLine, null], K: [S.signLine, null] }); merge("J", "K", line);
+  const nameRow = add(15, { J: [S.signName, reportClass.preparedBy || "—"] }); merge("J", "K", nameRow);
+  const titleRow = add(15, { J: [S.signTitle, "Class Adviser"] }); merge("J", "K", titleRow);
+  const endRow = r;
+
+  const columns = WIDTHS.map((width, i) => `<col min="${i + 1}" max="${i + 1}" width="${width}" customWidth="1"/>`).join("");
+  const sheet = `<worksheet xmlns="${NS}" xmlns:r="${REL}"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:K${endRow}"/><sheetViews><sheetView showGridLines="0" workbookViewId="0"><pane ySplit="${h2}" topLeftCell="A${h2 + 1}" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A${h2 + 1}" sqref="A${h2 + 1}"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${columns}</cols><sheetData>${sheetRows.join("")}</sheetData><mergeCells count="${merges.length}">${merges.map((ref) => `<mergeCell ref="${ref}"/>`).join("")}</mergeCells><printOptions horizontalCentered="1"/><pageMargins left="0.35" right="0.35" top="0.35" bottom="0.35" header="0.2" footer="0.2"/><pageSetup paperSize="${FOLIO_PAPER}" orientation="portrait" fitToWidth="1" fitToHeight="0"/>${hasSeal ? '<drawing r:id="rId1"/>' : ""}</worksheet>`;
+  return { xml: sheet, endRow, h1, h2, sealRow };
 }
 
-export async function exportNsReportExcel(options) {
-  const workbook = await buildNsReportWorkbook(options);
+function sealDrawingXml(sealRow) {
+  // Center the seal horizontally over the sheet's used width.
+  const colPx = WIDTHS.map((w) => Math.trunc(w * 7 + 5));
+  let x = (colPx.reduce((a, b) => a + b, 0) - SEAL_PX) / 2;
+  let col = 0;
+  while (x >= colPx[col]) x -= colPx[col++];
+  const size = SEAL_PX * EMU_PER_PX;
+  return `<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="${REL}"><xdr:oneCellAnchor><xdr:from><xdr:col>${col}</xdr:col><xdr:colOff>${Math.round(x * EMU_PER_PX)}</xdr:colOff><xdr:row>${sealRow - 1}</xdr:row><xdr:rowOff>${2 * EMU_PER_PX}</xdr:rowOff></xdr:from><xdr:ext cx="${size}" cy="${size}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="DepEd seal"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${size}" cy="${size}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor></xdr:wsDr>`;
+}
 
-  const abbreviation = getSchoolAbbreviation(options.schoolName) || safe(options.schoolName);
-  const year = String(options.schoolYear || "").replace("–", "-");
-  const classSuffix = options.selectedClass && options.selectedClass !== "All"
-    ? `_${safe(options.selectedClass)}`
-    : "";
-  saveAs(
-    new Blob([await workbook.xlsx.writeBuffer()]),
-    `${abbreviation}_NS_Report_${options.period}${classSuffix}_SY${year}.xlsx`,
-  );
+/**
+ * Create the report workbook. `classes` comes from buildNsReportClasses();
+ * meta = { schoolName, address, period, schoolYear }. `seal` is optional PNG
+ * bytes for the DepEd seal.
+ */
+export function createNsReportWorkbook(classes, meta, seal = null) {
+  const list = classes.length ? classes : [{
+    section: "No Learners", rows: [], weighingDate: "", preparedBy: "",
+    bmiTally: [], hfaTally: [],
+  }];
+  const files = {};
+  const addXml = (name, content) => { files[name] = strToU8(documentXml(content)); };
+  const relationships = (entries) => `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${entries.map(([id, type, target]) => `<Relationship Id="${id}" Type="${REL}/${type}" Target="${target}"/>`).join("")}</Relationships>`;
+
+  const usedNames = new Set();
+  const sheets = list.map((reportClass, index) => {
+    const n = index + 1;
+    const built = buildSheet(reportClass, meta, Boolean(seal));
+    addXml(`xl/worksheets/sheet${n}.xml`, built.xml);
+    if (seal) {
+      addXml(`xl/worksheets/_rels/sheet${n}.xml.rels`, relationships([["rId1", "drawing", `../drawings/drawing${n}.xml`]]));
+      addXml(`xl/drawings/_rels/drawing${n}.xml.rels`, relationships([["rId1", "image", "../media/seal.png"]]));
+      addXml(`xl/drawings/drawing${n}.xml`, sealDrawingXml(built.sealRow));
+    }
+    return { ...built, n, name: cleanSheetName(reportClass.section, usedNames) };
+  });
+  if (seal) files["xl/media/seal.png"] = seal;
+
+  const overrides = sheets.map(({ n }) =>
+    `<Override PartName="/xl/worksheets/sheet${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>` +
+    (seal ? `<Override PartName="/xl/drawings/drawing${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>` : ""),
+  ).join("");
+  addXml("[Content_Types].xml", `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${overrides}</Types>`);
+  addXml("_rels/.rels", relationships([["rId1", "officeDocument", "xl/workbook.xml"]]));
+  addXml("xl/_rels/workbook.xml.rels", relationships([
+    ...sheets.map(({ n }) => [`rId${n}`, "worksheet", `worksheets/sheet${n}.xml`]),
+    [`rId${sheets.length + 1}`, "styles", "styles.xml"],
+  ]));
+  addXml("xl/styles.xml", STYLES_XML);
+  const definedNames = sheets.map(({ n, name, endRow, h1, h2 }) => {
+    const printName = xml(`'${name.replace(/'/g, "''")}'`);
+    return `<definedName name="_xlnm.Print_Area" localSheetId="${n - 1}">${printName}!$A$1:$K$${endRow}</definedName><definedName name="_xlnm.Print_Titles" localSheetId="${n - 1}">${printName}!$${h1}:$${h2}</definedName>`;
+  }).join("");
+  addXml("xl/workbook.xml", `<workbook xmlns="${NS}" xmlns:r="${REL}"><bookViews><workbookView/></bookViews><sheets>${sheets.map(({ n, name }) => `<sheet name="${xml(name)}" sheetId="${n}" r:id="rId${n}"/>`).join("")}</sheets><definedNames>${definedNames}</definedNames></workbook>`);
+  return zipSync(files, { level: 6 });
+}
+
+// <School>_NS_Report_<Period>_<school-year start>[_<Adviser>].xlsx, e.g.
+// IECES_NS_Report_Baseline_2026_ROSALIE_E_POLIQUIT.xlsx for a single class.
+export function nsReportFilename(classes, meta) {
+  // Accents are dropped (Peña -> Pena) so the name is safe on every file system.
+  const slug = (value) => String(value || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const school = getSchoolAbbreviation(meta.schoolName) || slug(meta.schoolName) || "School";
+  const startYear = /\d{4}/.exec(String(meta.schoolYear || ""))?.[0] || "";
+  const adviser = classes.length === 1 ? slug(classes[0].preparedBy).toUpperCase() : "";
+  return `${[slug(school), "NS_Report", slug(meta.period), startYear, adviser].filter(Boolean).join("_")}.xlsx`;
+}
+
+// The source seal is large; a 192px copy keeps the file small and still prints sharp at 36pt.
+async function loadSeal() {
+  try {
+    const { default: sealUrl } = await import("../images/deped.png");
+    const image = new Image();
+    image.src = sealUrl;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 192;
+    canvas.getContext("2d").drawImage(image, 0, 0, 192, 192);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  } catch {
+    return null; // The report is still useful without the seal.
+  }
+}
+
+export async function exportNsReportExcel(classes, meta) {
+  const bytes = createNsReportWorkbook(classes, meta, await loadSeal());
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nsReportFilename(classes, meta);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Let the browser/Electron consume the download before releasing its bytes.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

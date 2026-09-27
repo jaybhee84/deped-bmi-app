@@ -17,6 +17,8 @@ import ReportsLanding from "./ReportsLanding";
 import Immunization from "./Immunization";
 import SbfpForms from "./SbfpForms";
 
+import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
+import { nutritionSummaryDocument } from "../utils/printDocuments";
 // Normalize strings (replaces en-dashes/em-dashes, trims, converts to lowercase)
 const normalizeStr = (str) =>
   (str || "").toLowerCase().replace(/[–—]/g, "-").trim();
@@ -496,6 +498,7 @@ export default function SDOReports({
   setSelectedSchool: setSelectedSchoolProp,
   currentUser,
 }) {
+  const { requestPrint } = usePrintPreview();
   const [view, setView] = useState("landing");
 
   const [localSelectedSchool, setLocalSelectedSchool] =
@@ -808,7 +811,6 @@ export default function SDOReports({
           );
 
           return {
-            reportType: "landscape",
             meta: {
               schoolName: schoolKey,
               sy,
@@ -826,14 +828,9 @@ export default function SDOReports({
         return;
       }
 
-      if (window.electronAPI?.generatePrintPreview) {
-        window.electronAPI.generatePrintPreview(multiPagePayloads);
-      } else if (window.electronAPI?.generatePdfPreview) {
-        window.electronAPI.generatePdfPreview(multiPagePayloads);
-      }
+      await requestPrint(nutritionSummaryDocument(multiPagePayloads));
     } else {
       const payload = {
-        reportType: "landscape",
         meta: {
           schoolName:
             selectedSchool === "CONSOLIDATED"
@@ -847,11 +844,7 @@ export default function SDOReports({
         grand: reportData.grand,
       };
 
-      if (window.electronAPI?.generatePrintPreview) {
-        window.electronAPI.generatePrintPreview(payload);
-      } else if (window.electronAPI?.generatePdfPreview) {
-        window.electronAPI.generatePdfPreview(payload);
-      }
+      await requestPrint(nutritionSummaryDocument(payload));
     }
   }
 

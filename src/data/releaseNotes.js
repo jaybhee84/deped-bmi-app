@@ -1,4 +1,39 @@
 export const RELEASE_NOTES = {
+  '3.0.9': {
+    title: 'v3.0.9',
+    sections: [
+      {
+        heading: 'Print Preview',
+        items: [
+          'New in-app Print Preview for every report: choose the printer, copies, pages, paper, margins, scale, and color, with page-by-page preview and Ctrl + scroll zoom.',
+          'All printouts are now laid out for Folio (8.5 × 13 in) paper.',
+          'Reports with many classes or logos no longer fail with "The document is too large to print."',
+        ],
+      },
+      {
+        heading: 'Nutritional Status Report',
+        items: [
+          'The NS Report on screen is now the actual Folio page that prints, one class per page, with the DepEd seal, one-line learner names, BMI and HFA tallies, and the class adviser under "Prepared by".',
+          'Added a Print NS Report button, and the Excel download now matches the printed layout with one worksheet per class.',
+        ],
+      },
+      {
+        heading: 'SBFP Beneficiaries Filter',
+        items: [
+          'Dashboard, Database, Nutritional Status, and the NS Report can now show SBFP Beneficiaries only — learners who qualified at the school year’s Baseline.',
+          'CSV measurement upload has a Learners filter: SBFP beneficiaries can be uploaded for Baseline, Midline, and Endline; all learners for Baseline and Endline.',
+          'Nutritional Status now also shows male/female totals, height-for-age counts, and a "No data" count so the numbers always add up.',
+        ],
+      },
+      {
+        heading: 'Sync and Display',
+        items: [
+          'Changes and deletions made in the online database now appear on every open device automatically, while unsaved local edits are uploaded first.',
+          'Long school names now wrap on the Information page, which also shows the BuzzJay logo.',
+        ],
+      },
+    ],
+  },
   '3.0.8': {
     title: 'v3.0.8',
     sections: [

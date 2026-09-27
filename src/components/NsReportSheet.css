@@ -1,0 +1,62 @@
+/* The NS Report is laid out once, as the printed Folio page (8.5 × 13 in,
+   0.35 in margins). On screen it shows as that same sheet, so the display
+   matches the print (same layout as the IECES Portal report). */
+.nsr-pages { display: flex; flex-direction: column; gap: 24px; max-height: calc(100vh - 330px); overflow: auto; padding: 4px 0 12px; scrollbar-gutter: stable; }
+.nsr-report { box-sizing: border-box; flex: none; width: 8.5in; min-height: 13in; margin: 0 auto; padding: .35in; background: #fff; color: #000; border: 1px solid #e2e8f0; box-shadow: 0 4px 18px rgba(0, 0, 0, .12); font-family: Arial, Helvetica, sans-serif; line-height: 1.05; text-align: left; container-type: inline-size; }
+/* Type scales with the paper's printable width (cqi of .nsr-report): full size on
+   Folio/Letter (7.8in), slightly smaller on narrower paper such as A4 so nothing wraps. */
+.nsr-report > * { font-size: min(11pt, 1.96cqi); }
+.nsr-report-header h2, .nsr-report-header h3, .nsr-report-header p { font-size: 1em; }
+/* DepEd seal centered above the title. */
+.nsr-report-header { position: relative; text-align: center; margin-bottom: 6pt; break-inside: avoid; }
+.nsr-seal { display: block; margin: 0 auto 3pt; width: 36pt; height: 36pt; object-fit: contain; }
+.nsr-report-header h2 { margin: 0; font-weight: 800; letter-spacing: .02em; color: #111827; }
+.nsr-report-header h3 { margin: 2px 0 0; font-weight: 800; color: #111827; }
+.nsr-report-header p { margin: 1px 0 0; color: #374151; }
+
+.nsr-reference-meta { display: flex; justify-content: space-between; gap: 8pt; margin-bottom: 2pt; }
+.nsr-reference-meta { font-size: min(10pt, 1.78cqi); }
+.nsr-reference-meta * { font-size: inherit; }
+.nsr-reference-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+.nsr-reference-table { font-size: min(10pt, 1.78cqi); }
+.nsr-reference-table, .nsr-reference-table * { color: #000; }
+.nsr-reference-table * { font-size: inherit; }
+.nsr-reference-table th, .nsr-reference-table td { border: .5pt solid #000; padding: 1pt; line-height: 1.05; text-align: center; background: #fff; }
+.nsr-reference-table th { font-weight: 400; overflow-wrap: normal; }
+.nsr-reference-table th:nth-last-child(-n+2) { font-weight: 700; }
+.nsr-reference-table .nsr-reference-name { text-align: left; }
+/* Names stay on one line: long ones shrink to the column width (100cqi). */
+.nsr-reference-table .nsr-reference-name div { container-type: inline-size; overflow: hidden; }
+.nsr-reference-table .nsr-reference-name span { display: block; white-space: nowrap; font-size: min(1em, calc(97cqi / var(--name-em, 1))); }
+.nsr-reference-table tbody td { overflow-wrap: normal; }
+.nsr-reference-table tbody td:nth-child(2) { white-space: nowrap; }
+.nsr-reference-table thead { display: table-header-group; }
+.nsr-reference-table tr { break-inside: avoid; }
+
+.nsr-tally-section { display: grid; grid-template-columns: 1fr 1fr; gap: 6pt 12pt; margin-top: 8pt; break-inside: avoid; }
+.nsr-tally-table { width: 100%; border-collapse: collapse; }
+.nsr-tally-table { font-size: min(10pt, 1.78cqi); }
+.nsr-tally-table * { font-size: inherit; }
+.nsr-tally-table th, .nsr-tally-table td { border: 1px solid #999; padding: 1pt 3pt; line-height: 1.05; text-align: center; color: #000; }
+.nsr-tally-table th { background: #f2ede9; font-weight: 700; color: #3a2f2f; }
+.nsr-tally-table tr { break-inside: avoid; }
+
+.nsr-bmi-formula { grid-column: 1 / -1; grid-row: 2; justify-self: start; padding: 3pt 0; text-align: left; color: #111827; }
+.nsr-report .nsr-bmi-formula { font-size: min(7pt, 1.25cqi); }
+.nsr-report .nsr-bmi-formula * { font-size: inherit; }
+.nsr-bmi-fraction { display: inline-flex; gap: 4pt; margin-left: 4pt; }
+.nsr-bmi-fraction span:first-child::after { content: ' /'; }
+
+.nsr-signature { max-width: 260px; margin: 12pt 0 4px auto; text-align: center; color: #111827; break-inside: avoid; }
+/* One blank line (~12pt) more between "Prepared by:" and the signature line. */
+.nsr-signature-label { display: block; text-align: left; margin-bottom: 26pt; }
+.nsr-signature-line { border-top: 1px solid #333; margin-bottom: 4px; }
+.nsr-signature-name { display: block; font-weight: 800; letter-spacing: .02em; }
+.nsr-signature-title { display: block; color: #374151; }
+
+@media print {
+  .nsr-pages { display: block; max-height: none; overflow: visible; padding: 0; }
+  /* The printer's @page margins replace the on-screen sheet padding; each class starts a new page. */
+  .nsr-report { width: 100%; min-height: 0; margin: 0; padding: 0; border: 0; box-shadow: none; break-after: page; }
+  .nsr-report:last-child { break-after: auto; }
+}

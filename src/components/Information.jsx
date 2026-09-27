@@ -7,7 +7,7 @@ import {
 import { RELEASE_NOTES } from "../data/releaseNotes";
 import "./Information.css";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
-import jibianime from "../images/jibianime.png";
+import buzzjayLogo from "../images/buzzj1.png";
 import {
   DEFAULT_SBFP_CONFIG,
   loadSbfpConfig,
@@ -480,7 +480,7 @@ export default function Information({
 
         {/* ── CARD 3: Release Notes Pane Block ── */}
         <div className="sdo-information-art" aria-hidden="true">
-          <img src={jibianime} alt="" />
+          <img src={buzzjayLogo} alt="" />
         </div>
 
         <div className="card settings-full-span" style={{ marginTop: "6px" }}>

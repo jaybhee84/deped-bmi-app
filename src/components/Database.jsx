@@ -16,6 +16,9 @@ import {
   queueStudentForSync,
 } from "../utils/syncService";
 import { getStudentIdentifier } from "../utils/registry";
+import { getCurrentSchoolYear } from "../utils/bmi";
+import { filterByLearnerScope, useSbfpConfig } from "../utils/sbfpBeneficiary";
+import LearnerScopeSelect from "./LearnerScopeSelect";
 
 const PERIODS = ["Baseline", "Midline", "Endline"];
 
@@ -66,6 +69,8 @@ export default function Database({
   const [filterGrade, setFilterGrade] = useState("All");
   const [filterSection, setFilterSection] = useState("All");
   const [searchQ, setSearchQ] = useState("");
+  const [learnerScope, setLearnerScope] = useState("all");
+  const sbfpConfig = useSbfpConfig();
   const [addOpen, setAddOpen] = useState(false);
   const [saveMessage, setSaveMessage] = useState({
     visible: false,
@@ -85,13 +90,25 @@ export default function Database({
     section: "Grade 6",
   });
 
+  // Display-only filter: edits and class deletes below still use `students`.
+  const scopedStudents = useMemo(
+    () =>
+      filterByLearnerScope(
+        students,
+        learnerScope,
+        filterSy === "All" ? getCurrentSchoolYear() : filterSy,
+        sbfpConfig,
+      ),
+    [students, learnerScope, filterSy, sbfpConfig],
+  );
+
   const availableSections = useMemo(() => {
-    const counts = students.reduce((acc, student) => {
+    const counts = scopedStudents.reduce((acc, student) => {
       acc[student.section] = (acc[student.section] || 0) + 1;
       return acc;
     }, {});
 
-    let list = [...new Set(students.map((s) => s.section).filter(Boolean))];
+    let list = [...new Set(scopedStudents.map((s) => s.section).filter(Boolean))];
 
     if (filterGrade !== "All") {
       list = list.filter((section) => section.startsWith(filterGrade));
@@ -115,10 +132,10 @@ export default function Database({
         name: sectionName,
         count: counts[sectionName] || 0,
       }));
-  }, [students, filterGrade]);
+  }, [scopedStudents, filterGrade]);
 
   const filtered = useMemo(() => {
-    return students.filter((s) => {
+    return scopedStudents.filter((s) => {
       const matchGrade =
         filterGrade === "All" ||
         String(s.section || "").startsWith(filterGrade);
@@ -134,7 +151,7 @@ export default function Database({
 
       return matchGrade && matchSec && matchQ;
     });
-  }, [students, filterGrade, filterSection, searchQ]);
+  }, [scopedStudents, filterGrade, filterSection, searchQ]);
 
   // Always show Male learners first, then Female, alphabetical by name
   // within each — regardless of which filters are active.
@@ -358,6 +375,21 @@ export default function Database({
               </option>
             ))}
           </select>
+
+          <LearnerScopeSelect
+            className="form-select"
+            style={{
+              padding: "8px 12px",
+              borderRadius: "6px",
+              border: "1px solid #cbd5e1",
+              background: "#fff",
+            }}
+            value={learnerScope}
+            onChange={(value) => {
+              setLearnerScope(value);
+              setFilterSection("All");
+            }}
+          />
 
           <select
             className="form-select"

@@ -10,6 +10,7 @@ import {
   formatHeightMeters,
 } from "../utils/bmi";
 import { getStudentIdentifier, gradeFromSection } from "../utils/registry";
+import { filterByLearnerScope, useSbfpConfig } from "../utils/sbfpBeneficiary";
 import "./CSVUpload.css";
 import Papa from "papaparse";
 
@@ -46,7 +47,21 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
   const [errors, setErrors] = useState([]);
   const [saved, setSaved] = useState(false);
 
-  const allowedPeriods = QUARTERS.filter((q) => q !== "Baseline");
+  const [learnerScope, setLearnerScope] = useState("beneficiaries");
+  const sbfpConfig = useSbfpConfig();
+
+  // SBFP beneficiaries are measured at Baseline, Midline and Endline; the
+  // whole school only at Baseline and Endline.
+  const allowedPeriods =
+    learnerScope === "all" ? QUARTERS.filter((q) => q !== "Midline") : QUARTERS;
+
+  const beneficiariesOnly = learnerScope === "beneficiaries";
+
+  // Beneficiaries are the learners who qualified at this school year's Baseline.
+  const scopedStudents = useMemo(
+    () => filterByLearnerScope(students, beneficiariesOnly ? "sbfp" : "all", sy, sbfpConfig),
+    [students, beneficiariesOnly, sy, sbfpConfig],
+  );
 
   // Available sections for the selected grade
   const availableSections = useMemo(() => {
@@ -56,12 +71,12 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
 
     return [
       ...new Set(
-        students
+        scopedStudents
           .map((s) => s.section)
           .filter((section) => section && section.startsWith(filterGrade)),
       ),
     ].sort();
-  }, [students, filterGrade]);
+  }, [scopedStudents, filterGrade]);
 
   // Students in the selected class
   const classStudents = useMemo(() => {
@@ -69,12 +84,12 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       return [];
     }
 
-    return students.filter(
+    return scopedStudents.filter(
       (s) =>
         gradeFromSection(s.section) === filterGrade &&
         s.section === filterSection,
     );
-  }, [students, filterGrade, filterSection]);
+  }, [scopedStudents, filterGrade, filterSection]);
 
   // ── Download template ─────────────────────────────────────
   function downloadTemplate() {
@@ -173,9 +188,14 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         return;
       }
 
-      const match = students.find(
+      const anyMatch = students.find(
         (s) => registryNo && registryNo !== "—" && s.registryNo === registryNo,
       );
+      // With the beneficiaries filter on, other learners are skipped.
+      const match =
+        anyMatch && scopedStudents.some((s) => s.id === anyMatch.id)
+          ? anyMatch
+          : null;
 
       // Extract metadata from match
       const birthdate = match?.birthdate || "—";
@@ -204,6 +224,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         bmiStatus,
         hazStatus,
         matched: !!match,
+        notBeneficiary: !!anyMatch && !match,
         studentId: match?.id,
         studentName: match?.name || "—",
       });
@@ -284,7 +305,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
   if (!open) {
     return (
       <button className="btn-csv-upload" onClick={() => setOpen(true)}>
-        📥 CSV Upload (Midline / Endline)
+        📥 CSV Upload (Baseline / Midline / Endline)
       </button>
     );
   }
@@ -332,11 +353,32 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
           </select>
         </div>
         <div className="form-group">
+          <label className="form-label">Learners</label>
+          <select
+            className="form-select"
+            value={learnerScope}
+            onChange={(e) => {
+              const scope = e.target.value;
+              setLearnerScope(scope);
+              // Midline is for SBFP beneficiaries only.
+              if (scope === "all" && period === "Midline") setPeriod("Endline");
+              setFilterSection("");
+              setPreview([]);
+            }}
+          >
+            <option value="beneficiaries">SBFP Beneficiaries only</option>
+            <option value="all">All learners</option>
+          </select>
+        </div>
+        <div className="form-group">
           <label className="form-label">Period</label>
           <select
             className="form-select"
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
+            onChange={(e) => {
+              setPeriod(e.target.value);
+              setPreview([]);
+            }}
           >
             {allowedPeriods.map((p) => (
               <option key={p}>{p}</option>
@@ -402,7 +444,9 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
 
         <div className="csv-class-count">
           <span className="csv-count-num">{classStudents.length}</span>
-          <span className="csv-count-label">learners in class</span>
+          <span className="csv-count-label">
+            {beneficiariesOnly ? "beneficiaries in class" : "learners in class"}
+          </span>
         </div>
 
         <button
@@ -443,7 +487,10 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
             color: "#64748b",
           }}
         >
-          Select a Grade Level and Section to view the learners in that class.
+          Select a Grade Level and Section to view the{" "}
+          {beneficiariesOnly ? "SBFP beneficiaries" : "learners"} in that class.
+          {beneficiariesOnly &&
+            " Beneficiaries are the learners who qualified at this school year's Baseline."}
         </div>
       )}
 
@@ -454,7 +501,8 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         preview.length === 0 && (
           <div className="csv-class-roster" style={{ marginTop: "16px" }}>
             <h4 style={{ marginBottom: "10px", color: "#334155" }}>
-              Learners in Selected Class ({classStudents.length})
+              {beneficiariesOnly ? "SBFP Beneficiaries" : "Learners"} in
+              Selected Class ({classStudents.length})
             </h4>
             <div
               style={{
@@ -1130,7 +1178,9 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                         </span>
                       ) : (
                         <span style={{ color: "#ef4444", fontWeight: "600" }}>
-                          ⚠ Not found
+                          {row.notBeneficiary
+                            ? "⚠ Not an SBFP beneficiary"
+                            : "⚠ Not found"}
                         </span>
                       )}
                     </td>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import SDODashboard from "./components/SDODashboard";
@@ -810,6 +810,109 @@ export default function App() {
       }
     }
     startupSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id, session?.role, session?.school_id, checkingSchoolBinding]);
+
+  // Supabase is the source of truth; SQLite is only a working cache. While the
+  // app is open, keep the cache in step with the server so edits and deletes
+  // made elsewhere (another device, the Supabase dashboard) show up here.
+  // Pending local edits are always uploaded before the server copy is pulled.
+  const liveSyncBusy = useRef(false);
+  const studentsRef = useRef(students);
+  studentsRef.current = students;
+
+  useEffect(() => {
+    if (!session?.id || checkingSchoolBinding) return undefined;
+
+    const isDivision =
+      String(session.role || "").toLowerCase().trim() === "division";
+    let cancelled = false;
+    let debounceTimer = null;
+
+    async function refreshFromServer() {
+      if (cancelled || liveSyncBusy.current) return;
+      if (!isOnline() || !isSupabaseConfigured()) return;
+      liveSyncBusy.current = true;
+      try {
+        const targetId = isDivision
+          ? null
+          : session.school_id || (await getLocalSchoolId());
+        if (!isDivision && !targetId) return;
+
+        if (getQueueLength() > 0) {
+          const localStudents = await localLoadStudents();
+          const upload = await syncToServer(localStudents, targetId);
+          if (!upload.success) return;
+        }
+
+        const serverData = await syncFromServer(targetId);
+        if (cancelled || !serverData.success) return;
+        if (!Array.isArray(serverData.students)) return;
+        // syncFromServer has already rewritten SQLite. An edit made while the
+        // request was in flight wins, and an empty answer while this device
+        // holds data usually means an expired session hidden by RLS rather
+        // than a deliberate wipe. Either way, put the in-memory copy back.
+        if (
+          getQueueLength() > 0 ||
+          (serverData.students.length === 0 && studentsRef.current.length > 0)
+        ) {
+          await localSaveStudents(studentsRef.current);
+          return;
+        }
+        if (
+          JSON.stringify(serverData.students) ===
+          JSON.stringify(studentsRef.current)
+        )
+          return;
+        setStudents(serverData.students);
+      } catch (err) {
+        console.error("[LiveSync]", err);
+      } finally {
+        liveSyncBusy.current = false;
+      }
+    }
+
+    function scheduleRefresh() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(refreshFromServer, 1500);
+    }
+
+    const channel = supabase
+      .channel(`students-live-${session.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "students",
+          ...(!isDivision && session.school_id
+            ? { filter: `school_id=eq.${session.school_id}` }
+            : {}),
+        },
+        scheduleRefresh,
+      )
+      .subscribe();
+
+    // Polling covers projects where realtime is off; division pulls every
+    // school, so it polls less often.
+    const poll = window.setInterval(
+      refreshFromServer,
+      isDivision ? 5 * 60_000 : 60_000,
+    );
+    const onVisible = () => {
+      if (document.visibilityState === "visible") scheduleRefresh();
+    };
+    window.addEventListener("focus", scheduleRefresh);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(debounceTimer);
+      window.clearInterval(poll);
+      window.removeEventListener("focus", scheduleRefresh);
+      document.removeEventListener("visibilitychange", onVisible);
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id, session?.role, session?.school_id, checkingSchoolBinding]);
 

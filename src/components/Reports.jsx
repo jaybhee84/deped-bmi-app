@@ -10,9 +10,12 @@ import {
 } from "../utils/bmi";
 import Badge from "./Badge";
 import "./Reports.css";
+import LearnerScopeSelect from "./LearnerScopeSelect";
+import { isSbfpBeneficiary } from "../utils/sbfpBeneficiary";
+import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
+import { learnerListDocument } from "../utils/printDocuments";
 import {
   loadSbfpConfig,
-  isOfficialBeneficiary,
   DEFAULT_SBFP_CONFIG,
 } from "../utils/sbfpConfig";
 
@@ -70,11 +73,13 @@ function getDefaultSchoolYear() {
 }
 
 export default function Reports({ students = [] }) {
+  const { requestPrint } = usePrintPreview();
   const [sy, setSy] = useState(getDefaultSchoolYear);
   const [period, setPeriod] = useState("Baseline");
   const [section, setSection] = useState("All");
   const [gradeLevel, setGradeLevel] = useState("All");
   const [nutritionFilter, setNutritionFilter] = useState("All");
+  const [learnerScope, setLearnerScope] = useState("all");
   const [beneficiaryGrades, setBeneficiaryGrades] = useState([]);
   const [beneficiaryCriteria, setBeneficiaryCriteria] = useState([]);
 
@@ -166,10 +171,8 @@ export default function Reports({ students = [] }) {
     .filter(Boolean);
 
   const displayRows = rows.filter((s) => {
+    if (learnerScope === "sbfp" && !isSbfpBeneficiary(s, sy, sbfpConfig)) return false;
     if (nutritionFilter === "All") return true;
-    if (nutritionFilter === "SBFP") {
-      return isOfficialBeneficiary(s, s.status, s.haz, sbfpConfig);
-    }
     return s.status?.label === nutritionFilter;
   });
 
@@ -195,19 +198,39 @@ export default function Reports({ students = [] }) {
     return nameA.localeCompare(nameB);
   });
 
-  const counts = {
-    Normal: 0,
-    Wasted: 0,
-    "Severely Wasted": 0,
-    Overweight: 0,
-    Obese: 0,
+  // Every learner lands in exactly one BMI and one HFA bucket ("No data" when
+  // a status could not be computed), so each row of counts adds up to the total.
+  const BMI_COUNT_ORDER = ["Normal", "Wasted", "Severely Wasted", "Overweight", "Obese"];
+  const HFA_COUNT_ORDER = ["Normal", "Stunted", "Severely Stunted", "Tall"];
+  const tallyBy = (labels, labelOf) => {
+    const tally = Object.fromEntries([...labels, "No data"].map((label) => [label, 0]));
+    sortedDisplayRows.forEach((r) => {
+      const label = labelOf(r);
+      tally[label in tally ? label : "No data"]++;
+    });
+    return tally;
   };
-
-  sortedDisplayRows.forEach((r) => {
-    if (r.status?.label && counts[r.status.label] !== undefined) {
-      counts[r.status.label]++;
-    }
-  });
+  const counts = tallyBy(BMI_COUNT_ORDER, (r) => r.status?.label);
+  const hfaCounts = tallyBy(HFA_COUNT_ORDER, (r) => r.haz?.label);
+  const sexOf = (r) => String(r.sex || "").toUpperCase().charAt(0);
+  const maleCount = sortedDisplayRows.filter((r) => sexOf(r) === "M").length;
+  const femaleCount = sortedDisplayRows.filter((r) => sexOf(r) === "F").length;
+  const COUNT_DOTS = {
+    Normal: "🟢", Wasted: "🟡", "Severely Wasted": "🔴", Overweight: "🟠", Obese: "🟤",
+    Stunted: "🟡", "Severely Stunted": "🔴", Tall: "🔵", "No data": "⚪",
+  };
+  const countRow = (title, tally) => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 15px", fontSize: "13px", justifyContent: "flex-end" }}>
+      <span style={{ color: "#64748b", fontWeight: 700 }}>{title}</span>
+      {Object.entries(tally)
+        .filter(([label, count]) => label !== "No data" || count > 0)
+        .map(([label, count]) => (
+          <span key={label}>
+            {COUNT_DOTS[label]} {label}: <strong>{count}</strong>
+          </span>
+        ))}
+    </div>
+  );
 
   function handlePdfPreview() {
     if (!sy) {
@@ -236,8 +259,6 @@ export default function Reports({ students = [] }) {
         : section;
 
     const payload = {
-      reportType: "portrait",
-      title: "School-Based Feeding Program (SBFP) Nutritional Report",
       meta: {
         schoolName: extractedSchoolName.toUpperCase().trim(),
         schoolId: extractedSchoolId,
@@ -254,17 +275,13 @@ export default function Reports({ students = [] }) {
         weight: r.lastRec?.weight ?? "—",
         height: r.lastRec?.height != null ? formatHeightMeters(r.lastRec.height) : "—",
         bmi: r.bmi ? parseFloat(r.bmi).toFixed(2) : "—",
-        wfa: r.status?.label || "Normal",
-        hfa: r.haz?.label || "Normal",
+        wfa: r.status?.label || "—",
+        hfa: r.haz?.label || "—",
         section: r.section || "Unassigned",
       })),
     };
 
-    if (window.electronAPI?.generatePrintPreview) {
-      window.electronAPI.generatePrintPreview(payload);
-    } else {
-      alert("Electron API preview channel not detected.");
-    }
+    requestPrint(learnerListDocument(payload));
   }
 
   return (
@@ -360,6 +377,13 @@ export default function Reports({ students = [] }) {
           </select>
         </div>
 
+        <LearnerScopeSelect
+          label="Learners"
+          className="form-select"
+          value={learnerScope}
+          onChange={setLearnerScope}
+        />
+
         <div className="form-group">
           <label className="form-label">Nutritional Status</label>
           <select
@@ -373,7 +397,6 @@ export default function Reports({ students = [] }) {
             <option value="Severely Wasted">Severely Wasted</option>
             <option value="Overweight">Overweight</option>
             <option value="Obese">Obese</option>
-            <option value="SBFP">SBFP Beneficiaries</option>
           </select>
         </div>
       </div>
@@ -394,28 +417,21 @@ export default function Reports({ students = [] }) {
               display: "flex",
               justifyContent: "space-between",
               marginBottom: "15px",
-              alignItems: "center",
+              alignItems: "flex-start",
+              gap: "16px",
             }}
           >
-            <h3 style={{ margin: 0 }}>
-              Learner Log Summary ({sortedDisplayRows.length} total)
-            </h3>
-            <div style={{ display: "flex", gap: "15px", fontSize: "13px" }}>
-              <span>
-                🟢 Normal: <strong>{counts.Normal}</strong>
-              </span>
-              <span>
-                🟡 Wasted: <strong>{counts.Wasted}</strong>
-              </span>
-              <span>
-                🔴 Severely Wasted: <strong>{counts["Severely Wasted"]}</strong>
-              </span>
-              <span>
-                🟠 Overweight: <strong>{counts.Overweight}</strong>
-              </span>
-              <span>
-                🟤 Obese: <strong>{counts.Obese}</strong>
-              </span>
+            <div>
+              <h3 style={{ margin: 0 }}>
+                Learner Log Summary ({sortedDisplayRows.length} total)
+              </h3>
+              <div style={{ marginTop: "4px", fontSize: "13px", color: "#475569" }}>
+                Male: <strong>{maleCount}</strong> &nbsp;·&nbsp; Female: <strong>{femaleCount}</strong>
+              </div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {countRow("BMI", counts)}
+              {countRow("HFA", hfaCounts)}
             </div>
           </div>
 
@@ -466,10 +482,10 @@ export default function Reports({ students = [] }) {
                     {student.bmi ? parseFloat(student.bmi).toFixed(2) : "—"}
                   </td>
                   <td style={{ padding: "10px" }}>
-                    <Badge label={student.status?.label || "Normal"} />
+                    {student.status?.label ? <Badge label={student.status.label} /> : "—"}
                   </td>
                   <td style={{ padding: "10px" }}>
-                    <Badge label={student.haz?.label || "Normal"} />
+                    {student.haz?.label ? <Badge label={student.haz.label} /> : "—"}
                   </td>
                 </tr>
               ))}

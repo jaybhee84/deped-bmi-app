@@ -13,6 +13,7 @@ import { getCachedLogoSrc, useLogoCacheHydrated } from "../utils/logoCache";
 import { exportImmunizationExcel } from "../utils/exportImmunizationExcel";
 import "./Immunization.css";
 
+import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
 // ─── Default District Options (Fallback Options) ───────────────────────────
 const DISTRICT_OPTIONS = [
   "East District I",
@@ -313,6 +314,7 @@ export default function Immunization({
   allSchoolsData = {},
   onBack,
 }) {
+  const { requestPrint } = usePrintPreview();
   useLogoCacheHydrated();
 
   const [selectedProgramKey, setSelectedProgramKey] = useState("MR & Td");
@@ -663,7 +665,7 @@ export default function Immunization({
         <title>${activeProgram.formTitle}</title>
         <style>
           @page {
-            size: legal landscape;
+            size: 13in 8.5in;
             margin: 6mm;
           }
           body {
@@ -918,28 +920,8 @@ export default function Immunization({
   function handlePdfPreview() {
     const fullHtml = generateImmunizationHtml();
 
-    const payload = {
-      reportType: "immunization",
-      html: fullHtml,
-      title: activeProgram.formTitle,
-      pageSize: "legal",
-      orientation: "landscape",
-    };
-
-    if (window.electronAPI?.generatePrintPreview) {
-      window.electronAPI.generatePrintPreview(payload);
-      return;
-    }
-
-    const printWin = window.open("", "_blank");
-    if (printWin) {
-      printWin.document.write(fullHtml);
-      printWin.document.close();
-      printWin.focus();
-      setTimeout(() => printWin.print(), 300);
-    } else {
-      window.print();
-    }
+    // Folio landscape, 6 mm margins.
+    requestPrint({ html: fullHtml, orientation: "landscape", margin: 0.24 });
   }
 
   // ─── Logo Resolution ──────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
 import "./Information.css";
 import { RELEASE_NOTES } from "../data/releaseNotes";
-import jibianime from "../images/jibianime.png";
+import buzzjayLogo from "../images/buzzj1.png";
 
 export default function SDOInformation() {
   const [version, setVersion] = useState("");
@@ -248,7 +248,7 @@ export default function SDOInformation() {
         </div>
 
         <div className="sdo-information-art" aria-hidden="true">
-          <img src={jibianime} alt="" />
+          <img src={buzzjayLogo} alt="" />
         </div>
       </div>
     </div>

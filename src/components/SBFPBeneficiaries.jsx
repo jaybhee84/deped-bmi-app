@@ -20,6 +20,8 @@ import Badge from "./Badge";
 import "./SBFPBeneficiaries.css";
 import "./SBFPBeneficiaries.print.css";
 
+import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
+import { learnerListDocument, nutritionSummaryDocument } from "../utils/printDocuments";
 const REPORT_GRADE_ORDER = [
   "Kinder",
   "Grade 1",
@@ -291,6 +293,7 @@ export default function SBFPBeneficiaries({
   schoolId = "",
   currentUser,
 }) {
+  const { requestPrint } = usePrintPreview();
   const [filterSY, setFilterSY] = useState("2026–2027");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
@@ -650,9 +653,7 @@ export default function SBFPBeneficiaries({
   async function handlePrint() {
     document.title = `SBFP Beneficiaries - ${filterSY} - ${filterPeriod}`;
 
-    if (window.electronAPI?.generatePrintPreview) {
-      window.electronAPI.generatePrintPreview({
-        reportType: "landscape",
+    await requestPrint(nutritionSummaryDocument({
         meta: {
           schoolName: resolvedSchool.name,
           schoolId: resolvedSchool.id,
@@ -666,11 +667,7 @@ export default function SBFPBeneficiaries({
         },
         rows: nutritionReport.rows,
         grand: nutritionReport.grand,
-      });
-
-      return;
-    }
-    window.print();
+    }));
   }
 
   function handleExportCsv() {
@@ -769,8 +766,6 @@ export default function SBFPBeneficiaries({
     }
 
     const payload = {
-      reportType: "portrait",
-      title: "School-Based Feeding Program (SBFP) Nutritional Report",
       meta: {
         schoolName: resolvedSchool.name,
         schoolId: resolvedSchool.id,
@@ -792,15 +787,7 @@ export default function SBFPBeneficiaries({
       })),
     };
 
-    if (window.electronAPI?.generatePrintPreview) {
-      window.electronAPI.generatePrintPreview(payload);
-    } else {
-      triggerDialog(
-        "Hardware Context Missing",
-        "Electron native bridge API layer was not identified in the active platform wrapper context.",
-        "error",
-      );
-    }
+    requestPrint(learnerListDocument(payload));
   }
 
   function StatCell({ n, d }) {

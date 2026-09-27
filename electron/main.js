@@ -45,8 +45,8 @@ import {
   getCachedLogoKeys,
 } from "./database.js";
 
-// IMPORT UNIFIED PRINT HANDLER
-import { setupPrintHandler } from "./printHandler.js";
+// IN-APP PRINT PREVIEW SERVICE
+import { setupPrinting } from "./printing.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -573,15 +573,16 @@ ipcMain.on("close-current-window", (event) => {
 });
 
 // ==========================================
-// INITIALIZE PRINT HANDLER
-// ==========================================
-setupPrintHandler();
-
-// ==========================================
 // APPLICATION WINDOW INSTANCE
 // ==========================================
 
 let mainWindow;
+
+// ==========================================
+// INITIALIZE PRINT PREVIEW SERVICE
+// ==========================================
+const cleanupPrinting = setupPrinting(() => mainWindow);
+app.on("before-quit", cleanupPrinting);
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -598,6 +599,11 @@ function createWindow() {
   });
 
   mainWindow.maximize();
+
+  mainWindow.on("closed", () => {
+    cleanupPrinting();
+    mainWindow = null;
+  });
 
   mainWindow.on("focus", () => {
     mainWindow.webContents.focus();
