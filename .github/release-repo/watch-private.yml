@@ -1,0 +1,64 @@
+name: Release new versions of the private source
+
+# Lives in the PUBLIC release repo (buzzjay84/deped-bmi-app) as
+# .github/workflows/watch-private.yml. A copy is kept in the private source at
+# .github/release-repo/watch-private.yml. (Same setup as Tax-E.)
+#
+# Every few minutes it reads package.json's version on the private source's
+# main branch. A version that has no tag here yet is released: the tag is
+# created (so it is started only once) and build-from-private.yml builds and
+# publishes the installers. Releasing is therefore just
+#   bump package.json's version, add its release notes, commit, push
+# in the private repo; no Actions minutes are used there.
+#
+# Uses the PRIVATE_SOURCE_DEPLOY_KEY secret that build-from-private.yml
+# already uses. A failed build is not retried automatically (its tag exists);
+# rerun it from the Actions tab.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: watch-private
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the private source's version
+        id: src
+        uses: actions/checkout@v4
+        with:
+          repository: jaybhee84/deped-bmi-app
+          ref: main
+          ssh-key: ${{ secrets.PRIVATE_SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: package.json
+          sparse-checkout-cone-mode: false
+
+      - name: Release it if it is new
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          SHA=$(git rev-parse HEAD)
+          if gh api "repos/$REPO/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "$TAG already released or started; nothing to do."
+            exit 0
+          fi
+          # Tag this repo's default branch head so a second run never starts
+          # the same version again; the release itself is built from the
+          # private commit.
+          gh api "repos/$REPO/git/refs" -f "ref=refs/tags/$TAG" -f "sha=$(gh api repos/$REPO/commits/HEAD --jq .sha)" >/dev/null
+          gh workflow run build-from-private.yml -R "$REPO" -f "tag=$TAG" -f "ref=$SHA"
+          echo "Started the $TAG build from main @ $SHA"

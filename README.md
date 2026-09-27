@@ -55,7 +55,7 @@ For local development:
 
 ## Installation for users
 
-Download the latest installer from the [GitHub Releases](https://github.com/jaybhee84/deped-bmi-app/releases) page.
+Download the latest installer from the [GitHub Releases](https://github.com/buzzjay84/deped-bmi-app/releases) page.
 
 - Windows: download and run the `.exe` installer.
 - macOS: download the `.dmg`, then drag the app into the Applications folder.
@@ -151,17 +151,26 @@ npx electron-builder --win --publish never
 npx electron-builder --mac --publish never
 ```
 
-macOS packages should normally be built on macOS, and Windows packages on Windows. GitHub Actions builds both platforms for releases.
+macOS packages should normally be built on macOS, and Windows packages on Windows. Release builds run in the public release repo (see below).
 
 ## Release process
 
-Releases are automated by [`.github/workflows/release.yml`](.github/workflows/release.yml):
+Installers are built by GitHub Actions in the public release repo **buzzjay84/deped-bmi-app** (free Actions minutes), the same setup as Tax-E. The source stays in this private repo, which runs no Actions; the release repo checks it out with a read-only deploy key. Windows gets an NSIS installer, macOS gets unsigned DMG/ZIP builds for Intel and Apple Silicon (right-click › Open the first time).
 
-1. Update the version in `package.json` and `package-lock.json`.
-2. Add the matching entry to `src/data/releaseNotes.js`.
-3. Run `npm run lint` and `npm run build`.
-4. Push the release commit to `main`.
-5. GitHub Actions builds Windows and macOS packages, validates updater metadata, and publishes the versioned GitHub release.
+1. Update the version, add its release notes, check, commit and push:
+
+   ```bash
+   npm version X.Y.Z --no-git-tag-version
+   # add the 'X.Y.Z' entry to src/data/releaseNotes.js
+   npm run lint && npm run build
+   git commit -am "release: vX.Y.Z" && git push
+   ```
+
+2. Within about five minutes, `watch-private.yml` in buzzjay84/deped-bmi-app sees the new version, tags it `vX.Y.Z` there and starts `build-from-private.yml`. That builds Windows and both macOS architectures, checks the updater files, and publishes the Release with the notes from `releaseNotes.js`. Installed copies then update themselves.
+
+The release repo's workflows are kept here in [`.github/release-repo/`](.github/release-repo/); after changing them, copy them to `.github/workflows/` in buzzjay84/deped-bmi-app. The release repo needs the secret `PRIVATE_SOURCE_DEPLOY_KEY`: the private half of a read-only deploy key added to this repo.
+
+To start a build by hand (as `buzzjay84`): `gh workflow run build-from-private.yml -R buzzjay84/deped-bmi-app -f tag=vX.Y.Z -f ref=main`.
 
 ## Privacy and responsible use
 
