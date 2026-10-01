@@ -176,7 +176,10 @@ jobs:
       - name: Electron and better_sqlite3.node must both be ${{ matrix.lipo }}
         shell: bash
         run: |
-          APP=$(ls -d release/mac*/"DepEd BMI App.app" | head -1)
+          # package.json lists both architectures, so electron-builder packages
+          # both here: x64 goes to release/mac, arm64 to release/mac-arm64.
+          # Check the one this job uploads.
+          APP="release/${{ matrix.arch == 'arm64' && 'mac-arm64' || 'mac' }}/DepEd BMI App.app"
           EXE="$APP/Contents/MacOS/DepEd BMI App"
           NODE="$APP/Contents/Resources/app.asar.unpacked/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
           file "$EXE" "$NODE"
