@@ -1,4 +1,32 @@
 export const RELEASE_NOTES = {
+  '4.0.0': {
+    title: 'v4.0.0',
+    sections: [
+      {
+        heading: 'Transferred and Not in School Learners',
+        items: [
+          'For Midline and Endline, type Transferred or Not in School in the Weight or Height column of the CSV. The learner is saved for that period with 0 weight and height and that note.',
+          'These learners remain SBFP beneficiaries through Endline and appear in Nutritional Status, SBFP Beneficiaries, the Database, and the learner profile with their note.',
+          'A learner recorded this way is no longer counted as weighed or measured in the summary report.',
+        ],
+      },
+      {
+        heading: 'CSV Template',
+        items: [
+          'The downloaded template now shows the class name on its first row.',
+          'Learners already noted as Transferred or Not in School come prefilled in the template, including a Midline note carried into Endline.',
+        ],
+      },
+      {
+        heading: 'Nutritional Status Report (SDO)',
+        items: [
+          'Enrolment now counts the learners actually in the database, matching the Dashboard, instead of the old manually typed enrolment.',
+          'SPED is removed; those learners are reported under SNED, and learners are grouped by their section.',
+          'Numbers and percentages in the Excel download and the printout are centered.',
+        ],
+      },
+    ],
+  },
   '3.0.9': {
     title: 'v3.0.9',
     sections: [

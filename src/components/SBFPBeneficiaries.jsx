@@ -8,10 +8,11 @@ import {
   SCHOOL_YEARS,
   QUARTERS,
   formatHeightMeters,
+  RECORD_NOTE_META,
 } from "../utils/bmi";
+import { isPeriodBeneficiary } from "../utils/sbfpBeneficiary";
 import {
   loadSbfpConfig,
-  isOfficialBeneficiary,
   DEFAULT_SBFP_CONFIG,
   loadSbfpEnrolment,
   saveSbfpEnrolment,
@@ -31,7 +32,6 @@ const REPORT_GRADE_ORDER = [
   "Grade 5",
   "Grade 6",
   "SNED",
-  "SPED",
 ];
 
 const BMI_LABELS = [
@@ -80,7 +80,7 @@ function pct(n, d) {
 
 function deriveGrade(s) {
   const g = s.section?.split(" - ")[0] || s.grade || "";
-  return REPORT_GRADE_ORDER.includes(g) ? g : "SPED";
+  return REPORT_GRADE_ORDER.includes(g) ? g : "SNED";
 }
 
 // The Section column would otherwise repeat the grade level that's already
@@ -144,8 +144,9 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
       s.records.find((r) => r.sy === filterSY && r.q === filterPeriod) || null;
     if (!rec) return;
 
-    const hasWeight = rec.weight != null && rec.weight !== "";
-    const hasHeight = rec.height != null && rec.height !== "";
+    // A 0 is a noted record (Transferred / Not in School), not a measurement.
+    const hasWeight = Number(rec.weight) > 0;
+    const hasHeight = Number(rec.height) > 0;
 
     if (hasWeight && hasHeight) {
       bucket.weighed++;
@@ -547,7 +548,14 @@ export default function SBFPBeneficiaries({
           : null;
         const grade = s.section?.split(" - ")[0] || s.grade || "";
 
-        const isBen = isOfficialBeneficiary({ ...s, grade }, baz, haz, config);
+        const isBen = isPeriodBeneficiary(
+          { ...s, grade },
+          rec,
+          baz,
+          haz,
+          filterSY,
+          config,
+        );
 
         return { ...s, bmi, baz, haz, grade, rec, isBen };
       })
@@ -695,6 +703,7 @@ export default function SBFPBeneficiaries({
       "Nutritional Status",
       "Height Status",
       "Reason for Inclusion",
+      "Note",
     ];
 
     const csvEscape = (val) => {
@@ -735,6 +744,7 @@ export default function SBFPBeneficiaries({
         s.baz?.label || "",
         s.haz?.label || "",
         reasons.join("; "),
+        s.rec?.note || "",
       ];
     });
 
@@ -781,7 +791,7 @@ export default function SBFPBeneficiaries({
         weight: s.rec?.weight ?? "—",
         height: s.rec?.height != null ? formatHeightMeters(s.rec.height) : "—",
         bmi: s.bmi ? parseFloat(s.bmi).toFixed(2) : "—",
-        wfa: s.baz?.label || "—",
+        wfa: s.baz?.label || s.rec?.note || "—",
         hfa: s.haz?.label || "—",
         section: s.section || "Unassigned",
       })),
@@ -1417,6 +1427,8 @@ export default function SBFPBeneficiaries({
                           color={s.baz.color}
                           bg={s.baz.bg}
                         />
+                      ) : s.rec?.note ? (
+                        <Badge label={s.rec.note} {...RECORD_NOTE_META} />
                       ) : (
                         <span className="no-data-tag">No data</span>
                       )}

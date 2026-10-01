@@ -83,7 +83,7 @@ const SUMMARY_CSS = `
   .header h2 { margin: 4px 0 0; font-size: 15px; font-weight: bold; text-transform: uppercase; }
   .header .period { font-style: italic; font-weight: bold; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 5px; }
-  th, td { border: 1px solid #333; padding: 2px 4px; text-align: center; }
+  th, td { border: 1px solid #333; padding: 2px 4px; text-align: center; vertical-align: middle; }
   thead th { background: #EFF6FF; font-weight: bold; }
   .grade-col { width: 80px; white-space: normal; word-break: break-word; }
   td.row-label { font-weight: 600; }

@@ -8,6 +8,8 @@ import {
   getHAZStatus,
   normalizeHeightMeters,
   formatHeightMeters,
+  parseRecordNote,
+  RECORD_NOTE_META,
 } from "../utils/bmi";
 import { getStudentIdentifier, gradeFromSection } from "../utils/registry";
 import { filterByLearnerScope, useSbfpConfig } from "../utils/sbfpBeneficiary";
@@ -94,14 +96,26 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
   // ── Download template ─────────────────────────────────────
   function downloadTemplate() {
     const sectionLabel = filterSection || filterGrade || "Class";
+    // A learner already noted as Transferred / Not in School this school year
+    // (this period, or Midline when preparing Endline) comes prefilled.
+    const noteFor = (s) => {
+      if (period === "Baseline") return "";
+      const periods = period === "Endline" ? ["Endline", "Midline"] : [period];
+      for (const q of periods) {
+        const rec = s.records?.find((r) => r.sy === sy && r.q === q);
+        if (rec?.note) return rec.note;
+      }
+      return "";
+    };
     const rows = [
+      // Class name on the first row; the upload skips it.
+      [sectionLabel],
       ["registry_no", "name", "weight", "height_m"],
-      ...classStudents.map((s) => [
-        s.registryNo || "—",
-        s.name,
-        "", // blank for user to fill
-        "", // blank for user to fill
-      ]),
+      ...classStudents.map((s) => {
+        const note = noteFor(s);
+        // Blank for the user to fill, unless the learner has a status note.
+        return [s.registryNo || "—", s.name, note, note];
+      }),
     ];
     const csv = rows
       .map((row) =>
@@ -123,6 +137,15 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
 
   // ── Robust CSV Processing with PapaParse ────────────────────
   function parseCSV(text) {
+    // The template starts with a class-name row; the column headers are the
+    // first line that has registry_no. Older templates have no such row.
+    const lines = String(text).replace(/^﻿/, "").split(/\r?\n/);
+    const headerIndex = lines.findIndex((line) =>
+      line.toLowerCase().includes("registry_no"),
+    );
+    const rowOffset = Math.max(headerIndex, 0);
+    if (headerIndex > 0) text = lines.slice(headerIndex).join("\n");
+
     const parsed = Papa.parse(text, {
       header: true,
       skipEmptyLines: "greedy",
@@ -170,21 +193,35 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       const weightRaw = String(row[weightKey] || "").trim();
       const heightRaw = String(row[heightKey] || "").trim();
 
-      const weight = weightRaw !== "" ? parseFloat(weightRaw) : null;
-      const height = heightRaw !== "" ? normalizeHeightMeters(heightRaw) : null;
+      // "Transferred" / "Not in School" typed in either cell: the learner is
+      // still recorded for the period, with 0 weight and height plus the note.
+      const note = parseRecordNote(weightRaw) || parseRecordNote(heightRaw);
+
+      const weight = note ? 0 : weightRaw !== "" ? parseFloat(weightRaw) : null;
+      const height = note
+        ? 0
+        : heightRaw !== ""
+          ? normalizeHeightMeters(heightRaw)
+          : null;
 
       if (!registryNo) {
-        errs.push(`Row ${i + 2}: No registry_no found.`);
+        errs.push(`Row ${i + 2 + rowOffset}: No registry_no found.`);
+        return;
+      }
+      if (note && period === "Baseline") {
+        errs.push(
+          `Row ${i + 2 + rowOffset}: "${note}" is only accepted for Midline and Endline.`,
+        );
         return;
       }
       // Weight and height are optional - only flag as an error if a value
       // was actually provided but isn't a valid positive number.
-      if (weightRaw !== "" && (isNaN(weight) || weight <= 0)) {
-        errs.push(`Row ${i + 2}: Invalid weight.`);
+      if (!note && weightRaw !== "" && (isNaN(weight) || weight <= 0)) {
+        errs.push(`Row ${i + 2 + rowOffset}: Invalid weight.`);
         return;
       }
-      if (heightRaw !== "" && (isNaN(height) || height <= 0)) {
-        errs.push(`Row ${i + 2}: Invalid height.`);
+      if (!note && heightRaw !== "" && (isNaN(height) || height <= 0)) {
+        errs.push(`Row ${i + 2 + rowOffset}: Invalid height.`);
         return;
       }
 
@@ -217,6 +254,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         name: row[nameKey] || match?.name || "—",
         weight,
         height,
+        note,
         birthdate,
         sex,
         age,
@@ -271,7 +309,14 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
           ...s,
           records: [
             ...cleaned,
-            { sy, q: period, date, weight: row.weight, height: row.height },
+            {
+              sy,
+              q: period,
+              date,
+              weight: row.weight,
+              height: row.height,
+              ...(row.note ? { note: row.note } : {}),
+            },
           ],
         };
       }),
@@ -336,6 +381,11 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         CSV.
         <br />
         <strong>Step 3:</strong> Upload the CSV and save.
+        <br />
+        For Midline and Endline, type <strong>Transferred</strong> or{" "}
+        <strong>Not in School</strong> in the Weight or Height column for a
+        learner who could not be measured. They are saved with 0 weight and
+        height and that note, and remain SBFP beneficiaries.
       </p>
 
       {/* Controls */}
@@ -684,6 +734,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                     );
                     const weight = periodRec ? periodRec.weight : "";
                     const height = periodRec ? periodRec.height : "";
+                    const note = periodRec?.note || null;
                     const bmi =
                       weight && height ? calcBMI(weight, height) : null;
                     const bmiStatus = bmi
@@ -784,7 +835,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                             fontWeight: "500",
                           }}
                         >
-                          {weight ? `${weight} kg` : "—"}
+                          {weight || note ? `${weight} kg` : "—"}
                         </td>
                         <td
                           style={{
@@ -795,7 +846,9 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                             fontWeight: "500",
                           }}
                         >
-                          {height ? `${formatHeightMeters(height)} m` : "—"}
+                          {height || note
+                            ? `${formatHeightMeters(height)} m`
+                            : "—"}
                         </td>
                         <td
                           style={{
@@ -808,11 +861,15 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                           {bmi ? bmi.toFixed(2) : "—"}
                         </td>
                         <td style={{ display: "table-cell", padding: "8px" }}>
-                          <LocalBadge
-                            label={bmiStatus?.label}
-                            color={bmiStatus?.color}
-                            bg={bmiStatus?.bg}
-                          />
+                          {note ? (
+                            <LocalBadge label={note} {...RECORD_NOTE_META} />
+                          ) : (
+                            <LocalBadge
+                              label={bmiStatus?.label}
+                              color={bmiStatus?.color}
+                              bg={bmiStatus?.bg}
+                            />
+                          )}
                         </td>
                         <td style={{ display: "table-cell", padding: "8px" }}>
                           <LocalBadge
@@ -1151,11 +1208,15 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                       {row.bmi ? row.bmi.toFixed(2) : "—"}
                     </td>
                     <td style={{ display: "table-cell", padding: "8px" }}>
-                      <LocalBadge
-                        label={row.bmiStatus?.label}
-                        color={row.bmiStatus?.color}
-                        bg={row.bmiStatus?.bg}
-                      />
+                      {row.note ? (
+                        <LocalBadge label={row.note} {...RECORD_NOTE_META} />
+                      ) : (
+                        <LocalBadge
+                          label={row.bmiStatus?.label}
+                          color={row.bmiStatus?.color}
+                          bg={row.bmiStatus?.bg}
+                        />
+                      )}
                     </td>
                     <td style={{ display: "table-cell", padding: "8px" }}>
                       <LocalBadge
@@ -1175,6 +1236,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                       {row.matched ? (
                         <span style={{ color: "#5D9C32", fontWeight: "600" }}>
                           ✓ Will save as {period}
+                          {row.note ? ` · ${row.note}` : ""}
                         </span>
                       ) : (
                         <span style={{ color: "#ef4444", fontWeight: "600" }}>

@@ -2375,8 +2375,11 @@ export default function Dashboard({ students: allStudents, currentUser, onOpenPr
                   else {
                     const last = recs[recs.length - 1];
                     if (!last.date) missing.push("Date Measured");
-                    if (!last.weight) missing.push("Weight");
-                    if (!last.height) missing.push("Height");
+                    if (last.note) missing.push(last.note);
+                    else {
+                      if (!last.weight) missing.push("Weight");
+                      if (!last.height) missing.push("Height");
+                    }
                   }
                   return (
                     <tr key={s.id}>

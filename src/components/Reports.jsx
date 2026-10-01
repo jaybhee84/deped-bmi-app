@@ -4,6 +4,8 @@ import {
   getBMIStatus,
   getHAZStatus,
   formatHeightMeters,
+  RECORD_NOTES,
+  RECORD_NOTE_META,
   SCHOOL_YEARS,
   GRADE_LEVELS,
   QUARTERS,
@@ -212,12 +214,21 @@ export default function Reports({ students = [] }) {
   };
   const counts = tallyBy(BMI_COUNT_ORDER, (r) => r.status?.label);
   const hfaCounts = tallyBy(HFA_COUNT_ORDER, (r) => r.haz?.label);
+  // Learners recorded with 0 weight/height and a note (Transferred / Not in School).
+  const noteCounts = Object.fromEntries(
+    RECORD_NOTES.map((note) => [
+      note,
+      sortedDisplayRows.filter((r) => r.lastRec?.note === note).length,
+    ]),
+  );
+  const hasNotes = Object.values(noteCounts).some((count) => count > 0);
   const sexOf = (r) => String(r.sex || "").toUpperCase().charAt(0);
   const maleCount = sortedDisplayRows.filter((r) => sexOf(r) === "M").length;
   const femaleCount = sortedDisplayRows.filter((r) => sexOf(r) === "F").length;
   const COUNT_DOTS = {
     Normal: "🟢", Wasted: "🟡", "Severely Wasted": "🔴", Overweight: "🟠", Obese: "🟤",
     Stunted: "🟡", "Severely Stunted": "🔴", Tall: "🔵", "No data": "⚪",
+    Transferred: "⚪", "Not in School": "⚪",
   };
   const countRow = (title, tally) => (
     <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 15px", fontSize: "13px", justifyContent: "flex-end" }}>
@@ -275,7 +286,7 @@ export default function Reports({ students = [] }) {
         weight: r.lastRec?.weight ?? "—",
         height: r.lastRec?.height != null ? formatHeightMeters(r.lastRec.height) : "—",
         bmi: r.bmi ? parseFloat(r.bmi).toFixed(2) : "—",
-        wfa: r.status?.label || "—",
+        wfa: r.status?.label || r.lastRec?.note || "—",
         hfa: r.haz?.label || "—",
         section: r.section || "Unassigned",
       })),
@@ -432,6 +443,7 @@ export default function Reports({ students = [] }) {
             <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
               {countRow("BMI", counts)}
               {countRow("HFA", hfaCounts)}
+              {hasNotes && countRow("Notes", noteCounts)}
             </div>
           </div>
 
@@ -482,7 +494,13 @@ export default function Reports({ students = [] }) {
                     {student.bmi ? parseFloat(student.bmi).toFixed(2) : "—"}
                   </td>
                   <td style={{ padding: "10px" }}>
-                    {student.status?.label ? <Badge label={student.status.label} /> : "—"}
+                    {student.status?.label ? (
+                      <Badge label={student.status.label} />
+                    ) : student.lastRec?.note ? (
+                      <Badge label={student.lastRec.note} {...RECORD_NOTE_META} />
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td style={{ padding: "10px" }}>
                     {student.haz?.label ? <Badge label={student.haz.label} /> : "—"}

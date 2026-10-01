@@ -67,7 +67,9 @@ function getStudentGrade(s) {
   const raw = String(
     typeof s === "string"
       ? s
-      : s.grade || s.grade_level || s.gradeLevel || s.section || "",
+      : // Section first, like the school Dashboard; the separate grade field
+        // is only a fallback for older records that have no section.
+        s.section || s.grade || s.grade_level || s.gradeLevel || "",
   ).trim();
   const upper = raw.toUpperCase();
 
@@ -91,7 +93,8 @@ function getStudentGrade(s) {
     upper.includes("SPECIAL EDUCATION") ||
     upper.includes("SPECIAL ED")
   ) {
-    return "SPED";
+    // SPED is the old name for SNED; both are reported as SNED.
+    return "SNED";
   }
 
   // Grade 4 / Grade IV
@@ -359,7 +362,7 @@ function computeSexStats(students, sy, period) {
   return stats;
 }
 
-function computeGradeSummary(students, sy, period, officialEnrolment = {}) {
+function computeGradeSummary(students, sy, period) {
   const grades = [
     "Kinder",
     "Grade 1",
@@ -369,38 +372,26 @@ function computeGradeSummary(students, sy, period, officialEnrolment = {}) {
     "Grade 5",
     "Grade 6",
     "SNED",
-    "SPED",
   ];
+
+  // Enrolment is the real count of learners in the database, the same source
+  // as the Dashboard. The retired manually typed enrolment is not used.
+  const sexOf = (s) => String(s.sex || "").trim().toUpperCase().charAt(0);
 
   const rows = grades.map((grade) => {
     const gradeStudents = students.filter((s) => getStudentGrade(s) === grade);
 
     const M = computeSexStats(
-      gradeStudents.filter((s) => (s.sex || "").toUpperCase() === "M"),
+      gradeStudents.filter((s) => sexOf(s) === "M"),
       sy,
       period,
     );
 
     const F = computeSexStats(
-      gradeStudents.filter((s) => (s.sex || "").toUpperCase() === "F"),
+      gradeStudents.filter((s) => sexOf(s) === "F"),
       sy,
       period,
     );
-
-    const officialM = getOfficialEnrolment(officialEnrolment, grade, "M");
-    const officialF = getOfficialEnrolment(officialEnrolment, grade, "F");
-
-    if (officialM !== null) {
-      M.enrolment = officialM;
-    } else if (M.weighed > M.enrolment) {
-      M.enrolment = M.weighed;
-    }
-
-    if (officialF !== null) {
-      F.enrolment = officialF;
-    } else if (F.weighed > F.enrolment) {
-      F.enrolment = F.weighed;
-    }
 
     const Total = mergeStats(M, F);
 
@@ -1089,7 +1080,7 @@ export default function SDOReports({
             bold: isTotalRow || c === 1,
           };
           cell.alignment = {
-            horizontal: c <= 2 ? "center" : "right",
+            horizontal: "center",
             vertical: "middle",
           };
           cell.border = {
@@ -1128,7 +1119,7 @@ export default function SDOReports({
           color: { argb: "FF5A4300" },
         };
         cell.alignment = {
-          horizontal: c <= 2 ? "center" : "right",
+          horizontal: "center",
           vertical: "middle",
         };
         cell.border = {

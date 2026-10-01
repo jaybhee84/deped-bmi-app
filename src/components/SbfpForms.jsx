@@ -25,7 +25,10 @@ import NsReportSheet from "./NsReportSheet";
 import nsReportSheetCss from "./NsReportSheet.css?raw";
 import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
 import LearnerScopeSelect from "./LearnerScopeSelect";
-import { isSbfpBeneficiary } from "../utils/sbfpBeneficiary";
+import {
+  isPeriodBeneficiary,
+  isSbfpBeneficiary,
+} from "../utils/sbfpBeneficiary";
 import { gradeFromSection } from "../utils/registry";
 import { fetchIecesAdvisers, isIecesSchool } from "../utils/iecesOrgChart";
 import "./SbfpForms.css";
@@ -494,7 +497,7 @@ export default function SbfpForms({
             return {
               ...student,
               rec,
-              section: rec.section || student.section,
+              section: rec?.section || student.section,
               heightCm,
               bmi,
               previousSbfpBeneficiary: previousYearBeneficiaryValue(
@@ -516,7 +519,14 @@ export default function SbfpForms({
             };
           })
           .filter((student) =>
-            isOfficialBeneficiary(student, student.baz, student.haz, config),
+            isPeriodBeneficiary(
+              student,
+              student.rec,
+              student.baz,
+              student.haz,
+              schoolYear,
+              config,
+            ),
           ),
       ),
     [students, schoolYear, period, config],

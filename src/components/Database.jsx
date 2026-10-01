@@ -16,7 +16,7 @@ import {
   queueStudentForSync,
 } from "../utils/syncService";
 import { getStudentIdentifier } from "../utils/registry";
-import { getCurrentSchoolYear } from "../utils/bmi";
+import { getCurrentSchoolYear, RECORD_NOTE_META } from "../utils/bmi";
 import { filterByLearnerScope, useSbfpConfig } from "../utils/sbfpBeneficiary";
 import LearnerScopeSelect from "./LearnerScopeSelect";
 
@@ -630,6 +630,8 @@ export default function Database({
                                 color={status.color}
                                 bg={status.bg}
                               />
+                            ) : rec?.note ? (
+                              <Badge label={rec.note} {...RECORD_NOTE_META} />
                             ) : (
                               <span className="no-data-tag">No data</span>
                             )}

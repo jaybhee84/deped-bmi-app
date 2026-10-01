@@ -57,6 +57,8 @@ export function normalizeHeightMeters(height) {
 }
 
 export function formatHeightMeters(height) {
+  // A noted record (Transferred / Not in School) stores a real 0.
+  if (height === 0) return "0";
   const value = normalizeHeightMeters(height);
   if (value == null) return "—";
   return Number(value.toFixed(3)).toString();
@@ -192,6 +194,33 @@ export function getNutritionalStatus(
   const baz    = getBMIStatus(bmi, sex, birthdate, measurementDate);
   const haz    = getHAZStatus(height, sex, birthdate, measurementDate);
   return { bmi, baz, haz };
+}
+
+// ── Record notes ──────────────────────────────────────────────────────────
+// A learner who could not be measured at Midline/Endline still gets a record
+// for that period: weight and height are 0 and the reason is kept as `note`.
+// The learner stays an SBFP beneficiary (that is decided at Baseline).
+
+export const RECORD_NOTES = ['Transferred', 'Not in School'];
+export const RECORD_NOTE_META = { color: '#475569', bg: '#E2E8F0' };
+
+// Reads a note typed into a CSV weight/height cell. Returns the canonical
+// note, or null when the cell is not a note.
+export function parseRecordNote(value) {
+  const text = String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_.-]+/g, ' ');
+  if (!text) return null;
+  if (/^tran?s?ferr?/.test(text)) return 'Transferred';
+  if (/^(not in (the )?school|no longer in school|nis)\b/.test(text)) {
+    return 'Not in School';
+  }
+  return null;
+}
+
+export function recordNote(record) {
+  return record?.note || null;
 }
 
 // ── App constants ─────────────────────────────────────────────────────────
