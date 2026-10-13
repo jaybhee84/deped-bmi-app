@@ -8,11 +8,10 @@ import {
   SCHOOL_YEARS,
   QUARTERS,
   formatHeightMeters,
-  RECORD_NOTE_META,
 } from "../utils/bmi";
-import { isPeriodBeneficiary } from "../utils/sbfpBeneficiary";
 import {
   loadSbfpConfig,
+  isOfficialBeneficiary,
   DEFAULT_SBFP_CONFIG,
   loadSbfpEnrolment,
   saveSbfpEnrolment,
@@ -144,7 +143,7 @@ function buildNutritionReport(students, filterSY, filterPeriod) {
       s.records.find((r) => r.sy === filterSY && r.q === filterPeriod) || null;
     if (!rec) return;
 
-    // A 0 is a noted record (Transferred / Not in School), not a measurement.
+    // Only positive measurements count toward the summary.
     const hasWeight = Number(rec.weight) > 0;
     const hasHeight = Number(rec.height) > 0;
 
@@ -548,14 +547,7 @@ export default function SBFPBeneficiaries({
           : null;
         const grade = s.section?.split(" - ")[0] || s.grade || "";
 
-        const isBen = isPeriodBeneficiary(
-          { ...s, grade },
-          rec,
-          baz,
-          haz,
-          filterSY,
-          config,
-        );
+        const isBen = isOfficialBeneficiary({ ...s, grade }, baz, haz, config);
 
         return { ...s, bmi, baz, haz, grade, rec, isBen };
       })
@@ -703,7 +695,6 @@ export default function SBFPBeneficiaries({
       "Nutritional Status",
       "Height Status",
       "Reason for Inclusion",
-      "Note",
     ];
 
     const csvEscape = (val) => {
@@ -744,7 +735,6 @@ export default function SBFPBeneficiaries({
         s.baz?.label || "",
         s.haz?.label || "",
         reasons.join("; "),
-        s.rec?.note || "",
       ];
     });
 
@@ -791,7 +781,7 @@ export default function SBFPBeneficiaries({
         weight: s.rec?.weight ?? "—",
         height: s.rec?.height != null ? formatHeightMeters(s.rec.height) : "—",
         bmi: s.bmi ? parseFloat(s.bmi).toFixed(2) : "—",
-        wfa: s.baz?.label || s.rec?.note || "—",
+        wfa: s.baz?.label || "—",
         hfa: s.haz?.label || "—",
         section: s.section || "Unassigned",
       })),
@@ -1427,8 +1417,6 @@ export default function SBFPBeneficiaries({
                           color={s.baz.color}
                           bg={s.baz.bg}
                         />
-                      ) : s.rec?.note ? (
-                        <Badge label={s.rec.note} {...RECORD_NOTE_META} />
                       ) : (
                         <span className="no-data-tag">No data</span>
                       )}

@@ -1,4 +1,38 @@
 export const RELEASE_NOTES = {
+  '4.0.1': {
+    title: 'v4.0.1',
+    sections: [
+      {
+        heading: 'Measurement Uploads and Excel Templates',
+        items: [
+          'Download an entire grade in one Excel workbook with a separate sheet for each section, then upload and save all sections together.',
+          'Midline and Endline templates include saved measurements. Repeat uploads preserve existing values when cells are blank.',
+          'Templates show the 12-digit LRN when available, otherwise the registry number. New LRNs can be saved by uploading the unchanged learner name with the new LRN.',
+          'Imports reject conflicting learner identifiers and names, and outdated file previews are discarded when the selected year, period, or class changes.',
+          'Conflicting LRN assignments are skipped together, worksheet headers are read independently, and the upload panel stays open after saving for verification.',
+          'Midline uploads reuse the saved measurement date. Baseline is view-only in the measurement upload panel.',
+          'Weight and height accept positive numeric measurements only; Transferred and Not in School status entries are no longer supported.',
+        ],
+      },
+      {
+        heading: 'Reliable Saving and Synchronization',
+        items: [
+          'SQLite saves now use a single transaction so failed inserts preserve the previous learner records.',
+          'Edits and deletions made while synchronization is running remain pending and are protected from older downloaded data.',
+          'Deleting the last learner now synchronizes even when the local learner list is empty.',
+          'Local database read and write failures now report a synchronization failure instead of appearing successful.',
+        ],
+      },
+      {
+        heading: 'Interface and Development',
+        items: [
+          'Compact measurement upload controls, clearer instructions, saved-date guidance, and an entire-grade display option.',
+          'Buttons show blue backgrounds and yellow edges on hover and keyboard focus, while sidebar navigation retains its original styling.',
+          'npm run dev now launches the Electron app and connects it to the actual development-server port.',
+        ],
+      },
+    ],
+  },
   '4.0.0': {
     title: 'v4.0.0',
     sections: [

@@ -25,10 +25,7 @@ import NsReportSheet from "./NsReportSheet";
 import nsReportSheetCss from "./NsReportSheet.css?raw";
 import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
 import LearnerScopeSelect from "./LearnerScopeSelect";
-import {
-  isPeriodBeneficiary,
-  isSbfpBeneficiary,
-} from "../utils/sbfpBeneficiary";
+import { isSbfpBeneficiary } from "../utils/sbfpBeneficiary";
 import { gradeFromSection } from "../utils/registry";
 import { fetchIecesAdvisers, isIecesSchool } from "../utils/iecesOrgChart";
 import "./SbfpForms.css";
@@ -519,14 +516,7 @@ export default function SbfpForms({
             };
           })
           .filter((student) =>
-            isPeriodBeneficiary(
-              student,
-              student.rec,
-              student.baz,
-              student.haz,
-              schoolYear,
-              config,
-            ),
+            isOfficialBeneficiary(student, student.baz, student.haz, config),
           ),
       ),
     [students, schoolYear, period, config],
@@ -1047,6 +1037,7 @@ export default function SbfpForms({
               className="sbfp-download-button"
               disabled={downloading || nsClasses.length === 0}
               onClick={downloadNsReport}
+              data-excel-download="true"
             >
               {downloading ? "Preparing NS Report…" : "Download NS Report"}
             </button>
@@ -1092,6 +1083,7 @@ export default function SbfpForms({
             className="sbfp-download-button"
             disabled={downloading}
             onClick={download}
+            data-excel-download="true"
           >
             {downloading ? "Preparing Form 1…" : "Download Form 1"}
           </button>
@@ -1278,6 +1270,7 @@ export default function SbfpForms({
             className="sbfp-download-button"
             disabled={downloading}
             onClick={downloadForm2}
+            data-excel-download="true"
           >
             {downloading ? "Preparing Form 2…" : "Download Form 2"}
           </button>

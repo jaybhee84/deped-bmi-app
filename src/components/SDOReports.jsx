@@ -1300,6 +1300,7 @@ export default function SDOReports({
           <button
             className="btn btn-success"
             onClick={handleExportExcel}
+            data-excel-download="true"
             style={{
               height: "38px",
               display: "flex",

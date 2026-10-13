@@ -9,6 +9,7 @@ const KEYS = {
   STUDENTS:     'deped_bmi_students',
   SYNC_QUEUE:   'deped_bmi_sync_queue',
   DELETE_QUEUE: 'deped_bmi_delete_queue',
+  QUEUE_REVISIONS: 'deped_bmi_queue_revisions',
   SUPABASE:     'deped_bmi_supabase',
   LAST_SYNC:    'deped_bmi_last_sync',
   SCHOOLS_CACHE: 'deped_bmi_schools_cache',
@@ -22,6 +23,7 @@ export async function localSaveStudents(students) {
     await window.sqlite.saveStudents(students);
   } catch (e) {
     console.error("[SQLite] Failed to save students:", e);
+    throw e;
   }
 }
 
@@ -30,7 +32,7 @@ export async function localLoadStudents() {
     return await window.sqlite.loadStudents();
   } catch (e) {
     console.error("[SQLite] Failed to load students:", e);
-    return [];
+    throw e;
   }
 }
 
@@ -443,9 +445,39 @@ function saveDeleteQueue(queue) {
   } catch {}
 }
 
+function loadRevisions() {
+  try { return JSON.parse(localStorage.getItem(KEYS.QUEUE_REVISIONS) || '{}'); }
+  catch { return {}; }
+}
+
+function bumpRevision(id) {
+  const revisions = loadRevisions();
+  revisions[id] = (revisions[id] || 0) + 1;
+  localStorage.setItem(KEYS.QUEUE_REVISIONS, JSON.stringify(revisions));
+}
+
+function completeBatch(ids, revisions, deleting = false) {
+  const current = loadRevisions();
+  const completed = new Set(ids.map(String).filter(id => current[id] === revisions[id]));
+  if (deleting) saveDeleteQueue(loadDeleteQueue().filter(id => !completed.has(String(id))));
+  else saveQueue(loadQueue().filter(id => !completed.has(String(id))));
+}
+
+// Pending local changes always win over a downloaded snapshot.
+function preservePending(remote, local) {
+  const uploads = new Set(loadQueue().map(String));
+  const deletes = new Set(loadDeleteQueue().map(String));
+  const result = new Map(remote.filter(s => !deletes.has(String(s.id))).map(s => [String(s.id), s]));
+  local.forEach(s => {
+    if (uploads.has(String(s.id)) && !deletes.has(String(s.id))) result.set(String(s.id), s);
+  });
+  return [...result.values()];
+}
+
 export function queueStudentForDelete(studentId) {
   const deleteQueue = loadDeleteQueue();
   const idStr = String(studentId);
+  bumpRevision(idStr);
 
   if (!deleteQueue.includes(idStr)) {
     deleteQueue.push(idStr);
@@ -454,10 +486,6 @@ export function queueStudentForDelete(studentId) {
 
   const syncQueue = loadQueue().filter(id => String(id) !== idStr);
   saveQueue(syncQueue);
-}
-
-function clearDeleteQueue() {
-  saveDeleteQueue([]);
 }
 
 export async function fetchSchoolLogo(schoolId) {
@@ -495,6 +523,8 @@ export async function getSchoolByName(name) {
 export function queueStudentForSync(studentId) {
   const queue = loadQueue();
   const idStr = String(studentId);
+  bumpRevision(idStr);
+  saveDeleteQueue(loadDeleteQueue().filter(id => String(id) !== idStr));
   if (!queue.includes(idStr)) {
     queue.push(idStr);
     saveQueue(queue);
@@ -503,11 +533,16 @@ export function queueStudentForSync(studentId) {
 
 export function queueAllStudentsForSync(students) {
   const ids = students.map(s => String(s.id));
+  ids.forEach(bumpRevision);
   saveQueue(ids);
 }
 
 export function getQueueLength() {
   return loadQueue().length;
+}
+
+export function getPendingSyncCount() {
+  return loadQueue().length + loadDeleteQueue().length;
 }
 
 export function clearQueue() {
@@ -711,13 +746,22 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
 
 // ── Main Sync Functions ────────────────────────────────────────────────────
 
+let uploadBusy = false;
 export async function syncToServer(students, schoolId) {
+  if (uploadBusy) return { success: false, reason: 'busy' };
+  uploadBusy = true;
+  try { return await performSyncToServer(students, schoolId); }
+  finally { uploadBusy = false; }
+}
+
+async function performSyncToServer(students, schoolId) {
   if (!isOnline())             return { success: false, reason: 'offline' };
   if (!isSupabaseConfigured()) return { success: false, reason: 'not_configured' };
 
   const cfg = loadSupabaseConfig();
   const queue = loadQueue();
   const deleteQueue = loadDeleteQueue();
+  const revisions = loadRevisions();
 
   const toSync = students.filter(s => queue.includes(String(s.id)));
 
@@ -739,14 +783,14 @@ export async function syncToServer(students, schoolId) {
   try {
     if (deleteQueue.length > 0) {
       await supabaseDelete(cfg, deleteQueue);
-      clearDeleteQueue();
+      completeBatch(deleteQueue, revisions, true);
     }
 
     if (toSync.length > 0) {
       await supabaseUpsert(cfg, toSync);
       // Keep edits queued while this request was in flight; remove only the
       // records that were part of this upload.
-      removeFromSyncQueue(toSync.map(student => student.id));
+      completeBatch(toSync.map(student => student.id), revisions);
     }
 
     let activeSchoolName = "";
@@ -772,7 +816,7 @@ export async function syncToServer(students, schoolId) {
         synced: toSync.length,
         deleted: deleteQueue.length,
         discarded: staleCount,
-        students,
+        students: getPendingSyncCount() > 0 ? await localLoadStudents() : students,
       };
     }
 
@@ -782,13 +826,13 @@ export async function syncToServer(students, schoolId) {
     // devices write to. Only fall back to this device's local SQLite photo
     // if the cloud genuinely has nothing yet.
     const localData = await localLoadStudents();
-    const mergedData = freshData.map(remoteStudent => {
+    const mergedData = preservePending(freshData.map(remoteStudent => {
       const localMatch = localData.find(l => String(l.id) === String(remoteStudent.id));
       return {
         ...remoteStudent,
         photo: remoteStudent.photo || (localMatch ? localMatch.photo : null)
       };
-    });
+    }), localData);
 
     await localSaveStudents(mergedData);
 
@@ -829,13 +873,13 @@ export async function syncFromServer(schoolId) {
     }
 
     const localData = await localLoadStudents();
-    const mergedData = serverStudents.map(remoteStudent => {
+    const mergedData = preservePending(serverStudents.map(remoteStudent => {
       const localMatch = localData.find(l => String(l.id) === String(remoteStudent.id));
       return {
         ...remoteStudent,
         photo: remoteStudent.photo || (localMatch ? localMatch.photo : null)
       };
-    });
+    }), localData);
 
     await localSaveStudents(mergedData);
     saveLastSync(new Date()); 

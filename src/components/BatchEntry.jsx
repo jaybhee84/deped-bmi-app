@@ -391,7 +391,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
         overflowY: "auto",
       }}
     >
-      <h1 className="page-title">Baseline Entry</h1>
+      <h1 className="page-title">Nutritional Status Entries</h1>
       <p className="page-sub" style={{ marginBottom: "12px" }}>
         Enter measurements for an entire class at once (School:{" "}
         <strong>{schoolName}</strong>)

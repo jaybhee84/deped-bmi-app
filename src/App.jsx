@@ -28,7 +28,7 @@ import { supabase } from "./utils/supabaseClient";
 import {
   localLoadStudents,
   localSaveStudents,
-  getQueueLength,
+  getPendingSyncCount,
   queueStudentForSync,
   syncToServer,
   syncFromServer,
@@ -679,12 +679,12 @@ export default function App() {
 
   useEffect(() => {
     async function pushToServer() {
-      if (!isOnline() || !isSupabaseConfigured() || students.length === 0)
+      if (!session?.id || !isOnline() || !isSupabaseConfigured() || getPendingSyncCount() === 0)
         return;
       const schoolId = await getLocalSchoolId();
-      await syncToServer(students, schoolId);
+      const result = await syncToServer(students, schoolId);
 
-      if (window.sqlite?.markStudentsClean) {
+      if (result.success && getPendingSyncCount() === 0 && window.sqlite?.markStudentsClean) {
         await window.sqlite.markStudentsClean();
       }
     }
@@ -719,7 +719,7 @@ export default function App() {
         setStudents(serverData.students);
       }
 
-      if (window.sqlite?.markStudentsClean) {
+      if (getPendingSyncCount() === 0 && window.sqlite?.markStudentsClean) {
         await window.sqlite.markStudentsClean();
       }
     }
@@ -771,7 +771,7 @@ export default function App() {
         // Pending local edits are the newest copy. Upload them before pulling
         // from Supabase so a login cannot replace an unsynced import with the
         // older server snapshot. If the upload fails, keep the local copy.
-        if (localStudents.length > 0 && getQueueLength() > 0) {
+        if (getPendingSyncCount() > 0) {
           if (!isOnline() || !isSupabaseConfigured()) {
             loadLocalFallback();
             return;
@@ -839,7 +839,7 @@ export default function App() {
           : session.school_id || (await getLocalSchoolId());
         if (!isDivision && !targetId) return;
 
-        if (getQueueLength() > 0) {
+        if (getPendingSyncCount() > 0) {
           const localStudents = await localLoadStudents();
           const upload = await syncToServer(localStudents, targetId);
           if (!upload.success) return;
@@ -853,7 +853,7 @@ export default function App() {
         // holds data usually means an expired session hidden by RLS rather
         // than a deliberate wipe. Either way, put the in-memory copy back.
         if (
-          getQueueLength() > 0 ||
+          getPendingSyncCount() > 0 ||
           (serverData.students.length === 0 && studentsRef.current.length > 0)
         ) {
           await localSaveStudents(studentsRef.current);

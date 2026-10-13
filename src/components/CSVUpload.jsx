@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo, useEffect } from "react";
 import {
   QUARTERS,
   SCHOOL_YEARS,
@@ -8,13 +8,73 @@ import {
   getHAZStatus,
   normalizeHeightMeters,
   formatHeightMeters,
-  parseRecordNote,
-  RECORD_NOTE_META,
 } from "../utils/bmi";
-import { getStudentIdentifier, gradeFromSection } from "../utils/registry";
+import { gradeFromSection } from "../utils/registry";
 import { filterByLearnerScope, useSbfpConfig } from "../utils/sbfpBeneficiary";
 import "./CSVUpload.css";
 import Papa from "papaparse";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
+import { existingMeasurementDate, mergeMeasurementRows, measurementIdentifier, matchMeasurementLearner } from "../utils/measurementImport";
+import { sectionSheetName, workbookRows } from "../utils/measurementWorkbook";
+import { createImportRequestGate } from "../utils/importRequestGate";
+
+// Each period's template shows the earlier periods for reference, then the
+// two columns to fill in. Only the selected period's columns are read back.
+const REFERENCE_PERIODS = {
+  Baseline: [],
+  Midline: ["Baseline"],
+  Endline: ["Baseline", "Midline"],
+};
+
+// "Midline Weight (kg)" and "midline_weight" both become "midline_weight".
+function normalizeHeader(header) {
+  return String(header ?? "")
+    .toLowerCase()
+    .replace(/\(.*?\)/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function cellText(value) {
+  if (value == null) return "";
+  if (typeof value === "object") {
+    if (Array.isArray(value.richText)) {
+      return value.richText.map((part) => part.text).join("").trim();
+    }
+    if ("result" in value) return cellText(value.result);
+    if ("text" in value) return cellText(value.text);
+    return "";
+  }
+  return String(value).trim();
+}
+
+function normalizeRow(row) {
+  const values = {};
+  Object.entries(row).forEach(([header, value]) => {
+    const key = normalizeHeader(header);
+    if (key) values[key] = cellText(value);
+  });
+  return values;
+}
+
+function readCsvRows(text) {
+  // v4.0.0 CSV templates include a class title before the header row.
+  const lines = String(text).replace(/^\uFEFF/, "").split(/\r?\n/);
+  const headerIndex = lines.findIndex(line => /registry[_ /]|\blrn\b/i.test(line));
+  if (headerIndex > 0) text = lines.slice(headerIndex).join("\n");
+  const parsed = Papa.parse(text, { header: true, skipEmptyLines: "greedy" });
+  return (parsed.data || []).map((row, i) => ({
+    rowNo: i + 2 + Math.max(headerIndex, 0),
+    values: normalizeRow(row),
+  }));
+}
+
+async function readXlsxRows(buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  return workbookRows(workbook, cellText, normalizeRow);
+}
 
 // Simple Badge component mirroring the one used in BatchEntry layout
 function LocalBadge({ label, color, bg }) {
@@ -40,6 +100,17 @@ function LocalBadge({ label, color, bg }) {
 
 export default function CSVUpload({ students, setStudents, open, setOpen }) {
   const fileRef = useRef();
+  const importGate = useRef(null);
+  if (!importGate.current) importGate.current = createImportRequestGate();
+  useEffect(() => {
+    return () => importGate.current.invalidate();
+  }, [open]);
+  function invalidateImport() {
+    importGate.current.invalidate();
+    setPreview([]);
+    setErrors([]);
+    setSaved(false);
+  }
   const [sy, setSy] = useState("2026–2027");
   const [period, setPeriod] = useState("Midline");
   const [date, setDate] = useState("");
@@ -48,6 +119,11 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
   const [preview, setPreview] = useState([]);
   const [errors, setErrors] = useState([]);
   const [saved, setSaved] = useState(false);
+  const viewOnly = period === "Baseline";
+  const existingDate = period === "Midline" || viewOnly
+    ? existingMeasurementDate(students, sy, period)
+    : "";
+  const measurementDate = existingDate || date;
 
   const [learnerScope, setLearnerScope] = useState("beneficiaries");
   const sbfpConfig = useSbfpConfig();
@@ -75,7 +151,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       ...new Set(
         scopedStudents
           .map((s) => s.section)
-          .filter((section) => section && section.startsWith(filterGrade)),
+          .filter((section) => section && gradeFromSection(section) === filterGrade),
       ),
     ].sort();
   }, [scopedStudents, filterGrade]);
@@ -89,148 +165,181 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
     return scopedStudents.filter(
       (s) =>
         gradeFromSection(s.section) === filterGrade &&
-        s.section === filterSection,
+        (filterSection === "__grade__" || s.section === filterSection),
     );
   }, [scopedStudents, filterGrade, filterSection]);
 
   // ── Download template ─────────────────────────────────────
-  function downloadTemplate() {
-    const sectionLabel = filterSection || filterGrade || "Class";
-    // A learner already noted as Transferred / Not in School this school year
-    // (this period, or Midline when preparing Endline) comes prefilled.
-    const noteFor = (s) => {
-      if (period === "Baseline") return "";
-      const periods = period === "Endline" ? ["Endline", "Midline"] : [period];
-      for (const q of periods) {
-        const rec = s.records?.find((r) => r.sy === sy && r.q === q);
-        if (rec?.note) return rec.note;
-      }
-      return "";
-    };
-    const rows = [
-      // Class name on the first row; the upload skips it.
-      [sectionLabel],
-      ["registry_no", "name", "weight", "height_m"],
-      ...classStudents.map((s) => {
-        const note = noteFor(s);
-        // Blank for the user to fill, unless the learner has a status note.
-        return [s.registryNo || "—", s.name, note, note];
-      }),
-    ];
-    const csv = rows
-      .map((row) =>
-        row
-          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
-          .join(","),
-      )
-      .join("\n");
-    const blob = new Blob(["\uFEFF" + csv], {
-      type: "text/csv;charset=utf-8;",
+  async function downloadTemplate() {
+    if (viewOnly) return;
+    const sectionLabel = filterSection === "__grade__" ? filterGrade : filterSection;
+    const referencePeriods = REFERENCE_PERIODS[period] || [];
+    const lastCol = 2 + (referencePeriods.length + 1) * 2;
+
+    const workbook = new ExcelJS.Workbook();
+    const sections = filterSection === "__grade__" ? availableSections : [filterSection];
+    const usedNames = new Set();
+    for (const section of sections) {
+    const sheet = workbook.addWorksheet(sectionSheetName(section, usedNames), {
+      views: [{ state: "frozen", xSplit: 2, ySplit: 1 }],
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${sectionLabel.replace(/\s/g, "_")}_${period}_template.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+
+    sheet.addRow([
+      "Registry / LRN No",
+      "Name",
+      ...[...referencePeriods, period].flatMap((p) => [
+        `${p} Weight (kg)`,
+        `${p} Height (m)`,
+      ]),
+    ]);
+
+    classStudents.filter(s => s.section === section).forEach((s) => {
+      // Prefill both reference periods and the editable selected period so
+      // repeat downloads include measurements that have already been saved.
+      const reference = [...referencePeriods, period].flatMap((p) => {
+        const rec = s.records?.find((r) => r.sy === sy && r.q === p);
+        const weight = parseFloat(rec?.weight);
+        const height = normalizeHeightMeters(rec?.height);
+        return [
+          weight > 0 ? weight : null,
+          height ? Number(formatHeightMeters(height)) : null,
+        ];
+      });
+      // Registry numbers stay text so Excel does not reformat them.
+      sheet.addRow([String(measurementIdentifier(s) || "—"), s.name, ...reference]);
+    });
+
+    sheet.getColumn(1).width = 20;
+    sheet.getColumn(1).numFmt = "@";
+    sheet.getColumn(2).width = 38;
+    for (let col = 3; col <= lastCol; col++) sheet.getColumn(col).width = 18;
+
+    const border = { style: "thin", color: { argb: "FFCBD5E1" } };
+    const solid = (argb) => ({
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb },
+    });
+
+    sheet.getRow(1).height = 32;
+    for (let rowNo = 1; rowNo <= sheet.rowCount; rowNo++) {
+      for (let col = 1; col <= lastCol; col++) {
+        const cell = sheet.getCell(rowNo, col);
+        const isEntry = col > lastCol - 2;
+        const isReference = col > 2 && !isEntry;
+        cell.border = { top: border, left: border, bottom: border, right: border };
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: col === 2 ? "left" : "center",
+          wrapText: rowNo === 1,
+        };
+        if (rowNo === 1) {
+          cell.font = {
+            bold: true,
+            color: { argb: isEntry ? "FFFFFFFF" : "FF334155" },
+          };
+          cell.fill = solid(isEntry ? "FF5D9C32" : "FFE2E8F0");
+        } else if (isEntry) {
+          cell.fill = solid("FFFEFCE8");
+        } else if (isReference) {
+          cell.font = { color: { argb: "FF64748B" } };
+          cell.fill = solid("FFF8FAFC");
+        }
+      }
+    }
+
+    }
+    saveAs(
+      new Blob([await workbook.xlsx.writeBuffer()]),
+      `${sectionLabel.replace(/\s/g, "_")}_${period}_template.xlsx`,
+    );
   }
 
-  // ── Robust CSV Processing with PapaParse ────────────────────
-  function parseCSV(text) {
-    // The template starts with a class-name row; the column headers are the
-    // first line that has registry_no. Older templates have no such row.
-    const lines = String(text).replace(/^﻿/, "").split(/\r?\n/);
-    const headerIndex = lines.findIndex((line) =>
-      line.toLowerCase().includes("registry_no"),
-    );
-    const rowOffset = Math.max(headerIndex, 0);
-    if (headerIndex > 0) text = lines.slice(headerIndex).join("\n");
-
-    const parsed = Papa.parse(text, {
-      header: true,
-      skipEmptyLines: "greedy",
-    });
-
-    if (!parsed.data || !parsed.data.length) {
+  // ── Read the selected period's columns from the uploaded rows ──
+  function parseRows(fileRows) {
+    if (!fileRows.length) {
       return { rows: [], errors: ["File is empty."] };
     }
 
-    const standardKeys = Object.keys(parsed.data[0]).map((h) =>
-      h.trim().toLowerCase(),
-    );
+    const keys = [...new Set(fileRows.flatMap(row => Object.keys(row.values)))];
     const errs = [];
 
-    const hasRegistry = standardKeys.includes("registry_no");
-
-    if (!hasRegistry) {
+    const identifierKeys = ["registry_lrn_no", "registry_lrn_number", "registry_no", "lrn", "lrn_no", "lrn_number"];
+    if (!identifierKeys.some(key => keys.includes(key))) {
       return {
         rows: [],
-        errors: ["CSV must have a registry_no column. Download the template."],
+        errors: ["File must have a Registry / LRN No column. Download the template."],
       };
     }
-    if (!standardKeys.includes("weight") || (!standardKeys.includes("height_m") && !standardKeys.includes("height"))) {
-      return { rows: [], errors: ["CSV must have weight and height_m columns."] };
+
+    // Only this period's columns are read; the other periods in the template
+    // are reference only. Plain weight/height_m files are still accepted.
+    const prefix = period.toLowerCase();
+    const isTemplate = keys.some((k) => /^(baseline|midline|endline)_/.test(k));
+    const weightKey = [`${prefix}_weight`, ...(isTemplate ? [] : ["weight"])].find(
+      (k) => keys.includes(k),
+    );
+    const heightKey = [
+      `${prefix}_height`,
+      `${prefix}_height_m`,
+      ...(isTemplate ? [] : ["height_m", "height"]),
+    ].find((k) => keys.includes(k));
+
+    if (!weightKey || !heightKey) {
+      return {
+        rows: [],
+        errors: [
+          `File has no ${period} Weight and ${period} Height columns. Download the ${period} template.`,
+        ],
+      };
     }
 
     const rows = [];
 
-    parsed.data.forEach((row, i) => {
-      const regKey = Object.keys(row).find(
-        (k) => k.trim().toLowerCase() === "registry_no",
-      );
-      const weightKey = Object.keys(row).find(
-        (k) => k.trim().toLowerCase() === "weight",
-      );
-      const heightKey = Object.keys(row).find(
-        (k) => ["height_m", "height"].includes(k.trim().toLowerCase()),
-      );
-      const nameKey = Object.keys(row).find(
-        (k) => k.trim().toLowerCase() === "name",
-      );
-
-      const registryNo = row[regKey] ? String(row[regKey]).trim() : null;
-
-      const weightRaw = String(row[weightKey] || "").trim();
-      const heightRaw = String(row[heightKey] || "").trim();
-
-      // "Transferred" / "Not in School" typed in either cell: the learner is
-      // still recorded for the period, with 0 weight and height plus the note.
-      const note = parseRecordNote(weightRaw) || parseRecordNote(heightRaw);
-
-      const weight = note ? 0 : weightRaw !== "" ? parseFloat(weightRaw) : null;
-      const height = note
-        ? 0
-        : heightRaw !== ""
-          ? normalizeHeightMeters(heightRaw)
-          : null;
-
-      if (!registryNo) {
-        errs.push(`Row ${i + 2 + rowOffset}: No registry_no found.`);
+    fileRows.forEach(({ rowNo, values: row }) => {
+      // Resolve each worksheet's headers independently, including legacy CSV
+      // headers, rather than using a column chosen from another sheet.
+      const rowKeys = Object.keys(row);
+      const rowIsTemplate = rowKeys.some(key => /^(baseline|midline|endline)_/.test(key));
+      const rowWeightKey = [`${prefix}_weight`, ...(rowIsTemplate ? [] : ["weight"])].find(key => key in row);
+      const rowHeightKey = [`${prefix}_height`, `${prefix}_height_m`, ...(rowIsTemplate ? [] : ["height_m", "height"])].find(key => key in row);
+      const identifierKey = identifierKeys.find(key => key in row);
+      if (!rowWeightKey || !rowHeightKey || !identifierKey) {
+        errs.push(`Row ${rowNo}: Missing registry or ${period} measurement columns. Use the downloaded template.`);
         return;
       }
-      if (note && period === "Baseline") {
-        errs.push(
-          `Row ${i + 2 + rowOffset}: "${note}" is only accepted for Midline and Endline.`,
-        );
+      const registryNo = row[identifierKey] || null;
+
+      const weightRaw = row[rowWeightKey] || "";
+      const heightRaw = row[rowHeightKey] || "";
+
+      const weight = weightRaw !== "" ? Number(weightRaw) : null;
+      const height = heightRaw !== "" ? normalizeHeightMeters(Number(heightRaw)) : null;
+
+      if (!registryNo) {
+        errs.push(`Row ${rowNo}: No registry / LRN number found.`);
         return;
       }
       // Weight and height are optional - only flag as an error if a value
       // was actually provided but isn't a valid positive number.
-      if (!note && weightRaw !== "" && (isNaN(weight) || weight <= 0)) {
-        errs.push(`Row ${i + 2 + rowOffset}: Invalid weight.`);
+      if (weightRaw !== "" && (!Number.isFinite(weight) || weight <= 0)) {
+        errs.push(`Row ${rowNo}: Invalid weight.`);
         return;
       }
-      if (!note && heightRaw !== "" && (isNaN(height) || height <= 0)) {
-        errs.push(`Row ${i + 2 + rowOffset}: Invalid height.`);
+      if (heightRaw !== "" && (height == null || !Number.isFinite(height))) {
+        errs.push(`Row ${rowNo}: Invalid height.`);
         return;
       }
 
-      const anyMatch = students.find(
-        (s) => registryNo && registryNo !== "—" && s.registryNo === registryNo,
-      );
+      const resolved = matchMeasurementLearner(students, classStudents, registryNo, row.name);
+      if (resolved.error) {
+        errs.push(`Row ${rowNo}: ${resolved.error}`);
+        return;
+      }
+      const anyMatch = resolved.student;
       // With the beneficiaries filter on, other learners are skipped.
       const match =
-        anyMatch && scopedStudents.some((s) => s.id === anyMatch.id)
+        anyMatch && classStudents.some((s) => s.id === anyMatch.id)
           ? anyMatch
           : null;
 
@@ -243,18 +352,19 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       // Dynamically map statuses for preview display
       const bmi = weight && height ? calcBMI(weight, height) : null;
       const bmiStatus = bmi
-        ? getBMIStatus(bmi, match?.sex, match?.birthdate, date)
+        ? getBMIStatus(bmi, match?.sex, match?.birthdate, measurementDate)
         : null;
       const hazStatus = height
-        ? getHAZStatus(height, match?.sex, match?.birthdate, date)
+        ? getHAZStatus(height, match?.sex, match?.birthdate, measurementDate)
         : null;
 
       rows.push({
+        rowNo,
         registryNo: registryNo || "—",
-        name: row[nameKey] || match?.name || "—",
+        lrn: resolved.lrn,
+        name: row.name || match?.name || "—",
         weight,
         height,
-        note,
         birthdate,
         sex,
         age,
@@ -262,89 +372,82 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         bmiStatus,
         hazStatus,
         matched: !!match,
-        notBeneficiary: !!anyMatch && !match,
+        notBeneficiary: !!anyMatch && !scopedStudents.some(s => s.id === anyMatch.id),
+        notInSelection: !!anyMatch && !match,
         studentId: match?.id,
         studentName: match?.name || "—",
       });
     });
 
-    return { rows, errors: errs };
+    const conflicts = new Set();
+    rows.forEach(row => {
+      if (!row.matched || !row.lrn) return;
+      rows.forEach(other => {
+        if (!other.matched || !other.lrn || row === other) return;
+        if ((row.lrn === other.lrn && row.studentId !== other.studentId) ||
+          (row.studentId === other.studentId && row.lrn !== other.lrn)) {
+          conflicts.add(row);
+          conflicts.add(other);
+        }
+      });
+    });
+    conflicts.forEach(row => errs.push(`Row ${row.rowNo}: Conflicting LRN assignment in this file. No conflicting rows will be saved.`));
+    return { rows: rows.filter(row => !conflicts.has(row)), errors: errs };
   }
 
-  function handleFile(e) {
+  async function handleFile(e) {
+    if (viewOnly) return;
     const file = e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const { rows, errors } = parseCSV(evt.target.result);
+    const isCurrent = importGate.current.start();
+    setPreview([]);
+    setErrors([]);
+    setSaved(false);
+    e.target.value = "";
+    try {
+      const fileRows = /\.xlsx$/i.test(file.name)
+        ? await readXlsxRows(await file.arrayBuffer())
+        : readCsvRows(await file.text());
+      if (!isCurrent()) return;
+      const { rows, errors } = parseRows(fileRows);
       setPreview(rows);
       setErrors(errors);
-      setSaved(false);
-    };
-    reader.readAsText(file);
-    e.target.value = "";
+    } catch (error) {
+      if (!isCurrent()) return;
+      console.error(error);
+      setPreview([]);
+      setErrors([
+        `Could not read ${file.name}. Upload the Excel template (.xlsx) or a CSV file.`,
+      ]);
+    }
+    setSaved(false);
   }
 
   function handleSave() {
-    if (!date) {
+    if (viewOnly) return;
+    if (!measurementDate) {
       setErrors(["Please select a date measured before saving."]);
       return;
     }
-    const matched = preview.filter((r) => r.matched);
+    const matched = preview.filter((r) => r.matched && (r.weight != null || r.height != null || r.lrn));
     if (!matched.length) {
       setErrors([
-        "No matching students found. Download the template to get the correct registry numbers.",
+        "No matching students with measurements found. Blank rows are skipped.",
       ]);
       return;
     }
 
-    setStudents((prev) =>
-      prev.map((s) => {
-        const row = matched.find((r) => r.studentId === s.id);
-        if (!row) return s;
-        const cleaned = s.records.filter(
-          (r) => !(r.sy === sy && r.q === period),
-        );
-        return {
-          ...s,
-          records: [
-            ...cleaned,
-            {
-              sy,
-              q: period,
-              date,
-              weight: row.weight,
-              height: row.height,
-              ...(row.note ? { note: row.note } : {}),
-            },
-          ],
-        };
-      }),
-    );
-
-    if (window.electronAPI?.upsertSQLiteRecords) {
-      const payloads = matched.map((r) => ({
-        registry_no: r.registryNo,
-        school_year: sy,
-        period_stage: period,
-        date_measured: date,
-        weight_kg: r.weight,
-        // SQLite keeps its legacy column name, so convert metres at this boundary.
-        height_cm: r.height == null ? null : r.height * 100,
-      }));
-      window.electronAPI.upsertSQLiteRecords(payloads);
-    }
+    // updateStudents persists the merged records through the SQLite bridge.
+    setStudents((prev) => mergeMeasurementRows(prev, matched, sy, period, measurementDate));
 
     setSaved(true);
     setPreview([]);
     setErrors([]);
-    setTimeout(() => {
-      setSaved(false);
-      setOpen(false);
-    }, 3000);
+    // Keep the panel open so the user can verify saved records or switch
+    // sections. A delayed automatic close could discard the next upload.
   }
 
-  const matchedCount = preview.filter((r) => r.matched).length;
+  const matchedCount = preview.filter((r) => r.matched && (r.weight != null || r.height != null || r.lrn)).length;
   const unmatchedCount = preview.filter((r) => !r.matched).length;
 
   if (!open) {
@@ -359,11 +462,13 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
     <div className="csv-upload-panel card">
       <div className="csv-panel-header">
         <h3 className="card-title" style={{ margin: 0 }}>
-          Upload Beneficiary Measurements
+          Upload Measurements
         </h3>
         <button
           className="csv-close-btn"
+          aria-label="Close measurement upload"
           onClick={() => {
+            invalidateImport();
             setOpen(false);
             setPreview([]);
             setErrors([]);
@@ -373,29 +478,33 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         </button>
       </div>
 
-      <p className="csv-panel-sub">
-        <strong>Step 1:</strong> Select the class and download the template
-        (prefilled with learner names + registry numbers).
-        <br />
-        <strong>Step 2:</strong> Fill in the Weight and Height columns in the
-        CSV.
-        <br />
-        <strong>Step 3:</strong> Upload the CSV and save.
-        <br />
-        For Midline and Endline, type <strong>Transferred</strong> or{" "}
-        <strong>Not in School</strong> in the Weight or Height column for a
-        learner who could not be measured. They are saved with 0 weight and
-        height and that note, and remain SBFP beneficiaries.
-      </p>
+      {viewOnly ? (
+        <p className="csv-empty-state">Baseline is view-only here. Select a class to review its saved measurements. Choose Midline or Endline to download a template and upload measurements.</p>
+      ) : <>
+      <ol className="csv-steps">
+        <li><strong>Choose a class</strong><span>Download its prefilled template.</span></li>
+        <li><strong>Enter {period} measurements</strong><span>Fill in weight (kg) and height (m).</span></li>
+        <li><strong>Upload and review</strong><span>Check the preview, then save.</span></li>
+      </ol>
+      <p className="csv-preserve-note">You can upload again to add missing measurements. Blank cells keep your saved data.</p>
+      </>}
 
       {/* Controls */}
       <div className="csv-controls">
         <div className="form-group">
-          <label className="form-label">School Year</label>
+          <label className="form-label" htmlFor="csv-year">School Year</label>
           <select
             className="form-select"
+            id="csv-year"
             value={sy}
-            onChange={(e) => setSy(e.target.value)}
+            onChange={(e) => {
+              invalidateImport();
+              setSy(e.target.value);
+              setPreview([]);
+              setErrors([]);
+              setDate("");
+              setSaved(false);
+            }}
           >
             {SCHOOL_YEARS.map((s) => (
               <option key={s}>{s}</option>
@@ -403,11 +512,13 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Learners</label>
+          <label className="form-label" htmlFor="csv-learners">Learners</label>
           <select
             className="form-select"
+            id="csv-learners"
             value={learnerScope}
             onChange={(e) => {
+              invalidateImport();
               const scope = e.target.value;
               setLearnerScope(scope);
               // Midline is for SBFP beneficiaries only.
@@ -421,11 +532,13 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Period</label>
+          <label className="form-label" htmlFor="csv-period">Period</label>
           <select
             className="form-select"
+            id="csv-period"
             value={period}
             onChange={(e) => {
+              invalidateImport();
               setPeriod(e.target.value);
               setPreview([]);
             }}
@@ -436,34 +549,36 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
           </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Date Measured</label>
+          <label className="form-label" htmlFor="csv-date">Date Measured {existingDate && <span className="csv-date-badge">Saved date</span>}</label>
           <input
             type="date"
+            id="csv-date"
+            aria-describedby={existingDate ? "csv-date-note" : undefined}
             className="form-input"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+            value={measurementDate}
+            disabled={viewOnly || !!existingDate}
+            onChange={(e) => {
+              invalidateImport();
+              setDate(e.target.value);
+            }}
           />
         </div>
       </div>
+      {existingDate && <p id="csv-date-note" className="csv-date-note">{viewOnly ? `Showing the saved Baseline date for ${sy}.` : `All Midline uploads for ${sy} use this saved measurement date.`}</p>}
 
       {/* Class selector controls bar */}
-      <div
-        className="csv-class-selector"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "flex-end",
-          gap: "12px",
-        }}
-      >
+      <div className="csv-class-selector">
         <div className="form-group">
-          <label className="form-label">Grade Level</label>
+          <label className="form-label" htmlFor="csv-grade">Grade Level</label>
           <select
             className="form-select"
+            id="csv-grade"
             value={filterGrade}
             onChange={(e) => {
+              invalidateImport();
               setFilterGrade(e.target.value);
               setFilterSection("");
+              setPreview([]);
             }}
           >
             <option value="">Select Grade Level</option>
@@ -476,14 +591,20 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Section / Class</label>
+          <label className="form-label" htmlFor="csv-section">Section / Class</label>
           <select
             className="form-select"
+            id="csv-section"
             value={filterSection}
-            onChange={(e) => setFilterSection(e.target.value)}
+            onChange={(e) => {
+              invalidateImport();
+              setFilterSection(e.target.value);
+              setPreview([]);
+            }}
             disabled={!filterGrade}
           >
             <option value="">Select Section</option>
+            <option value="__grade__">Entire grade level</option>
             {availableSections.map((section) => (
               <option key={section} value={section}>
                 {section}
@@ -493,55 +614,56 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         </div>
 
         <div className="csv-class-count">
-          <span className="csv-count-num">{classStudents.length}</span>
+          <span className="csv-count-num">{filterSection ? classStudents.length : "—"}</span>
           <span className="csv-count-label">
-            {beneficiariesOnly ? "beneficiaries in class" : "learners in class"}
+            {beneficiariesOnly ? "beneficiaries" : "learners"} in {filterSection === "__grade__" ? "grade" : "class"}
           </span>
         </div>
 
+        <div className="csv-template-actions">
         <button
-          className="btn btn-secondary"
+          className="btn csv-download-btn"
           onClick={downloadTemplate}
+          data-excel-download="true"
+          title={viewOnly ? "Baseline is view-only" : "Download an Excel template with one sheet per selected section"}
           disabled={
-            !filterGrade || !filterSection || classStudents.length === 0
+            viewOnly || !filterGrade || !filterSection || classStudents.length === 0
           }
         >
-          ⬇ Download Template for This Class
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5" /></svg>
+          Download template
         </button>
 
         <button
           className="btn btn-primary"
           onClick={() => fileRef.current.click()}
           disabled={
-            !filterGrade || !filterSection || classStudents.length === 0
+            viewOnly || !filterGrade || !filterSection || classStudents.length === 0
           }
         >
-          📤 Upload Completed CSV
+          Upload CSV / Excel
         </button>
+        </div>
         <input
           ref={fileRef}
           type="file"
-          accept=".csv"
+          accept=".xlsx,.csv"
           style={{ display: "none" }}
           onChange={handleFile}
         />
       </div>
+      {filterSection === "__grade__" && !viewOnly && <p className="csv-date-note">One Excel workbook, one sheet per section. Upload the completed workbook to save all sections at once. Choose a section above to view its saved measurements.</p>}
 
       {(!filterGrade || !filterSection) && (
-        <div
-          style={{
-            marginTop: "12px",
-            padding: "10px",
-            background: "#f8fafc",
-            borderRadius: "8px",
-            color: "#64748b",
-          }}
-        >
+        <div className="csv-empty-state">
           Select a Grade Level and Section to view the{" "}
           {beneficiariesOnly ? "SBFP beneficiaries" : "learners"} in that class.
           {beneficiariesOnly &&
             " Beneficiaries are the learners who qualified at this school year's Baseline."}
         </div>
+      )}
+      {filterGrade && filterSection && classStudents.length === 0 && (
+        <div className="csv-empty-state">No {beneficiariesOnly ? "SBFP beneficiaries" : "learners"} found in this class for {sy}. {beneficiariesOnly ? "Try All learners or check the Baseline records." : "Choose another class or school year."}</div>
       )}
 
       {/* Roster list table - Hidden if staging preview is active */}
@@ -552,7 +674,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
           <div className="csv-class-roster" style={{ marginTop: "16px" }}>
             <h4 style={{ marginBottom: "10px", color: "#334155" }}>
               {beneficiariesOnly ? "SBFP Beneficiaries" : "Learners"} in
-              Selected Class ({classStudents.length})
+              {filterSection === "__grade__" ? `${filterGrade} — All Sections` : filterSection} ({classStudents.length})
             </h4>
             <div
               style={{
@@ -600,7 +722,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                         textTransform: "uppercase",
                       }}
                     >
-                      REGISTRY NO.
+                      REGISTRY / LRN NO.
                     </th>
                     <th
                       style={{
@@ -734,7 +856,6 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                     );
                     const weight = periodRec ? periodRec.weight : "";
                     const height = periodRec ? periodRec.height : "";
-                    const note = periodRec?.note || null;
                     const bmi =
                       weight && height ? calcBMI(weight, height) : null;
                     const bmiStatus = bmi
@@ -782,7 +903,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                             fontFamily: "monospace",
                           }}
                         >
-                          {student.registryNo || "—"}
+                          {measurementIdentifier(student) || "—"}
                         </td>
                         <td
                           style={{
@@ -835,7 +956,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                             fontWeight: "500",
                           }}
                         >
-                          {weight || note ? `${weight} kg` : "—"}
+                          {weight ? `${weight} kg` : "—"}
                         </td>
                         <td
                           style={{
@@ -846,9 +967,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                             fontWeight: "500",
                           }}
                         >
-                          {height || note
-                            ? `${formatHeightMeters(height)} m`
-                            : "—"}
+                          {height ? `${formatHeightMeters(height)} m` : "—"}
                         </td>
                         <td
                           style={{
@@ -861,15 +980,11 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                           {bmi ? bmi.toFixed(2) : "—"}
                         </td>
                         <td style={{ display: "table-cell", padding: "8px" }}>
-                          {note ? (
-                            <LocalBadge label={note} {...RECORD_NOTE_META} />
-                          ) : (
-                            <LocalBadge
-                              label={bmiStatus?.label}
-                              color={bmiStatus?.color}
-                              bg={bmiStatus?.bg}
-                            />
-                          )}
+                          <LocalBadge
+                            label={bmiStatus?.label}
+                            color={bmiStatus?.color}
+                            bg={bmiStatus?.bg}
+                          />
                         </td>
                         <td style={{ display: "table-cell", padding: "8px" }}>
                           <LocalBadge
@@ -898,7 +1013,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       )}
 
       {/* Preview table - Structure perfectly preserved identical to layout before upload */}
-      {preview.length > 0 && (
+      {!viewOnly && preview.length > 0 && (
         <div className="csv-preview" style={{ marginTop: "16px" }}>
           <div className="csv-preview-header" style={{ marginBottom: "10px" }}>
             <span
@@ -967,7 +1082,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                       textTransform: "uppercase",
                     }}
                   >
-                    REGISTRY NO.
+                    REGISTRY / LRN NO.
                   </th>
                   <th
                     style={{
@@ -1208,15 +1323,11 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                       {row.bmi ? row.bmi.toFixed(2) : "—"}
                     </td>
                     <td style={{ display: "table-cell", padding: "8px" }}>
-                      {row.note ? (
-                        <LocalBadge label={row.note} {...RECORD_NOTE_META} />
-                      ) : (
-                        <LocalBadge
-                          label={row.bmiStatus?.label}
-                          color={row.bmiStatus?.color}
-                          bg={row.bmiStatus?.bg}
-                        />
-                      )}
+                      <LocalBadge
+                            label={row.bmiStatus?.label}
+                            color={row.bmiStatus?.color}
+                            bg={row.bmiStatus?.bg}
+                      />
                     </td>
                     <td style={{ display: "table-cell", padding: "8px" }}>
                       <LocalBadge
@@ -1236,12 +1347,12 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
                       {row.matched ? (
                         <span style={{ color: "#5D9C32", fontWeight: "600" }}>
                           ✓ Will save as {period}
-                          {row.note ? ` · ${row.note}` : ""}
                         </span>
                       ) : (
                         <span style={{ color: "#ef4444", fontWeight: "600" }}>
                           {row.notBeneficiary
                             ? "⚠ Not an SBFP beneficiary"
+                            : row.notInSelection ? "Outside selected class / grade"
                             : "⚠ Not found"}
                         </span>
                       )}

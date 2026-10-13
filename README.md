@@ -72,13 +72,20 @@ cd deped-bmi-app
 npm install
 ```
 
-Start the web development server:
+Start the development server and launch the desktop app:
 
 ```bash
 npm run dev
 ```
 
-Start Vite and Electron together:
+On Windows PowerShell, if `npm` is blocked because script execution is disabled,
+use `npm.cmd run dev`. This starts the same development server without changing
+PowerShell's execution policy.
+
+To start only the web development server, use `npm run dev:web`.
+The desktop launcher uses Vite's actual port if port 5173 is already occupied.
+
+The existing desktop command also remains available:
 
 ```bash
 npm run dev:electron
@@ -106,7 +113,8 @@ Database changes are stored in [`supabase/migrations`](supabase/migrations). App
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Start the Vite development server. |
+| `npm run dev` | Start Vite and launch the Electron desktop app. |
+| `npm run dev:web` | Start only the Vite development server. |
 | `npm run dev:electron` | Start Vite and launch the Electron desktop shell. |
 | `npm run build` | Create the production web bundle in `dist`. |
 | `npm run lint` | Run Oxlint checks. |

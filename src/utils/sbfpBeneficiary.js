@@ -24,14 +24,6 @@ export function isSbfpBeneficiary(student, sy, config) {
   return isOfficialBeneficiary(student, baz, haz, config);
 }
 
-// Beneficiary lists built from one period's measurements: a learner noted as
-// Transferred / Not in School has no status that period, so the Baseline
-// qualification keeps them on the list through Endline.
-export function isPeriodBeneficiary(student, rec, baz, haz, sy, config) {
-  if (isOfficialBeneficiary(student, baz, haz, config)) return true;
-  return !!rec?.note && isSbfpBeneficiary(student, sy, config);
-}
-
 // learnerScope: "all" | "sbfp"
 export function filterByLearnerScope(students, learnerScope, sy, config) {
   if (learnerScope !== "sbfp") return students;

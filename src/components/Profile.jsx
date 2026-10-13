@@ -177,7 +177,6 @@ function HealthRecordCard({ record, student, onEdit, readOnly }) {
             )
           }
         />
-        {record.note && <MetricRow label="Note" value={record.note} />}
       </div>
     </div>
   );
@@ -417,8 +416,6 @@ export default function Profile({
     if (!rec.date || !rec.weight || !rec.height) return;
     const newRec = {
       ...rec,
-      // Real measurements replace a Transferred / Not in School note.
-      note: undefined,
       section: student.section,
       weight: parseFloat(rec.weight),
       height: normalizeHeightMeters(rec.height),

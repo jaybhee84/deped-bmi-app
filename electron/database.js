@@ -1,8 +1,11 @@
 import Database from "better-sqlite3";
 import { app } from "electron";
 import path from "path";
+import fs from "node:fs";
 
-const dbPath = path.join(app.getPath("userData"), "students.db");
+const dataDirectory = app.getPath("userData");
+fs.mkdirSync(dataDirectory, { recursive: true });
+const dbPath = path.join(dataDirectory, "students.db");
 
 console.log("SQLite DB Path:", dbPath);
 
@@ -256,14 +259,13 @@ export function offlineLoginCheck(email, password) {
 // =========================
 
 export function saveStudents(students, isDirty = false) {
-  db.prepare("DELETE FROM students").run();
-
   const stmt = db.prepare(`
     INSERT INTO students (id, data, dirty)
     VALUES (?, ?, ?)
   `);
 
   const tx = db.transaction((rows) => {
+    db.prepare("DELETE FROM students").run();
     rows.forEach((student) => {
       stmt.run(String(student.id), JSON.stringify(student), isDirty ? 1 : 0);
     });

@@ -5,7 +5,7 @@ import "./Sidebar.css";
 const SCHOOL_NAV = [
   { id: "dashboard", icon: "📊", label: "Dashboard" },
   { id: "database", icon: "🎒", label: "Database" },
-  { id: "batch", icon: "📋", label: "Baseline Entry" },
+  { id: "batch", icon: "📋", label: "NS Entries" },
   { id: "sbfp", icon: "🍱", label: "SBFP Beneficiaries" },
   { id: "sbfp-forms", icon: "📋", label: "SBFP Forms" },
   { id: "reports", icon: "📄", label: "Nutritional Status" },

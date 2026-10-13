@@ -612,7 +612,7 @@ function createWindow() {
   if (app.isPackaged) {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   } else {
-    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.loadURL(process.env.ELECTRON_DEV_URL || "http://localhost:5173");
     mainWindow.webContents.openDevTools();
   }
 }

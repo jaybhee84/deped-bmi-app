@@ -1038,6 +1038,7 @@ export default function Immunization({
             type="button"
             className="btn btn-success"
             onClick={handleDownloadExcel}
+            data-excel-download="true"
             style={{
               height: "38px",
               display: "flex",
