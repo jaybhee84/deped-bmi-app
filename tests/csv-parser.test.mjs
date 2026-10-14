@@ -49,6 +49,14 @@ test('older meter templates accept centimeter entries without rejecting an entir
   assert.deepEqual(result.rows.map(row => row.height), [1.025, 1.103]);
 });
 
+test('Kinder whole-number heights with missing decimals upload with correct BMI', () => {
+  const { readCsvRows, parseRows } = parser();
+  const result = parseRows(readCsvRows('Registry / LRN No,Name,Midline Weight (kg),Midline Height (m)\nregistry-A,Learner A,15,1025\nregistry-B,Learner B,17,1103'));
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.rows.map(row => row.height), [1.025, 1.103]);
+  assert.ok(Math.abs(result.rows[0].bmi - 14.27721594289114) < 1e-10);
+});
+
 test('reject all conflicting new LRN rows rather than saving the first assignment', () => {
   const result = parser().parseRows([
     row('123456789012', 'Learner A', '20', '1.2'),

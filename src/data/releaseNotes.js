@@ -7,6 +7,7 @@ export const RELEASE_NOTES = {
         items: [
           'New Baseline CSV and measurement Excel templates use centimeters; uploaded heights are converted to meters for BMI, including decimal heights such as 110.3 cm becoming 1.103 m.',
           'Older meter templates continue to accept centimeter entries such as 110, while retaining support for meter entries such as 1.10.',
+          'Whole-number heights with omitted decimals, such as 1025 and 1103, are interpreted as 1.025 m and 1.103 m during import.',
           'Height displays retain two decimal places and preserve a third decimal when needed.',
           'Imports reject invalid or extremely small heights and show the entered value in the error message. Baseline entry validates measurements before saving and no longer strips invalid characters or negative signs from weights.',
           'Existing incorrect saved heights require correction with verified measurements; this update does not automatically rescale saved records.',
@@ -16,6 +17,7 @@ export const RELEASE_NOTES = {
         heading: 'Repeat Uploads',
         items: [
           'Saving a repeat upload asks for confirmation before overwriting existing measurements, showing the selected period and affected learner count.',
+          'Overwrite confirmation appears inside the upload panel instead of a native dialog, avoiding dropdown focus issues after saving in the desktop app.',
           'Blank measurement cells preserve saved values when uploading again.',
         ],
       },

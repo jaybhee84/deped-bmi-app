@@ -14,3 +14,11 @@ test('baseline measurement validation rejects malformed, negative and non-finite
   assert.equal(parseMeasurementHeight('1.103', 'm'), 1.103);
   assert.equal(parseMeasurementHeight('110.3'), 1.103);
 });
+
+test('whole-number heights with omitted decimals convert once to meters', () => {
+  for (const [raw, expected] of [['1025', 1.025], ['1022', 1.022], ['1103', 1.103], ['1075', 1.075], ['1158', 1.158], ['110', 1.1]]) {
+    for (const unit of ['', 'm', 'cm']) assert.equal(parseMeasurementHeight(raw, unit), expected);
+    assert.equal(parseMeasurementHeight(expected, 'm'), expected);
+  }
+  assert.equal(parseMeasurementHeight('9999'), null);
+});

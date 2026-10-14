@@ -325,3 +325,6 @@
   width: 200px !important;
   text-align: center !important;
 }
+.csv-overwrite-confirm { flex-basis: 100%; padding: 16px; border: 1px solid #e5c56b; border-radius: 8px; background: #fffbeb; color: #713f12; }
+.csv-overwrite-confirm p { margin: 0 0 12px; line-height: 1.5; }
+.csv-overwrite-actions { display: flex; gap: 10px; flex-wrap: wrap; }

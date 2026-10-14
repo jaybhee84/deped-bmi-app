@@ -112,6 +112,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
     setPreview([]);
     setErrors([]);
     setSaved(false);
+    setOverwriteCount(null);
   }
   const [sy, setSy] = useState("2026–2027");
   const [period, setPeriod] = useState("Midline");
@@ -121,6 +122,10 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
   const [preview, setPreview] = useState([]);
   const [errors, setErrors] = useState([]);
   const [saved, setSaved] = useState(false);
+  const [overwriteCount, setOverwriteCount] = useState(null);
+  useEffect(() => {
+    setOverwriteCount(null);
+  }, [preview, sy, period, filterGrade, filterSection, open]);
   const viewOnly = period === "Baseline";
   const existingDate = period === "Midline" || viewOnly
     ? existingMeasurementDate(students, sy, period)
@@ -358,7 +363,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         return;
       }
       if (heightRaw !== "" && (height == null || !Number.isFinite(height) || height < 0.3)) {
-        errs.push(`Row ${rowNo}: Invalid height "${heightRaw}". Enter centimeters such as 102.5 (converted to 1.025 m), or meters in an older Height (m) column. Check the decimal point; converted height must be between 0.30 and 3.00 m.`);
+        errs.push(`Row ${rowNo}: Invalid height "${heightRaw}". Accepted examples: 110 cm = 1.10 m; 110.3 cm or 1103 = 1.103 m. Converted height must be between 0.30 and 3.00 m.`);
         return;
       }
 
@@ -454,7 +459,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
     setSaved(false);
   }
 
-  function handleSave() {
+  function handleSave(confirmed = false) {
     if (viewOnly) return;
     if (!measurementDate) {
       setErrors(["Please select a date measured before saving."]);
@@ -475,14 +480,16 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         row[key] != null && record[key] != null && record[key] !== ""
       );
     }).map((row) => row.studentId)).size;
-    if (overwriteCount && !window.confirm(
-      `Overwrite saved ${period} measurements for ${overwriteCount} learner${overwriteCount === 1 ? "" : "s"} in ${sy}? Uploaded weight and height values will replace existing values. Blank cells will keep saved values. BMI and nutritional status will be recalculated.`
-    )) return;
+    if (overwriteCount && !confirmed) {
+      setOverwriteCount(overwriteCount);
+      return;
+    }
 
     // updateStudents persists the merged records through the SQLite bridge.
     setStudents((prev) => mergeMeasurementRows(prev, matched, sy, period, measurementDate));
 
     setSaved(true);
+    setOverwriteCount(null);
     setPreview([]);
     setErrors([]);
     // Keep the panel open so the user can verify saved records or switch
@@ -1409,12 +1416,21 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
           <div className="csv-save-row" style={{ marginTop: "12px" }}>
             <button
               className="btn btn-primary"
-              onClick={handleSave}
+              onClick={() => handleSave()}
               disabled={matchedCount === 0}
             >
               Save {matchedCount} Record{matchedCount !== 1 ? "s" : ""} as{" "}
               {period}
             </button>
+            {overwriteCount != null && (
+              <div className="csv-overwrite-confirm" role="alert" aria-live="polite">
+                <p>Overwrite saved {period} measurements for {overwriteCount} learner{overwriteCount === 1 ? "" : "s"} in {sy}? Uploaded values replace saved measurements. Blank cells keep saved values. BMI and nutritional status will be recalculated.</p>
+                <div className="csv-overwrite-actions">
+                  <button type="button" className="btn btn-secondary" onClick={() => setOverwriteCount(null)}>Cancel</button>
+                  <button type="button" className="btn btn-primary" onClick={() => handleSave(true)}>Overwrite and save</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
