@@ -115,6 +115,7 @@ export default function ForPrinting({
         <div className="report-preview-content">
           {Object.entries(sectionGroups).map(([sectionName, learners]) => (
             <div
+              key={sectionName}
               className="report-page"
               style={{
                 transform: `scale(${zoom / 100})`,

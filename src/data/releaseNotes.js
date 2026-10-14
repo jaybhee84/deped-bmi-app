@@ -1,4 +1,24 @@
 export const RELEASE_NOTES = {
+  '4.0.2': {
+    title: 'v4.0.2',
+    sections: [
+      {
+        heading: 'Measurement Upload Templates',
+        items: [
+          'Downloaded templates now list male learners first in alphabetical order, then female learners in alphabetical order.',
+          'Templates include a Sex column beside the learner name. It is for reference only and is not read back on upload.',
+          'The class list in the upload panel follows the same order as the template; an entire grade is listed section by section.',
+        ],
+      },
+      {
+        heading: 'Learner Lists',
+        items: [
+          'The Reports learner list and its printout are ordered by section, then male learners first, then female learners, alphabetically.',
+          'The SBFP Beneficiaries export and the Database list keep the male-first order even when a learner\'s sex is recorded as Male or Female instead of M or F.',
+        ],
+      },
+    ],
+  },
   '4.0.1': {
     title: 'v4.0.1',
     sections: [

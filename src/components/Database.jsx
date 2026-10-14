@@ -157,10 +157,14 @@ export default function Database({
   // within each — regardless of which filters are active.
   const sortedFiltered = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      if (a.sex !== b.sex) {
-        return a.sex === "M" ? -1 : 1;
-      }
-      return a.name.localeCompare(b.name);
+      const sexRank = (s) => {
+        const code = String(s.sex || "").trim().toUpperCase().charAt(0);
+        return code === "M" ? 0 : code === "F" ? 1 : 2;
+      };
+      return (
+        sexRank(a) - sexRank(b) ||
+        String(a.name || "").localeCompare(String(b.name || ""))
+      );
     });
   }, [filtered]);
 

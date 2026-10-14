@@ -639,10 +639,12 @@ export default function SBFPBeneficiaries({
     if (gd !== 0) return gd;
     const sd = (a.section || "").localeCompare(b.section || "");
     if (sd !== 0) return sd;
-    const sexOrder = { M: 0, F: 1 };
-    const xd = (sexOrder[a.sex] ?? 2) - (sexOrder[b.sex] ?? 2);
+    const sexOrder = { M: 0, MALE: 0, F: 1, FEMALE: 1 };
+    const sexRank = (sex) =>
+      sexOrder[String(sex || "").trim().toUpperCase()] ?? 2;
+    const xd = sexRank(a.sex) - sexRank(b.sex);
     if (xd !== 0) return xd;
-    return a.name.localeCompare(b.name);
+    return String(a.name || "").localeCompare(String(b.name || ""));
   });
 
   const nutritionReport = useMemo(

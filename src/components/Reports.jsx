@@ -193,6 +193,19 @@ export default function Reports({ students = [] }) {
       (gradeOrder[a.grade] ?? 999) - (gradeOrder[b.grade] ?? 999);
     if (gradeDiff !== 0) return gradeDiff;
 
+    const sectionDiff = String(a?.section || "").localeCompare(
+      String(b?.section || ""),
+    );
+    if (sectionDiff !== 0) return sectionDiff;
+
+    // Boys first, then girls, alphabetical within each.
+    const sexRank = (r) => {
+      const code = String(r?.sex || "").trim().toUpperCase().charAt(0);
+      return code === "M" ? 0 : code === "F" ? 1 : 2;
+    };
+    const sexDiff = sexRank(a) - sexRank(b);
+    if (sexDiff !== 0) return sexDiff;
+
     const nameA = a?.name || "";
     const nameB = b?.name || "";
     return nameA.localeCompare(nameB);

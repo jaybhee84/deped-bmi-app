@@ -162,11 +162,27 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       return [];
     }
 
-    return scopedStudents.filter(
-      (s) =>
-        gradeFromSection(s.section) === filterGrade &&
-        (filterSection === "__grade__" || s.section === filterSection),
-    );
+    // Boys first, then girls, alphabetical within each. An entire grade is
+    // listed section by section, matching the sheets of its template.
+    const sexRank = (sex) => {
+      const code = String(sex || "").trim().toUpperCase();
+      if (code === "M" || code === "MALE") return 0;
+      if (code === "F" || code === "FEMALE") return 1;
+      return 2;
+    };
+
+    return scopedStudents
+      .filter(
+        (s) =>
+          gradeFromSection(s.section) === filterGrade &&
+          (filterSection === "__grade__" || s.section === filterSection),
+      )
+      .sort(
+        (a, b) =>
+          String(a.section || "").localeCompare(String(b.section || "")) ||
+          sexRank(a.sex) - sexRank(b.sex) ||
+          String(a.name || "").localeCompare(String(b.name || "")),
+      );
   }, [scopedStudents, filterGrade, filterSection]);
 
   // ── Download template ─────────────────────────────────────
@@ -174,19 +190,20 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
     if (viewOnly) return;
     const sectionLabel = filterSection === "__grade__" ? filterGrade : filterSection;
     const referencePeriods = REFERENCE_PERIODS[period] || [];
-    const lastCol = 2 + (referencePeriods.length + 1) * 2;
+    const lastCol = 3 + (referencePeriods.length + 1) * 2;
 
     const workbook = new ExcelJS.Workbook();
     const sections = filterSection === "__grade__" ? availableSections : [filterSection];
     const usedNames = new Set();
     for (const section of sections) {
     const sheet = workbook.addWorksheet(sectionSheetName(section, usedNames), {
-      views: [{ state: "frozen", xSplit: 2, ySplit: 1 }],
+      views: [{ state: "frozen", xSplit: 3, ySplit: 1 }],
     });
 
     sheet.addRow([
       "Registry / LRN No",
       "Name",
+      "Sex",
       ...[...referencePeriods, period].flatMap((p) => [
         `${p} Weight (kg)`,
         `${p} Height (m)`,
@@ -206,13 +223,22 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         ];
       });
       // Registry numbers stay text so Excel does not reformat them.
-      sheet.addRow([String(measurementIdentifier(s) || "—"), s.name, ...reference]);
+      // Sex is for reference only; the upload does not read it back.
+      const sexCode = String(s.sex || "").trim().toUpperCase();
+      const sex =
+        sexCode === "M" || sexCode === "MALE"
+          ? "Male"
+          : sexCode === "F" || sexCode === "FEMALE"
+            ? "Female"
+            : "";
+      sheet.addRow([String(measurementIdentifier(s) || "—"), s.name, sex, ...reference]);
     });
 
     sheet.getColumn(1).width = 20;
     sheet.getColumn(1).numFmt = "@";
     sheet.getColumn(2).width = 38;
-    for (let col = 3; col <= lastCol; col++) sheet.getColumn(col).width = 18;
+    sheet.getColumn(3).width = 10;
+    for (let col = 4; col <= lastCol; col++) sheet.getColumn(col).width = 18;
 
     const border = { style: "thin", color: { argb: "FFCBD5E1" } };
     const solid = (argb) => ({
@@ -226,7 +252,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       for (let col = 1; col <= lastCol; col++) {
         const cell = sheet.getCell(rowNo, col);
         const isEntry = col > lastCol - 2;
-        const isReference = col > 2 && !isEntry;
+        const isReference = col > 3 && !isEntry;
         cell.border = { top: border, left: border, bottom: border, right: border };
         cell.alignment = {
           vertical: "middle",
