@@ -19,7 +19,36 @@ async function sourceModule(path) {
   return `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
 }
 const { buildNutritionReport } = await import(await sourceModule('../src/utils/nutritionSummaryModel.js'));
-const { getBMIStatus, getHAZStatus } = await import(await sourceModule('../src/utils/bmi.js'));
+const { getBMIStatus, getHAZStatus, normalizeHeightCm, normalizeHeightMeters, formatHeightMeters, calcBMI } = await import(await sourceModule('../src/utils/bmi.js'));
+const { buildNsReportClasses } = await import(await sourceModule('../src/utils/nsReportModel.js'));
+
+test('Baseline entry, uploaded measurements and report agree for decimal centimeter heights', () => {
+  for (const height of [102.5, 107.5, 110.3, 115.8]) {
+    const weight = 17;
+    const baselineBmi = calcBMI(weight, height);
+    const savedHeight = normalizeHeightMeters(height);
+    const reportHeightCm = normalizeHeightCm(savedHeight);
+    const reportBmi = calcBMI(weight, reportHeightCm);
+    assert.ok(Math.abs(reportBmi - baselineBmi) < 1e-10);
+    const [report] = buildNsReportClasses([{
+      id: 1, name: 'Learner', sex: 'M', section: 'Kinder', birthdate: '2021-01-01',
+      rec: { weight, height: savedHeight, date: '2026-10-01' },
+      heightCm: reportHeightCm, bmi: reportBmi,
+    }]);
+    assert.ok(Math.abs(report.rows[0].heightMeters - height / 100) < 1e-10);
+    assert.ok(Math.abs(report.rows[0].bmi - baselineBmi) < 1e-10);
+  }
+});
+
+test('uploaded centimetres convert to meters with two decimal places', () => {
+  for (const input of [110, '110', 1.1, '1.10']) {
+    assert.equal(normalizeHeightMeters(input), 1.1);
+    assert.equal(formatHeightMeters(input), '1.10');
+    assert.equal(calcBMI(20, input), calcBMI(20, 1.1));
+  }
+  assert.equal(formatHeightMeters(100), '1.00');
+  assert.equal(formatHeightMeters(110.5), '1.105');
+});
 const { createNsReportWorkbook } = await import(await sourceModule('../src/utils/exportNsReportExcel.js'));
 
 test('all-learner summary includes missing measurements and exports the same totals', async () => {

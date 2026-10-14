@@ -8,12 +8,14 @@ import {
   GRADE_LEVELS,
   SESSIONS,
   normalizeHeightMeters,
+  formatHeightMeters,
 } from "../utils/bmi";
 import Badge from "./Badge";
 import "./BatchEntry.css";
 import { generateRegistryNumbers } from "../utils/registry";
 import Papa from "papaparse";
 import CSVUpload from "./CSVUpload";
+import { parseMeasurementHeight, parseMeasurementWeight } from "../utils/measurementInput";
 import {
   fetchIecesAdvisers,
   isIecesSchool,
@@ -60,7 +62,7 @@ function buildSectionLabel(gradeLevel, familyName, session) {
 }
 
 function downloadCsvTemplate() {
-  const headers = [["lrn", "name", "birthdate", "weight", "height_m", "sex"]];
+  const headers = [["lrn", "name", "birthdate", "weight", "height_cm", "sex"]];
   const csvContent = headers.map((row) => row.join(",")).join("\n");
   const blob = new Blob(["\uFEFF" + csvContent], {
     type: "text/csv;charset=utf-8;",
@@ -173,15 +175,15 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
             sex = "M";
           }
 
-          const weight = row.weight
-            ? row.weight.toString().replace(/[^0-9.]/g, "")
-            : "";
+          const weight = row.weight == null ? "" : String(row.weight).trim();
 
           let height = "";
-          const importedHeight = row.height_m ?? row.height;
+          const importedHeight = row.height_cm ?? row.height_m ?? row.height;
           if (importedHeight) {
-            const normalized = normalizeHeightMeters(importedHeight);
-            if (normalized != null) height = String(normalized);
+            const unit = row.height_cm != null ? 'cm' : row.height_m != null ? 'm' : '';
+            const normalized = parseMeasurementHeight(importedHeight, unit);
+            height = normalized != null ? formatHeightMeters(normalized) : String(importedHeight);
+            if (normalized == null) height = 'Invalid height';
           }
 
           // --- CLEAN & UPPERCASE NAME ---
@@ -271,6 +273,14 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
 
     const valid = rows.filter((r) => r.name.trim());
     if (!valid.length) return;
+    const invalidMeasurement = valid.find((r) =>
+      (String(r.weight).trim() !== '' && parseMeasurementWeight(r.weight) == null) ||
+      (String(r.height).trim() !== '' && parseMeasurementHeight(r.height) == null)
+    );
+    if (invalidMeasurement) {
+      alert(`Check weight and height for ${invalidMeasurement.name}. Use positive numeric weight and a height between 0.30 and 3.00 meters.`);
+      return;
+    }
 
     const needsRegistry = valid.filter((r) => !r.lrn.trim());
 

@@ -18,6 +18,7 @@ import { saveAs } from "file-saver";
 import { existingMeasurementDate, mergeMeasurementRows, measurementIdentifier, matchMeasurementLearner } from "../utils/measurementImport";
 import { sectionSheetName, workbookRows } from "../utils/measurementWorkbook";
 import { createImportRequestGate } from "../utils/importRequestGate";
+import { parseMeasurementHeight } from "../utils/measurementInput";
 
 // Each period's template shows the earlier periods for reference, then the
 // two columns to fill in. Only the selected period's columns are read back.
@@ -31,6 +32,7 @@ const REFERENCE_PERIODS = {
 function normalizeHeader(header) {
   return String(header ?? "")
     .toLowerCase()
+    .replace(/height\s*\((cm|m)\)/g, "height_$1")
     .replace(/\(.*?\)/g, "")
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
@@ -206,7 +208,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       "Sex",
       ...[...referencePeriods, period].flatMap((p) => [
         `${p} Weight (kg)`,
-        `${p} Height (m)`,
+        `${p} Height (cm)`,
       ]),
     ]);
 
@@ -219,7 +221,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         const height = normalizeHeightMeters(rec?.height);
         return [
           weight > 0 ? weight : null,
-          height ? Number(formatHeightMeters(height)) : null,
+          height ? Number((height * 100).toFixed(1)) : null,
         ];
       });
       // Registry numbers stay text so Excel does not reformat them.
@@ -239,6 +241,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
     sheet.getColumn(2).width = 38;
     sheet.getColumn(3).width = 10;
     for (let col = 4; col <= lastCol; col++) sheet.getColumn(col).width = 18;
+    for (let col = 5; col <= lastCol; col += 2) sheet.getColumn(col).numFmt = "0.0";
 
     const border = { style: "thin", color: { argb: "FFCBD5E1" } };
     const solid = (argb) => ({
@@ -308,7 +311,8 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
     const heightKey = [
       `${prefix}_height`,
       `${prefix}_height_m`,
-      ...(isTemplate ? [] : ["height_m", "height"]),
+      `${prefix}_height_cm`,
+      ...(isTemplate ? [] : ["height_cm", "height_m", "height"]),
     ].find((k) => keys.includes(k));
 
     if (!weightKey || !heightKey) {
@@ -328,7 +332,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       const rowKeys = Object.keys(row);
       const rowIsTemplate = rowKeys.some(key => /^(baseline|midline|endline)_/.test(key));
       const rowWeightKey = [`${prefix}_weight`, ...(rowIsTemplate ? [] : ["weight"])].find(key => key in row);
-      const rowHeightKey = [`${prefix}_height`, `${prefix}_height_m`, ...(rowIsTemplate ? [] : ["height_m", "height"])].find(key => key in row);
+      const rowHeightKey = [`${prefix}_height`, `${prefix}_height_cm`, `${prefix}_height_m`, ...(rowIsTemplate ? [] : ["height_cm", "height_m", "height"])].find(key => key in row);
       const identifierKey = identifierKeys.find(key => key in row);
       if (!rowWeightKey || !rowHeightKey || !identifierKey) {
         errs.push(`Row ${rowNo}: Missing registry or ${period} measurement columns. Use the downloaded template.`);
@@ -340,7 +344,8 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       const heightRaw = row[rowHeightKey] || "";
 
       const weight = weightRaw !== "" ? Number(weightRaw) : null;
-      const height = heightRaw !== "" ? normalizeHeightMeters(Number(heightRaw)) : null;
+      const heightUnit = rowHeightKey.endsWith('_cm') ? 'cm' : rowHeightKey.endsWith('_m') ? 'm' : '';
+      const height = parseMeasurementHeight(heightRaw, heightUnit);
 
       if (!registryNo) {
         errs.push(`Row ${rowNo}: No registry / LRN number found.`);
@@ -352,8 +357,8 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
         errs.push(`Row ${rowNo}: Invalid weight.`);
         return;
       }
-      if (heightRaw !== "" && (height == null || !Number.isFinite(height))) {
-        errs.push(`Row ${rowNo}: Invalid height.`);
+      if (heightRaw !== "" && (height == null || !Number.isFinite(height) || height < 0.3)) {
+        errs.push(`Row ${rowNo}: Invalid height "${heightRaw}". Enter centimeters such as 102.5 (converted to 1.025 m), or meters in an older Height (m) column. Check the decimal point; converted height must be between 0.30 and 3.00 m.`);
         return;
       }
 
@@ -463,6 +468,17 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       return;
     }
 
+    const overwriteCount = new Set(matched.filter((row) => {
+      const student = students.find((s) => s.id === row.studentId);
+      const record = student?.records?.find((r) => r.sy === sy && r.q === period);
+      return record && ["weight", "height"].some((key) =>
+        row[key] != null && record[key] != null && record[key] !== ""
+      );
+    }).map((row) => row.studentId)).size;
+    if (overwriteCount && !window.confirm(
+      `Overwrite saved ${period} measurements for ${overwriteCount} learner${overwriteCount === 1 ? "" : "s"} in ${sy}? Uploaded weight and height values will replace existing values. Blank cells will keep saved values. BMI and nutritional status will be recalculated.`
+    )) return;
+
     // updateStudents persists the merged records through the SQLite bridge.
     setStudents((prev) => mergeMeasurementRows(prev, matched, sy, period, measurementDate));
 
@@ -509,7 +525,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
       ) : <>
       <ol className="csv-steps">
         <li><strong>Choose a class</strong><span>Download its prefilled template.</span></li>
-        <li><strong>Enter {period} measurements</strong><span>Fill in weight (kg) and height (m).</span></li>
+        <li><strong>Enter {period} measurements</strong><span>Fill in weight (kg) and height (cm). For example, 110.3 cm is converted to 1.103 m for BMI. Older templates with heights in meters are also accepted.</span></li>
         <li><strong>Upload and review</strong><span>Check the preview, then save.</span></li>
       </ol>
       <p className="csv-preserve-note">You can upload again to add missing measurements. Blank cells keep your saved data.</p>

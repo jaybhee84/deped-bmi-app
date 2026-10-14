@@ -42,7 +42,7 @@ export const HAZ_CLASSIFICATIONS = Object.entries(HAZ_META).map(([label, meta]) 
 
 export function normalizeHeightCm(height) {
   const value = parseFloat(height);
-  if (!value || value <= 0) return null;
+  if (!Number.isFinite(value) || value <= 0) return null;
   // Learner height is stored in centimetres. Support older/imported records
   // that were entered in metres (for example, 1.28 instead of 128).
   return value <= 3 ? value * 100 : value;
@@ -52,20 +52,21 @@ export function normalizeHeightCm(height) {
 // Values above 3 are treated as legacy centimetre values.
 export function normalizeHeightMeters(height) {
   const value = parseFloat(height);
-  if (!value || value <= 0) return null;
+  if (!Number.isFinite(value) || value <= 0) return null;
   return value > 3 ? value / 100 : value;
 }
 
 export function formatHeightMeters(height) {
   const value = normalizeHeightMeters(height);
   if (value == null) return "—";
-  return Number(value.toFixed(3)).toString();
+  // Show centimetre precision while retaining millimetres when supplied.
+  return value.toFixed(3).replace(/(\.\d{2})0$/, "$1");
 }
 
 export function calcBMI(weight, height) {
   const h = normalizeHeightMeters(height);
   const w = parseFloat(weight);
-  if (!h || !w || h <= 0 || w <= 0) return null;
+  if (!h || !Number.isFinite(w) || w <= 0) return null;
   return w / (h * h);
 }
 
