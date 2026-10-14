@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ExcelJS from "exceljs";
+import depedSeal from "../images/deped.png";
 import {
   calcBMI,
   getBMIStatus,
@@ -20,7 +21,14 @@ import {
   exportSbfpForm2Excel,
 } from "../utils/exportSbfpForm2Excel";
 import { exportNsReportExcel } from "../utils/exportNsReportExcel";
-import { buildNsReportClasses } from "../utils/nsReportModel";
+import { nsReportFilename } from "../utils/exportNsReportExcel";
+import { buildNutritionReport } from "../utils/nutritionSummaryModel";
+import { nutritionSummaryDocument } from "../utils/printDocuments";
+import {
+  buildNsReportClasses,
+  nsTeacherFor,
+  teacherFromSection,
+} from "../utils/nsReportModel";
 import NsReportSheet from "./NsReportSheet";
 import nsReportSheetCss from "./NsReportSheet.css?raw";
 import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
@@ -97,41 +105,6 @@ function sortBeneficiaries(list) {
   );
 }
 
-function teacherFromSection(section) {
-  const parts = String(section || "")
-    .split(" - ")
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (parts.length < 2) return "";
-  const teacherParts = parts.slice(1);
-  if (["Morning", "Afternoon"].includes(teacherParts.at(-1)))
-    teacherParts.pop();
-  return teacherParts.join(" - ");
-}
-
-function teacherDisplayName(value) {
-  const name = String(value || "")
-    .trim()
-    .replace(/\s+/g, " ");
-  if (!name) return "";
-  if (name.includes(",")) {
-    const [lastName, givenNames = ""] = name.split(/,(.+)/);
-    const parts = givenNames.trim().split(" ").filter(Boolean);
-    if (parts.length < 2)
-      return `${lastName.trim()}, ${givenNames.trim()}`.trim();
-    return `${lastName.trim()}, ${parts[0]} ${parts
-      .slice(1)
-      .map((part) => `${part.charAt(0)}.`)
-      .join(" ")}`;
-  }
-  const parts = name.split(" ");
-  if (parts.length < 3) return name;
-  return `${parts[0]} ${parts
-    .slice(1, -1)
-    .map((part) => `${part.charAt(0)}.`)
-    .join(" ")} ${parts.at(-1)}`;
-}
-
 const normalizedPersonName = (value) =>
   String(value || "")
     .normalize("NFD")
@@ -161,18 +134,6 @@ function adviserNameForSection(advisers, section) {
       .filter(Boolean)
       .join(" "),
   };
-}
-
-function nsTeacherFor(section, classStudents) {
-  const teacherRecord = classStudents.find(
-    (student) => student.rec?.teacherName,
-  )?.rec;
-  return (
-    teacherRecord?.teacherDisplayName ||
-    teacherDisplayName(
-      teacherRecord?.teacherName || teacherFromSection(section),
-    )
-  );
 }
 
 function normalizedLearnerName(value) {
@@ -401,6 +362,10 @@ export default function SbfpForms({
     [period, setPeriod] = useState(initialPeriod),
     [config, setConfig] = useState(DEFAULT_SBFP_CONFIG),
     [downloading, setDownloading] = useState(false);
+  const summary = useMemo(
+    () => buildNutritionReport(students, schoolYear, period),
+    [students, schoolYear, period],
+  );
   const [nsGrade, setNsGrade] = useState("All");
   const [nsClass, setNsClass] = useState("All");
   const [nsLearnerScope, setNsLearnerScope] = useState("all");
@@ -873,6 +838,37 @@ export default function SbfpForms({
       setDownloading(false);
     }
   };
+  const summaryDocument = nutritionSummaryDocument({
+    meta: {
+      schoolName,
+      schoolId: currentUser?.school_id,
+      sy: schoolYear,
+      period,
+      scope: "SBFP Summary — All Learners",
+      logo: depedSeal,
+      date: new Date().toLocaleDateString("en-PH"),
+    },
+    ...summary,
+  }, "SBFP Summary");
+  const downloadSummary = async () => {
+    setDownloading(true);
+    try {
+      const meta = { schoolName, schoolYear, period };
+      await exportNsReportExcel([], meta, {
+        summary: {
+          ...summary,
+          title: "SBFP SUMMARY — ALL LEARNERS",
+          date: new Date().toLocaleDateString("en-PH"),
+        },
+        filename: nsReportFilename([], meta).replace("NS_Report", "SBFP_Summary"),
+      });
+    } catch (error) {
+      console.error(error);
+      window.alert(error.message || "Unable to create the SBFP Summary file.");
+    } finally {
+      setDownloading(false);
+    }
+  };
   const downloadNsReport = async () => {
     setDownloading(true);
     try {
@@ -912,8 +908,7 @@ export default function SbfpForms({
         <div>
           <h1>SBFP Forms</h1>
           <p>
-            Official School-Based Feeding Program forms for qualified
-            beneficiaries.
+            School-Based Feeding Program forms and nutritional summaries.
           </p>
         </div>
         <div className="sbfp-forms-controls">
@@ -1012,6 +1007,12 @@ export default function SbfpForms({
       </div>
       <div className="sbfp-form-tabs">
         <button
+          className={form === "summary" ? "active" : ""}
+          onClick={() => setForm("summary")}
+        >
+          SBFP Summary
+        </button>
+        <button
           className={form === "nsReport" ? "active" : ""}
           onClick={() => setForm("nsReport")}
         >
@@ -1030,7 +1031,20 @@ export default function SbfpForms({
           Form 2
         </button>
       </div>
-      {form === "nsReport" ? (
+      {form === "summary" ? (
+        <>
+          <div className="sbfp-report-actions">
+            <button className="sbfp-download-button" disabled={downloading || students.length === 0} onClick={downloadSummary} data-excel-download="true">
+              {downloading ? "Preparing Summary…" : "Download SBFP Summary Excel"}
+            </button>
+            <button className="sbfp-download-button sbfp-print-button" disabled={students.length === 0} onClick={() => requestPrint(summaryDocument)}>
+              Print SBFP Summary
+            </button>
+          </div>
+          <p>All learners: {summary.grand.Total.enrolment}. Measurements reflect {period}, SY {schoolYear}.</p>
+          <iframe title="SBFP Summary preview" srcDoc={summaryDocument.html} style={{ width: "100%", height: 720, border: "1px solid #ddd", background: "white" }} />
+        </>
+      ) : form === "nsReport" ? (
         <>
           <div className="sbfp-report-actions">
             <button

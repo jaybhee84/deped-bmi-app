@@ -1,4 +1,6 @@
+import { buildNutritionReport } from "../utils/nutritionSummaryModel";
 import React, { useMemo, useState, useEffect } from "react";
+import depedSeal from "../images/deped.png";
 import { supabase } from "../utils/supabaseClient";
 import {
   calcBMI,
@@ -11,7 +13,6 @@ import {
 } from "../utils/bmi";
 import {
   loadSbfpConfig,
-  isOfficialBeneficiary,
   DEFAULT_SBFP_CONFIG,
   loadSbfpEnrolment,
   saveSbfpEnrolment,
@@ -22,17 +23,9 @@ import "./SBFPBeneficiaries.print.css";
 
 import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
 import { learnerListDocument, nutritionSummaryDocument } from "../utils/printDocuments";
-const REPORT_GRADE_ORDER = [
-  "Kinder",
-  "Grade 1",
-  "Grade 2",
-  "Grade 3",
-  "Grade 4",
-  "Grade 5",
-  "Grade 6",
-  "SNED",
-];
-
+import { isSbfpBeneficiary } from "../utils/sbfpBeneficiary";
+import { buildNsReportClasses, nsTeacherFor } from "../utils/nsReportModel";
+import { exportNsReportExcel, nsReportFilename } from "../utils/exportNsReportExcel";
 const BMI_LABELS = [
   "Severely Wasted",
   "Wasted",
@@ -54,32 +47,9 @@ const enrolmentInputStyle = {
   boxSizing: "border-box",
 };
 
-function emptyStats() {
-  return {
-    enrolment: 0,
-    weighed: 0,
-    takenHeight: 0,
-    bmi: Object.fromEntries(BMI_LABELS.map((l) => [l, 0])),
-    hfa: Object.fromEntries(HFA_LABELS.map((l) => [l, 0])),
-  };
-}
-
-function addInto(target, src) {
-  target.enrolment += src.enrolment;
-  target.weighed += src.weighed;
-  target.takenHeight += src.takenHeight;
-  BMI_LABELS.forEach((l) => (target.bmi[l] += src.bmi[l]));
-  HFA_LABELS.forEach((l) => (target.hfa[l] += src.hfa[l]));
-}
-
 function pct(n, d) {
   if (!d) return "0.00%";
   return ((n / d) * 100).toFixed(2) + "%";
-}
-
-function deriveGrade(s) {
-  const g = s.section?.split(" - ")[0] || s.grade || "";
-  return REPORT_GRADE_ORDER.includes(g) ? g : "SNED";
 }
 
 // The Section column would otherwise repeat the grade level that's already
@@ -119,68 +89,6 @@ function formatBirthdate(birthdate) {
   return `${mm}/${dd}/${yyyy}`;
 }
 
-function buildNutritionReport(students, filterSY, filterPeriod) {
-  const rows = REPORT_GRADE_ORDER.map((grade) => ({
-    grade,
-    M: emptyStats(),
-    F: emptyStats(),
-  }));
-  const rowByGrade = Object.fromEntries(rows.map((r) => [r.grade, r]));
-
-  students.forEach((s) => {
-    const grade = deriveGrade(s);
-    const row = rowByGrade[grade];
-    if (!row) return;
-    const sex = String(s.sex || "")
-      .trim()
-      .toUpperCase();
-
-    const bucket = sex === "M" || sex === "MALE" ? row.M : row.F;
-
-    bucket.enrolment++;
-
-    const rec =
-      s.records.find((r) => r.sy === filterSY && r.q === filterPeriod) || null;
-    if (!rec) return;
-
-    // Only positive measurements count toward the summary.
-    const hasWeight = Number(rec.weight) > 0;
-    const hasHeight = Number(rec.height) > 0;
-
-    if (hasWeight && hasHeight) {
-      bucket.weighed++;
-      const bmi = calcBMI(rec.weight, rec.height);
-      const baz = getBMIStatus(bmi, s.sex, s.birthdate, rec.date);
-      if (baz?.label && bucket.bmi[baz.label] !== undefined) {
-        bucket.bmi[baz.label]++;
-      }
-    }
-
-    if (hasHeight) {
-      bucket.takenHeight++;
-      const haz = getHAZStatus(rec.height, s.sex, s.birthdate, rec.date);
-      if (haz?.label && bucket.hfa[haz.label] !== undefined) {
-        bucket.hfa[haz.label]++;
-      }
-    }
-  });
-
-  const withTotals = rows.map((r) => {
-    const Total = emptyStats();
-    addInto(Total, r.M);
-    addInto(Total, r.F);
-    return { ...r, Total };
-  });
-
-  const grand = { M: emptyStats(), F: emptyStats(), Total: emptyStats() };
-  withTotals.forEach((r) => {
-    addInto(grand.M, r.M);
-    addInto(grand.F, r.F);
-    addInto(grand.Total, r.Total);
-  });
-
-  return { rows: withTotals, grand };
-}
 
 // ── CUSTOM INLINE DIALOG COMPONENT ──────────────────────────────────────────
 function CustomAlertDialog({ isOpen, title, message, type = "info", onClose }) {
@@ -531,28 +439,54 @@ export default function SBFPBeneficiaries({
 
   const isConfigured = config.grades?.length > 0 || config.criteria?.length > 0;
 
+  // Beneficiaries are the learners who qualified at this school year's
+  // Baseline. Midline and Endline show the same learners' later measurements;
+  // nobody joins or leaves the list because of them.
   const beneficiaries = useMemo(() => {
-    return students
-      .map((s) => {
-        const rec =
-          s.records?.find((r) => r.sy === filterSY && r.q === filterPeriod) ||
-          null;
+    const statusOf = (s, rec) => {
+      const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
+      return {
+        bmi,
+        baz: bmi ? getBMIStatus(bmi, s.sex, s.birthdate, rec.date) : null,
+        haz: rec ? getHAZStatus(rec.height, s.sex, s.birthdate, rec.date) : null,
+      };
+    };
 
-        const bmi = rec ? calcBMI(rec.weight, rec.height) : null;
-        const baz = bmi
-          ? getBMIStatus(bmi, s.sex, s.birthdate, rec.date)
-          : null;
-        const haz = rec
-          ? getHAZStatus(rec.height, s.sex, s.birthdate, rec.date)
-          : null;
+    return students
+      .filter((s) => isSbfpBeneficiary(s, filterSY, config))
+      .map((s) => {
+        const recordFor = (period) =>
+          s.records?.find((r) => r.sy === filterSY && r.q === period) || null;
+        const rec = recordFor(filterPeriod);
+        const baseline = statusOf(s, recordFor("Baseline"));
         const grade = s.section?.split(" - ")[0] || s.grade || "";
 
-        const isBen = isOfficialBeneficiary({ ...s, grade }, baz, haz, config);
-
-        return { ...s, bmi, baz, haz, grade, rec, isBen };
-      })
-      .filter((s) => s.isBen);
+        return {
+          ...s,
+          ...statusOf(s, rec),
+          grade,
+          rec,
+          // The Baseline statuses that put the learner on the list.
+          qualifiedBaz: baseline.baz,
+          qualifiedHaz: baseline.haz,
+        };
+      });
   }, [students, filterSY, filterPeriod, config]);
+
+  // Why a learner is on the list, judged on the Baseline that qualified them.
+  function inclusionReasons(s) {
+    const qualifies = (label) =>
+      label &&
+      config.criteria?.includes(label) &&
+      (config.criterionGradeRestrictions?.[label] === undefined ||
+        config.criterionGradeRestrictions[label].includes(s.grade));
+
+    const reasons = [];
+    if (config.grades?.includes(s.grade)) reasons.push(`Grade (${s.grade})`);
+    if (qualifies(s.qualifiedBaz?.label)) reasons.push(s.qualifiedBaz.label);
+    if (qualifies(s.qualifiedHaz?.label)) reasons.push(s.qualifiedHaz.label);
+    return reasons;
+  }
 
   // Section is scoped to a specific grade, so reset it whenever the grade
   // filter changes (e.g. switching from Grade 1 to Grade 2, or back to All).
@@ -634,7 +568,8 @@ export default function SBFPBeneficiaries({
     SNED: 7,
     SPED: 8,
   };
-  const sortedRows = [...filtered].sort((a, b) => {
+  // Grade, then class, then boys before girls, alphabetical within each.
+  const sortLearners = (rows) => [...rows].sort((a, b) => {
     const gd = (gradeOrder[a.grade] ?? 99) - (gradeOrder[b.grade] ?? 99);
     if (gd !== 0) return gd;
     const sd = (a.section || "").localeCompare(b.section || "");
@@ -646,11 +581,14 @@ export default function SBFPBeneficiaries({
     if (xd !== 0) return xd;
     return String(a.name || "").localeCompare(String(b.name || ""));
   });
+  const sortedRows = sortLearners(filtered);
 
+  // The summary covers the beneficiaries only, not the whole school.
   const nutritionReport = useMemo(
-    () => buildNutritionReport(students, filterSY, filterPeriod),
-    [students, filterSY, filterPeriod],
+    () => buildNutritionReport(beneficiaries, filterSY, filterPeriod),
+    [beneficiaries, filterSY, filterPeriod],
   );
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   async function handlePrint() {
     document.title = `SBFP Beneficiaries - ${filterSY} - ${filterPeriod}`;
@@ -661,6 +599,8 @@ export default function SBFPBeneficiaries({
           schoolId: resolvedSchool.id,
           sy: filterSY,
           period: filterPeriod,
+          scope: "SBFP Beneficiaries",
+          logo: depedSeal,
           date: new Date().toLocaleDateString("en-PH", {
             year: "numeric",
             month: "long",
@@ -670,6 +610,59 @@ export default function SBFPBeneficiaries({
         rows: nutritionReport.rows,
         grand: nutritionReport.grand,
     }));
+  }
+
+  // One workbook for the school year and period: the summary first, then a
+  // Nutritional Status sheet per class, all limited to the beneficiaries.
+  async function handleExportExcel() {
+    if (!beneficiaries.length) {
+      triggerDialog(
+        "Export Notice",
+        `There are no SBFP beneficiaries for SY ${filterSY} to put in the Excel file.`,
+        "info",
+      );
+      return;
+    }
+
+    setExportingExcel(true);
+    try {
+      const meta = {
+        schoolName: resolvedSchool.name,
+        period: filterPeriod,
+        schoolYear: filterSY,
+      };
+      const classes = buildNsReportClasses(
+        sortLearners(beneficiaries).map((s) => ({
+          ...s,
+          heightCm: s.rec?.height,
+        })),
+        nsTeacherFor,
+      );
+      await exportNsReportExcel(classes, meta, {
+        summary: {
+          ...nutritionReport,
+          title: "SBFP BENEFICIARIES",
+          date: new Date().toLocaleDateString("en-PH", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+        },
+        filename: nsReportFilename([], meta).replace(
+          "NS_Report",
+          "SBFP_Beneficiaries_NS",
+        ),
+      });
+    } catch (error) {
+      console.error("[SBFP] Excel export failed:", error);
+      triggerDialog(
+        "Export Failed",
+        `The Excel file could not be created. ${error?.message || ""}`.trim(),
+        "error",
+      );
+    } finally {
+      setExportingExcel(false);
+    }
   }
 
   function handleExportCsv() {
@@ -705,22 +698,7 @@ export default function SBFPBeneficiaries({
     };
 
     const rows = sortedRows.map((s) => {
-      const gradeInclusion = config.grades?.includes(s.grade);
-
-      const bazInclusion =
-        config.criteria?.includes(s.baz?.label) &&
-        (config.criterionGradeRestrictions?.[s.baz?.label] === undefined ||
-          config.criterionGradeRestrictions[s.baz.label].includes(s.grade));
-
-      const hazInclusion =
-        config.criteria?.includes(s.haz?.label) &&
-        (config.criterionGradeRestrictions?.[s.haz?.label] === undefined ||
-          config.criterionGradeRestrictions[s.haz.label].includes(s.grade));
-
-      const reasons = [];
-      if (gradeInclusion) reasons.push(`Grade (${s.grade})`);
-      if (bazInclusion && s.baz?.label) reasons.push(s.baz.label);
-      if (hazInclusion && s.haz?.label) reasons.push(s.haz.label);
+      const reasons = inclusionReasons(s);
 
       return [
         s.registryNo || "",
@@ -835,6 +813,19 @@ export default function SBFPBeneficiaries({
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <button className="btn btn-primary no-print" onClick={handlePrint}>
             🖨 Print Summary
+          </button>
+          <button
+            className="btn btn-success"
+            onClick={handleExportExcel}
+            disabled={exportingExcel}
+            title="Summary sheet, then a Nutritional Status sheet for each class (beneficiaries only)"
+            style={{
+              backgroundColor: "#16a34a",
+              color: "#ffffff",
+              cursor: exportingExcel ? "wait" : "pointer",
+            }}
+          >
+            {exportingExcel ? "Preparing…" : "⬇ Download Excel"}
           </button>
         </div>
       </div>
@@ -1106,8 +1097,9 @@ export default function SBFPBeneficiaries({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-end",
-          flexWrap: "wrap",
+          flexWrap: "nowrap",
           gap: "10px",
+          overflowX: "auto",
         }}
       >
         <div
@@ -1119,7 +1111,8 @@ export default function SBFPBeneficiaries({
             background: "#F9FAFB",
             border: "1px solid #E5E7EB",
             borderRadius: "10px",
-            flexWrap: "wrap",
+            flexWrap: "nowrap",
+            flexShrink: 0,
           }}
         >
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1256,15 +1249,15 @@ export default function SBFPBeneficiaries({
           />
 
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <button className="btn btn-secondary" onClick={handleExportCsv}>
+            <button className="btn btn-primary" onClick={handleExportCsv}>
               ⬇ Export Beneficiaries CSV
             </button>
+            <button className="btn btn-primary" onClick={handlePrintBeneficiaries}>
+              🖨 Print Beneficiaries
+            </button>
+
           </div>
         </div>
-
-        <button className="btn btn-primary" onClick={handlePrintBeneficiaries}>
-          🖨 Print Beneficiaries
-        </button>
       </div>
 
       {isConfigured && (
@@ -1370,28 +1363,7 @@ export default function SBFPBeneficiaries({
             </thead>
             <tbody>
               {sortedRows.map((s, idx) => {
-                const gradeInclusion = config.grades?.includes(s.grade);
-
-                const bazInclusion =
-                  config.criteria?.includes(s.baz?.label) &&
-                  (config.criterionGradeRestrictions?.[s.baz?.label] ===
-                    undefined ||
-                    config.criterionGradeRestrictions[s.baz.label].includes(
-                      s.grade,
-                    ));
-
-                const hazInclusion =
-                  config.criteria?.includes(s.haz?.label) &&
-                  (config.criterionGradeRestrictions?.[s.haz?.label] ===
-                    undefined ||
-                    config.criterionGradeRestrictions[s.haz.label].includes(
-                      s.grade,
-                    ));
-
-                const reasons = [];
-                if (gradeInclusion) reasons.push(`Grade (${s.grade})`);
-                if (bazInclusion && s.baz?.label) reasons.push(s.baz.label);
-                if (hazInclusion && s.haz?.label) reasons.push(s.haz.label);
+                const reasons = inclusionReasons(s);
 
                 return (
                   <tr key={s.id}>

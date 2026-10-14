@@ -120,7 +120,7 @@ export function getBMIStatus(
     : legacyFallbackMonths;
   if (months == null) return null;
 
-  const table       = sex === 'F' ? BMI_TABLE_GIRLS : BMI_TABLE_BOYS;
+  const table       = String(sex || '').trim().toUpperCase().startsWith('F') ? BMI_TABLE_GIRLS : BMI_TABLE_BOYS;
   const clampMonths = Math.max(72, Math.min(228, months));
   const row         = table[clampMonths];
 
@@ -164,7 +164,7 @@ export function getHAZStatus(
   if (months == null) return null;
 
   const h           = normalizeHeightCm(heightCm);
-  const table       = sex === 'F' ? HAZ_TABLE_GIRLS : HAZ_TABLE_BOYS;
+  const table       = String(sex || '').trim().toUpperCase().startsWith('F') ? HAZ_TABLE_GIRLS : HAZ_TABLE_BOYS;
   const clampMonths = Math.max(36, Math.min(228, months));
   const row         = table[clampMonths];
 

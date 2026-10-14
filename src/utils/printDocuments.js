@@ -45,11 +45,13 @@ function summaryPageHtml({ meta, rows, grand }) {
   return `
     <section class="report-page-block">
       <div class="header">
+        ${meta.logo ? `<img class="summary-logo" src="${escapeHtml(meta.logo)}" alt="Department of Education seal" />` : ""}
         <p>Department of Education</p>
         <p>Bureau of Learner Support Services</p>
         <p>School Health Division</p>
         <h2>NUTRITIONAL STATUS REPORT OF ${escapeHtml(String(meta.schoolName || "").toUpperCase())}</h2>
         <p class="period">${escapeHtml(String(meta.period || "").toUpperCase())} SY ${escapeHtml(meta.sy || "")}</p>
+        ${meta.scope ? `<p class="scope">${escapeHtml(String(meta.scope).toUpperCase())}</p>` : ""}
       </div>
       <table>
         <thead>
@@ -79,9 +81,11 @@ const SUMMARY_CSS = `
   .report-page-block { break-inside: avoid; width: 100%; }
   .report-page-block + .report-page-block { break-before: page; }
   .header { text-align: center; margin-bottom: 10px; }
+  .summary-logo { display: block; width: 48px; height: 48px; object-fit: contain; margin: 6px auto; }
   .header p { margin: 0; font-size: 11px; line-height: 1.3; }
   .header h2 { margin: 4px 0 0; font-size: 15px; font-weight: bold; text-transform: uppercase; }
   .header .period { font-style: italic; font-weight: bold; margin-top: 2px; }
+  .header .scope { font-weight: bold; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; font-size: 9px; margin-bottom: 5px; }
   th, td { border: 1px solid #333; padding: 2px 4px; text-align: center; vertical-align: middle; }
   thead th { background: #EFF6FF; font-weight: bold; }

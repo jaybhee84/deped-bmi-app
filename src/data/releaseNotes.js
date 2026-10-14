@@ -1,4 +1,27 @@
 export const RELEASE_NOTES = {
+  '4.0.3': {
+    title: 'v4.0.3',
+    sections: [
+      {
+        heading: 'SBFP Summary and Beneficiary Reports',
+        items: [
+          'Added SBFP Summary in SBFP Forms with print and Excel download, covering all learners by grade and sex with enrolment, BMI and height-for-age counts and percentages.',
+          'Learners without measurements remain included in enrolment totals; measurements follow the selected school year and period.',
+          'SBFP Beneficiaries print and Excel reports remain limited to beneficiaries, with a summary sheet followed by a Nutritional Status sheet for each class.',
+          'Added a small centered DepEd seal above summary headings in print reports and Excel downloads.',
+          'Moved Download Excel beside Print Summary and aligned the beneficiary filters, CSV export and print controls in one row.',
+        ],
+      },
+      {
+        heading: 'Report Corrections',
+        items: [
+          'Summary grade totals follow the section saved with the selected measurement record, and invalid measurements are excluded from measured totals.',
+          'BMI and height-for-age calculations recognize Male and Female labels as well as M and F.',
+          'Class exports share adviser formatting and leave measurement age blank when the selected period has no record.',
+        ],
+      },
+    ],
+  },
   '4.0.2': {
     title: 'v4.0.2',
     sections: [

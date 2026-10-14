@@ -67,7 +67,8 @@ export function buildNsReportClasses(students, teacherFor = () => "") {
     const rows = classStudents
       .map((student) => {
         const heightMeters = finite(normalizeHeightMeters(student.heightCm));
-        const months = ageInMonths(student.birthdate, student.rec?.date);
+        // No record for the period: there is no weighing date to take the age at.
+        const months = student.rec ? ageInMonths(student.birthdate, student.rec.date) : null;
         const weight = Number(student.rec?.weight);
         return {
           id: student.id,
@@ -106,4 +107,54 @@ export function buildNsReportClasses(students, teacherFor = () => "") {
       hfaTally: tally(rows, "hfaStatus", NS_HFA_ORDER),
     };
   });
+}
+
+// "Grade 2 - Ocampo - Morning" -> "Ocampo": the adviser part of a section name.
+export function teacherFromSection(section) {
+  const parts = String(section || "")
+    .split(" - ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return "";
+  const teacherParts = parts.slice(1);
+  if (["Morning", "Afternoon"].includes(teacherParts.at(-1)))
+    teacherParts.pop();
+  return teacherParts.join(" - ");
+}
+
+export function teacherDisplayName(value) {
+  const name = String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
+  if (!name) return "";
+  if (name.includes(",")) {
+    const [lastName, givenNames = ""] = name.split(/,(.+)/);
+    const parts = givenNames.trim().split(" ").filter(Boolean);
+    if (parts.length < 2)
+      return `${lastName.trim()}, ${givenNames.trim()}`.trim();
+    return `${lastName.trim()}, ${parts[0]} ${parts
+      .slice(1)
+      .map((part) => `${part.charAt(0)}.`)
+      .join(" ")}`;
+  }
+  const parts = name.split(" ");
+  if (parts.length < 3) return name;
+  return `${parts[0]} ${parts
+    .slice(1, -1)
+    .map((part) => `${part.charAt(0)}.`)
+    .join(" ")} ${parts.at(-1)}`;
+}
+
+// "Prepared by" for a class: the adviser saved with its records, else the
+// one named in the section.
+export function nsTeacherFor(section, classStudents) {
+  const teacherRecord = classStudents.find(
+    (student) => student.rec?.teacherName,
+  )?.rec;
+  return (
+    teacherRecord?.teacherDisplayName ||
+    teacherDisplayName(
+      teacherRecord?.teacherName || teacherFromSection(section),
+    )
+  );
 }
