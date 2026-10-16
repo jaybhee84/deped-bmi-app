@@ -13,6 +13,7 @@ import {
 } from "../utils/auth";
 import { supabase } from "../utils/supabase";
 import { fetchAllSchools } from "../utils/syncService";
+import { SCHOOL_OPTIONS, officialSchoolId } from "../utils/schools";
 import "./Login.css";
 import logo from "../images/sbfp.png";
 
@@ -141,7 +142,10 @@ function SecretAdminMenu({ onManageUsers, onAudit, onSignOut }) {
 function AuditPicker({ onConfirm, onBack }) {
   const [role, setRole] = useState(ROLES.SCHOOL);
   const [schools, setSchools] = useState([]);
-  const [selectedSchoolId, setSelectedSchoolId] = useState("");
+  // "id:<school_id>" for a registered school, "name:<school name>" for a
+  // division school that has no account yet (its School ID is typed below).
+  const [selectedSchoolKey, setSelectedSchoolKey] = useState("");
+  const [typedSchoolId, setTypedSchoolId] = useState("");
   const [schoolsLoading, setSchoolsLoading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -165,13 +169,52 @@ function AuditPicker({ onConfirm, onBack }) {
     };
   }, [role, schools.length]);
 
+  // Every division school can be audited, registered or not.
+  const sameName = (a, b) =>
+    String(a || "").trim().toLowerCase() === String(b || "").trim().toLowerCase();
+  // Their School IDs come from the official division list (same as SwiSS).
+  const unregisteredSchools = SCHOOL_OPTIONS.filter((name) => name !== "ALL SCHOOLS")
+    .map((name) => ({ name, id: officialSchoolId(name) }))
+    .filter(
+      (school) =>
+        !schools.some(
+          (s) => sameName(s.name, school.name) || (school.id && String(s.id) === school.id),
+        ),
+    );
+  const pickingUnregistered = selectedSchoolKey.startsWith("name:");
+  const pickedSchool = pickingUnregistered
+    ? unregisteredSchools.find((school) => `name:${school.name}` === selectedSchoolKey)
+    : null;
+  // Only a school DepEd has not given an ID yet needs one typed in.
+  const needsTypedId = pickingUnregistered && !pickedSchool?.id;
+
+  function resolveAuditSchool() {
+    if (selectedSchoolKey.startsWith("id:")) {
+      const school = schools.find((s) => `id:${s.id}` === selectedSchoolKey);
+      return school ? { school } : { error: "Please choose a school to audit." };
+    }
+    if (!pickedSchool) return { error: "Please choose a school to audit." };
+    const name = pickedSchool.name;
+    if (pickedSchool.id) return { school: { id: pickedSchool.id, name } };
+    const id = typedSchoolId.trim();
+    if (!/^\d{6}$/.test(id)) {
+      return { error: `Enter the 6-digit DepEd School ID of ${name}.` };
+    }
+    const taken = schools.find((s) => String(s.id) === id);
+    if (taken) {
+      return { error: `School ID ${id} already belongs to ${taken.name}.` };
+    }
+    return { school: { id, name } };
+  }
+
   async function handleConfirm() {
     setError("");
     const isSchoolAudit = role === ROLES.SCHOOL;
-    const selectedSchool = schools.find((s) => s.id === selectedSchoolId);
+    const resolved = isSchoolAudit ? resolveAuditSchool() : {};
+    const selectedSchool = resolved.school;
 
     if (isSchoolAudit && !selectedSchool) {
-      setError("Please choose a school to audit.");
+      setError(resolved.error);
       return;
     }
 
@@ -246,19 +289,60 @@ function AuditPicker({ onConfirm, onBack }) {
           <label className="form-label">School to Audit</label>
           <select
             className="form-input login-input form-select"
-            value={selectedSchoolId}
-            onChange={(e) => setSelectedSchoolId(e.target.value)}
+            value={selectedSchoolKey}
+            onChange={(e) => {
+              setSelectedSchoolKey(e.target.value);
+              setTypedSchoolId("");
+              setError("");
+            }}
             disabled={schoolsLoading}
           >
             <option value="">
               {schoolsLoading ? "Loading schools…" : "Select a school…"}
             </option>
-            {schools.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
+            {schools.length > 0 && (
+              <optgroup label="Registered schools">
+                {schools.map((s) => (
+                  <option key={s.id} value={`id:${s.id}`}>
+                    {s.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {unregisteredSchools.length > 0 && (
+              <optgroup label="No account yet">
+                {unregisteredSchools.map((school) => (
+                  <option key={school.name} value={`name:${school.name}`}>
+                    {school.name}
+                    {school.id ? ` (${school.id})` : ""}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
+        </div>
+      )}
+
+      {role === ROLES.SCHOOL && pickingUnregistered && !needsTypedId && (
+        <p className="audit-school-hint">
+          School ID {pickedSchool.id} · no account yet, so it starts with no learner data.
+        </p>
+      )}
+
+      {role === ROLES.SCHOOL && needsTypedId && (
+        <div className="login-field">
+          <label className="form-label">School ID</label>
+          <input
+            className="form-input login-input"
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="6-digit DepEd School ID"
+            value={typedSchoolId}
+            onChange={(e) => setTypedSchoolId(e.target.value.replace(/\D/g, ""))}
+          />
+          <p className="audit-school-hint">
+            DepEd has not published this school's ID yet. Enter it to continue.
+          </p>
         </div>
       )}
 

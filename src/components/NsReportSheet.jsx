@@ -34,8 +34,12 @@ function TallyTable({ title, totalLabel, rows }) {
 
 // One class laid out once as the printed Folio page (8.5 × 13 in, 0.35 in
 // margins). The screen shows this same sheet, so the display matches the print.
-export default function NsReportSheet({ reportClass, schoolName, address, period, schoolYear }) {
-  const { section, rows, weighingDate, preparedBy, bmiTally, hfaTally } = reportClass;
+export default function NsReportSheet({ reportClass, schoolName, address, period, schoolYear, adviserValue, onAdviserChange, adviserChoices = [] }) {
+  const { section, rows, weighingDate, preparedBy, defaultPreparedBy, bmiTally, hfaTally } = reportClass;
+  // IECES picks from its org chart advisers; keep the current name listed even if it is not there.
+  const choices = adviserChoices.length && adviserValue && !adviserChoices.includes(adviserValue)
+    ? [adviserValue, ...adviserChoices]
+    : adviserChoices;
   return (
     <article className="nsr-report">
       <header className="nsr-report-header">
@@ -105,7 +109,33 @@ export default function NsReportSheet({ reportClass, schoolName, address, period
       <div className="nsr-signature">
         <span className="nsr-signature-label">Prepared by:</span>
         <div className="nsr-signature-line" />
-        <strong className="nsr-signature-name">{preparedBy || "—"}</strong>
+        <div className="nsr-signature-name-wrap">
+          {/* Screen-only editor over the printed name; printing drops .no-print. */}
+          {onAdviserChange && choices.length > 0 && (
+            <select
+              className="nsr-signature-input nsr-signature-select no-print"
+              value={adviserValue ?? ""}
+              onChange={(event) => onAdviserChange(event.target.value)}
+              aria-label={`Class adviser for ${section}`}
+              title="Choose the class adviser from the org chart"
+            >
+              {!adviserValue && <option value="">Select adviser</option>}
+              {choices.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          )}
+          {onAdviserChange && choices.length === 0 && (
+            <input
+              className="nsr-signature-input no-print"
+              value={adviserValue ?? ""}
+              placeholder={defaultPreparedBy || "Type adviser name"}
+              onChange={(event) => onAdviserChange(event.target.value)}
+              aria-label={`Class adviser for ${section}`}
+              title="Click to edit the class adviser name"
+              spellCheck={false}
+            />
+          )}
+          <strong className="nsr-signature-name">{preparedBy || "—"}</strong>
+        </div>
         <span className="nsr-signature-title">Class Adviser</span>
       </div>
     </article>

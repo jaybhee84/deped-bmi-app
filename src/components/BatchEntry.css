@@ -38,6 +38,38 @@
   min-width: 0;
 }
 
+/* The IECES adviser dropdown takes the place of the three name fields. */
+.batch-header-grid .teacher-org-group {
+  grid-column: span 3;
+}
+
+.batch-header-grid .adviser-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 13px;
+  color: #475569;
+}
+
+.batch-header-grid .adviser-empty-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.batch-header-grid .adviser-empty-link:hover { text-decoration: underline; }
+
 .batch-header-grid .form-label {
   white-space: nowrap;
 }

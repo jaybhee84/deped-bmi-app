@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { titleCaseName } from "./nameCase";
 
 const IECES_SCHOOL_ID = "126001";
 const iecesOrgClient = createClient(
@@ -21,4 +22,23 @@ export async function fetchIecesAdvisers() {
     (person) =>
       String(person.teaching_type || "").toLowerCase() === "adviser",
   );
+}
+
+// "Juan Dela Cruz Eliot" in full; "Juan D. Eliot" on the report.
+export function orgAdviserNames(adviser) {
+  const part = (value) =>
+    titleCaseName(String(value || "").trim().replace(/\s+/g, " "));
+  const [first, middle, family] = [
+    adviser.first_name,
+    adviser.middle_name,
+    adviser.family_name,
+  ].map(part);
+  const middleInitial = middle ? `${middle.charAt(0).toUpperCase()}.` : "";
+  return {
+    first,
+    middle,
+    family,
+    fullName: [first, middle, family].filter(Boolean).join(" "),
+    displayName: [first, middleInitial, family].filter(Boolean).join(" "),
+  };
 }

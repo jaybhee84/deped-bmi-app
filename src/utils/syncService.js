@@ -464,12 +464,22 @@ function completeBatch(ids, revisions, deleting = false) {
 }
 
 // Pending local changes always win over a downloaded snapshot.
-function preservePending(remote, local) {
+// A learner belongs to the school being loaded when it has that School ID, or
+// no School ID at all (older rows). Learners of another school never mix in.
+export function belongsToSchool(student, schoolId) {
+  if (!schoolId) return true;
+  const own = student?.schoolId || student?.school_id;
+  return !own || String(own) === String(schoolId);
+}
+
+function preservePending(remote, local, schoolId = null) {
   const uploads = new Set(loadQueue().map(String));
   const deletes = new Set(loadDeleteQueue().map(String));
   const result = new Map(remote.filter(s => !deletes.has(String(s.id))).map(s => [String(s.id), s]));
   local.forEach(s => {
-    if (uploads.has(String(s.id)) && !deletes.has(String(s.id))) result.set(String(s.id), s);
+    if (uploads.has(String(s.id)) && !deletes.has(String(s.id)) && belongsToSchool(s, schoolId)) {
+      result.set(String(s.id), s);
+    }
   });
   return [...result.values()];
 }
@@ -718,9 +728,13 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
 
   let rows = await fetchEveryPage(url);
 
+  // Older rows saved without a School ID are found by school name instead,
+  // but rows that carry a different School ID belong to another school.
   if (rows.length === 0 && schoolName) {
     const fallbackUrl = `${cfg.url}/rest/v1/students?select=*&school_name=eq.${encodeURIComponent(schoolName)}&order=name.asc,id.asc`;
-    rows = await fetchEveryPage(fallbackUrl);
+    rows = (await fetchEveryPage(fallbackUrl)).filter(
+      (r) => !schoolId || !r.school_id || String(r.school_id) === String(schoolId),
+    );
   }
 
   return rows.map(r => ({
@@ -832,7 +846,7 @@ async function performSyncToServer(students, schoolId) {
         ...remoteStudent,
         photo: remoteStudent.photo || (localMatch ? localMatch.photo : null)
       };
-    }), localData);
+    }), localData, effectiveSchoolId);
 
     await localSaveStudents(mergedData);
 
@@ -856,10 +870,12 @@ export async function syncFromServer(schoolId) {
   const cfg = loadSupabaseConfig();
 
   try {
+    // The name fallback must use this school's name, not whichever school's
+    // learners happen to be cached on this device (e.g. after switching schools in audit mode).
     let activeSchoolName = "";
     try {
       const currentLocal = await localLoadStudents();
-      const match = currentLocal.find(s => s.schoolName);
+      const match = currentLocal.find(s => s.schoolName && belongsToSchool(s, schoolId));
       if (match) activeSchoolName = match.schoolName;
     } catch {}
 
@@ -879,7 +895,7 @@ export async function syncFromServer(schoolId) {
         ...remoteStudent,
         photo: remoteStudent.photo || (localMatch ? localMatch.photo : null)
       };
-    }), localData);
+    }), localData, schoolId);
 
     await localSaveStudents(mergedData);
     saveLastSync(new Date()); 

@@ -17,6 +17,8 @@ import SyncStatus from "./components/SyncStatus";
 import Login from "./components/Login";
 import SBFPBeneficiaries from "./components/SBFPBeneficiaries";
 import SbfpForms from "./components/SbfpForms";
+import ClassAdvisers from "./components/ClassAdvisers";
+import { isIecesSchool } from "./utils/iecesOrgChart";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import OnboardingModal from "./components/OnboardingModal";
 import SplashScreen from "./components/SplashScreen";
@@ -32,6 +34,7 @@ import {
   queueStudentForSync,
   syncToServer,
   syncFromServer,
+  belongsToSchool,
   isOnline,
   isSupabaseConfigured,
   fetchSchoolForUser,
@@ -248,9 +251,16 @@ function AppContent({
                 students={safeStudents}
                 setStudents={updateStudents}
                 currentUser={session}
+                onOpenAdvisers={() => setPage("advisers")}
               />
             );
           })()}
+
+        {page === "advisers" &&
+          !isSDO &&
+          !isIecesSchool(session?.school_id) && (
+            <ClassAdvisers schoolId={session?.school_id} readOnly={readOnly} />
+          )}
 
         {page === "sbfp" && !isSDO && (
           <SBFPBeneficiaries
@@ -743,8 +753,10 @@ export default function App() {
           localStudents = await localLoadStudents();
         }
 
-        const loadLocalFallback = () => {
-          setStudents(Array.isArray(localStudents) ? localStudents : []);
+        // Offline fallback: only the cached learners of the school being opened.
+        const loadLocalFallback = (schoolId = null) => {
+          const cached = Array.isArray(localStudents) ? localStudents : [];
+          setStudents(cached.filter((student) => belongsToSchool(student, schoolId)));
         };
 
         if (normalizedRole === "division") {
@@ -773,13 +785,13 @@ export default function App() {
         // older server snapshot. If the upload fails, keep the local copy.
         if (getPendingSyncCount() > 0) {
           if (!isOnline() || !isSupabaseConfigured()) {
-            loadLocalFallback();
+            loadLocalFallback(targetId);
             return;
           }
 
           const uploadResult = await syncToServer(localStudents, targetId);
           if (!uploadResult.success) {
-            loadLocalFallback();
+            loadLocalFallback(targetId);
             return;
           }
 
@@ -803,7 +815,7 @@ export default function App() {
           }
           setStudents(serverData.students);
         } else {
-          loadLocalFallback();
+          loadLocalFallback(targetId);
         }
       } catch (err) {
         console.error(err);

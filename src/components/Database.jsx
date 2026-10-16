@@ -19,6 +19,14 @@ import { getStudentIdentifier } from "../utils/registry";
 import { getCurrentSchoolYear } from "../utils/bmi";
 import { filterByLearnerScope, useSbfpConfig } from "../utils/sbfpBeneficiary";
 import LearnerScopeSelect from "./LearnerScopeSelect";
+import {
+  applyClassEdit,
+  classAdviser,
+  normalizeClassName,
+  sectionWithAdviser,
+} from "../utils/classEdit";
+import { advisersForGrade, useSchoolAdvisers } from "../utils/schoolAdvisers";
+import { useSchoolScope } from "../context/SchoolContext";
 
 const PERIODS = ["Baseline", "Midline", "Endline"];
 
@@ -77,6 +85,12 @@ export default function Database({
     name: "",
   });
   const [deleteClassOpen, setDeleteClassOpen] = useState(false);
+  // { from, section, adviser, originalAdviser } while the Edit Class dialog is open.
+  const [classEdit, setClassEdit] = useState(null);
+  const [classEditMessage, setClassEditMessage] = useState("");
+  const { school } = useSchoolScope();
+  // IECES: Project Rising org chart. Other schools: their Class Advisers tab.
+  const { advisers: schoolAdvisers } = useSchoolAdvisers(school?.school_id);
   const [classDeleteMessage, setClassDeleteMessage] = useState({
     visible: false,
     section: "",
@@ -278,6 +292,74 @@ export default function Database({
     }
   }
 
+  // The class's grade advisers, as "Juan D. Eliot".
+  const classEditGrade = String(classEdit?.from || "").split(" - ")[0].trim();
+  const classAdviserOptions = useMemo(
+    () =>
+      advisersForGrade(schoolAdvisers, classEditGrade).map((adviser) => ({
+        name: adviser.displayName,
+        familyName: adviser.family,
+      })),
+    [schoolAdvisers, classEditGrade],
+  );
+  // Compared and filtered by the name as it will be saved (first-letter capitals).
+  const classEditName = classEdit ? normalizeClassName(classEdit.section) : "";
+  const classEditMerges =
+    !!classEdit &&
+    classEditName !== classEdit.from &&
+    students.some((s) => s.section === classEditName);
+
+  const classEditCount = classEdit
+    ? students.filter((s) => s.section === classEdit.from).length
+    : 0;
+
+  function openClassEdit(section = filterSection) {
+    if (!section || section === "All") return;
+    const adviser = classAdviser(students, section);
+    setClassEdit({
+      from: section,
+      section,
+      adviser,
+      originalAdviser: adviser,
+    });
+  }
+
+  function changeClassEditAdviser(value) {
+    // Picking an org chart adviser also corrects the name in the class label.
+    const picked = classAdviserOptions.find((option) => option.name === value);
+    setClassEdit((edit) => ({
+      ...edit,
+      adviser: value,
+      section: picked
+        ? sectionWithAdviser(edit.section, picked.familyName)
+        : edit.section,
+    }));
+  }
+
+  function saveClassEdit() {
+    if (!classEdit || !classEditName) return;
+    const changes = { section: classEditName };
+    if (classEdit.adviser.trim() !== classEdit.originalAdviser.trim()) {
+      changes.adviser = classEdit.adviser;
+    }
+    // Nothing changed: don't re-save (and re-upload) every learner in the class.
+    if (classEditName === classEdit.from && !("adviser" in changes)) {
+      setClassEdit(null);
+      return;
+    }
+    const count = classEditCount;
+    setStudents((prev) => applyClassEdit(prev, classEdit.from, changes));
+    setFilterSection(classEditName);
+    setClassEdit(null);
+    setClassEditMessage(
+      `${count} learner${count === 1 ? "" : "s"} updated in ${classEditName}.`,
+    );
+    setTimeout(() => setClassEditMessage(""), 3000);
+    if (window.electronAPI?.forceRefocusWindow) {
+      window.electronAPI.forceRefocusWindow();
+    }
+  }
+
   function handleAdd() {
     if (!form.name.trim()) return;
     setStudents((prev) => [
@@ -440,6 +522,21 @@ export default function Database({
             ))}
           </select>
 
+          {!readOnly && (
+            <button
+              type="button"
+              className="btn-edit-class"
+              onClick={() => openClassEdit()}
+              disabled={filterSection === "All"}
+              title={
+                filterSection === "All"
+                  ? "Select a grade level and section, or use the pencil in the Section column"
+                  : `Edit ${filterSection}`
+              }
+            >
+              ✎ Edit Class
+            </button>
+          )}
           {!readOnly && filterGrade !== "All" && filterSection !== "All" && (
             <button
               type="button"
@@ -457,6 +554,16 @@ export default function Database({
             <div>
               <div className="toast-title">Saved Successfully</div>
               <div className="toast-text">{saveMessage.name} was updated.</div>
+            </div>
+          </div>
+        )}
+
+        {classEditMessage && (
+          <div className="success-toast">
+            <div className="toast-icon">✓</div>
+            <div>
+              <div className="toast-title">Class Updated</div>
+              <div className="toast-text">{classEditMessage}</div>
             </div>
           </div>
         )}
@@ -596,8 +703,21 @@ export default function Database({
                         <td style={{ textAlign: "center" }}>{s.age}</td>
                         <td style={{ textAlign: "center" }}>{s.sex}</td>
                         <td style={{ textAlign: "center" }}>
-                          <div className="cell-truncate" title={s.section}>
-                            {s.section}
+                          <div className="section-cell">
+                            <div className="cell-truncate" title={s.section}>
+                              {s.section}
+                            </div>
+                            {!readOnly && s.section && (
+                              <button
+                                type="button"
+                                className="section-edit-button"
+                                onClick={() => openClassEdit(s.section)}
+                                title={`Edit class name or adviser for ${s.section}`}
+                                aria-label={`Edit ${s.section}`}
+                              >
+                                ✎
+                              </button>
+                            )}
                           </div>
                         </td>
                         <td style={{ textAlign: "center" }}>
@@ -744,6 +864,93 @@ export default function Database({
           </div>
         </div>
       </>
+
+      {classEdit && (
+        <Modal title="Edit Class" onClose={() => setClassEdit(null)}>
+          <div className="class-edit-form">
+            <div className="form-group">
+              <label className="form-label" htmlFor="class-edit-adviser">
+                Class Adviser
+              </label>
+              {classAdviserOptions.length > 0 ? (
+                <select
+                  id="class-edit-adviser"
+                  className="form-select"
+                  value={classEdit.adviser}
+                  onChange={(e) => changeClassEditAdviser(e.target.value)}
+                  autoFocus
+                >
+                  {!classAdviserOptions.some(
+                    (option) => option.name === classEdit.adviser,
+                  ) && (
+                    <option value={classEdit.adviser}>
+                      {classEdit.adviser || "Select adviser"}
+                    </option>
+                  )}
+                  {classAdviserOptions.map((option) => (
+                    <option key={option.name} value={option.name}>
+                      {option.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="class-edit-adviser"
+                  className="form-input"
+                  placeholder="e.g. Juan D. Dela Cruz"
+                  value={classEdit.adviser}
+                  onChange={(e) => changeClassEditAdviser(e.target.value)}
+                  autoFocus
+                />
+              )}
+              <span className="class-edit-hint">
+                {classAdviserOptions.length
+                  ? `${classEditGrade} advisers from your adviser list. Choosing one also corrects the class name.`
+                  : "Printed under Prepared by on the NS Report."}
+              </span>
+            </div>
+            <div className="form-group">
+              <label className="form-label" htmlFor="class-edit-name">
+                Class Name
+              </label>
+              <input
+                id="class-edit-name"
+                className="form-input"
+                value={classEdit.section}
+                onChange={(e) =>
+                  setClassEdit((edit) => ({ ...edit, section: e.target.value }))
+                }
+              />
+              <span className="class-edit-hint">
+                Applies to {classEditCount} learner
+                {classEditCount === 1 ? "" : "s"} and their measurements
+                taken in {classEdit.from}.
+              </span>
+            </div>
+            {classEditMerges && (
+              <p className="class-edit-warning" role="alert">
+                {classEditName} already exists. Saving will merge these learners
+                into it.
+              </p>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button
+              className="btn btn-secondary"
+              onClick={() => setClassEdit(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              disabled={!classEditName}
+              onClick={saveClassEdit}
+            >
+              {classEditMerges ? "Merge Class" : "Save Changes"}
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {deleteClassOpen && (
         <Modal

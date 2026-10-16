@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { ROLES } from "../utils/auth";
+import { isIecesSchool } from "../utils/iecesOrgChart";
 import "./Sidebar.css";
 
 const SCHOOL_NAV = [
   { id: "dashboard", icon: "📊", label: "Dashboard" },
   { id: "database", icon: "🎒", label: "Database" },
   { id: "batch", icon: "📋", label: "NS Entries" },
+  { id: "advisers", icon: "👩‍🏫", label: "Class Advisers" },
   { id: "sbfp", icon: "🍱", label: "SBFP Beneficiaries" },
   { id: "sbfp-forms", icon: "📋", label: "SBFP Forms" },
   { id: "reports", icon: "📄", label: "Nutritional Status" },
@@ -59,7 +61,12 @@ export default function Sidebar({
   }, []);
 
   const isSDO = session?.role === ROLES.DIVISION;
-  const navItems = isSDO ? SDO_NAV : SCHOOL_NAV;
+  // IECES takes its advisers from the Project Rising org chart instead.
+  const navItems = isSDO
+    ? SDO_NAV
+    : SCHOOL_NAV.filter(
+        (item) => item.id !== "advisers" || !isIecesSchool(session?.school_id),
+      );
   const activeSchoolName = schoolName || session?.school_name || "";
 
   const handleCheckForUpdates = async () => {

@@ -27,7 +27,6 @@ import { nutritionSummaryDocument } from "../utils/printDocuments";
 import {
   buildNsReportClasses,
   nsTeacherFor,
-  teacherFromSection,
 } from "../utils/nsReportModel";
 import NsReportSheet from "./NsReportSheet";
 import nsReportSheetCss from "./NsReportSheet.css?raw";
@@ -35,7 +34,12 @@ import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
 import LearnerScopeSelect from "./LearnerScopeSelect";
 import { isSbfpBeneficiary } from "../utils/sbfpBeneficiary";
 import { gradeFromSection } from "../utils/registry";
-import { fetchIecesAdvisers, isIecesSchool } from "../utils/iecesOrgChart";
+import { isIecesSchool } from "../utils/iecesOrgChart";
+import {
+  adviserForSection,
+  advisersForGrade,
+  useSchoolAdvisers,
+} from "../utils/schoolAdvisers";
 import "./SbfpForms.css";
 import "./SbfpFormsOverrides.css";
 
@@ -105,36 +109,6 @@ function sortBeneficiaries(list) {
   );
 }
 
-const normalizedPersonName = (value) =>
-  String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toUpperCase();
-
-function adviserNameForSection(advisers, section) {
-  const familyName = normalizedPersonName(teacherFromSection(section));
-  const grade = normalizedPersonName(gradeFromSection(section));
-  const adviser = advisers.find(
-    (person) =>
-      normalizedPersonName(person.family_name) === familyName &&
-      normalizedPersonName(person.grade_level) === grade,
-  );
-  if (!adviser) return null;
-  const middleInitial = String(adviser.middle_name || "").trim();
-  return {
-    fullName: [adviser.first_name, adviser.middle_name, adviser.family_name]
-      .filter(Boolean)
-      .join(" "),
-    displayName: [
-      adviser.first_name,
-      middleInitial ? `${middleInitial.charAt(0)}.` : "",
-      adviser.family_name,
-    ]
-      .filter(Boolean)
-      .join(" "),
-  };
-}
 
 function normalizedLearnerName(value) {
   const normalized = String(value || "")
@@ -278,6 +252,21 @@ function formDetailsStorageKey(currentUser, schoolName) {
 function form2DetailsStorageKey(currentUser, schoolName) {
   return `${formDetailsStorageKey(currentUser, schoolName)}:form2`;
 }
+// Adviser names typed on the NS Report, keyed by school year and class.
+function nsAdvisersStorageKey(currentUser, schoolName) {
+  return `${formDetailsStorageKey(currentUser, schoolName)}:ns-advisers`;
+}
+function initialNsAdvisers(currentUser, schoolName) {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(nsAdvisersStorageKey(currentUser, schoolName)),
+    );
+    return saved && typeof saved === "object" ? saved : {};
+  } catch {
+    return {};
+  }
+}
+const nsAdviserKey = (schoolYear, section) => `${schoolYear}|${section}`;
 function initialForm2Details(currentUser, schoolName) {
   try {
     const saved = JSON.parse(
@@ -376,42 +365,44 @@ export default function SbfpForms({
   const [selectedCells, setSelectedCells] = useState([]);
   const [importMessage, setImportMessage] = useState("");
   const [importingPrevious, setImportingPrevious] = useState(false);
-  const [iecesAdvisers, setIecesAdvisers] = useState([]);
   const [form2Details, setForm2Details] = useState(() =>
     initialForm2Details(currentUser, schoolName),
+  );
+  const [nsAdvisers, setNsAdvisers] = useState(() =>
+    initialNsAdvisers(currentUser, schoolName),
   );
   const selectingCells = useRef(false);
   const previousYearFileInput = useRef(null);
   const isIeces = isIecesSchool(
     currentUser?.school_id || currentUser?.schoolId,
   );
-  useEffect(() => {
-    if (!isIeces) {
-      setIecesAdvisers([]);
-      return;
-    }
-    let active = true;
-    fetchIecesAdvisers()
-      .then((advisers) => {
-        if (active) setIecesAdvisers(advisers);
-      })
-      .catch((error) =>
-        console.warn(
-          "Unable to load IECES advisers for NS Report:",
-          error.message,
-        ),
-      );
-    return () => {
-      active = false;
-    };
-  }, [isIeces]);
+  // IECES: Project Rising org chart. Other schools: their Class Advisers tab.
+  const { advisers: schoolAdvisers } = useSchoolAdvisers(
+    currentUser?.school_id || currentUser?.schoolId,
+  );
   useEffect(() => {
     loadSbfpConfig().then(setConfig);
   }, []);
   useEffect(() => {
     setFormDetails(initialFormDetails(currentUser, schoolName));
     setForm2Details(initialForm2Details(currentUser, schoolName));
+    setNsAdvisers(initialNsAdvisers(currentUser, schoolName));
   }, [currentUser, schoolName]);
+  // A blank name drops the override, so the class falls back to its adviser.
+  const updateNsAdviser = (section, value) =>
+    setNsAdvisers((previous) => {
+      const next = { ...previous, [nsAdviserKey(schoolYear, section)]: value };
+      if (!value.trim()) delete next[nsAdviserKey(schoolYear, section)];
+      try {
+        localStorage.setItem(
+          nsAdvisersStorageKey(currentUser, schoolName),
+          JSON.stringify(next),
+        );
+      } catch (error) {
+        console.error("Unable to save the adviser name locally.", error);
+      }
+      return next;
+    });
   const updateForm2Detail = (field, value) =>
     setForm2Details((previous) => {
       const next = { ...previous, [field]: value };
@@ -501,10 +492,10 @@ export default function SbfpForms({
             );
             if (!rec) return null;
             const section = rec.section || student.section || student.grade;
-            const orgAdviser = isIeces
-              ? adviserNameForSection(iecesAdvisers, section)
-              : null;
-            const teacherName = rec.teacherName || orgAdviser?.fullName || "";
+            const orgAdviser = adviserForSection(schoolAdvisers, section);
+            // The adviser list (IECES org chart or the school's Class Advisers)
+            // is the staff directory, so its spelling wins over a typed name.
+            const teacherName = orgAdviser?.fullName || rec.teacherName || "";
             const heightCm = normalizeHeightCm(rec.height);
             const bmi = calcBMI(rec.weight, heightCm);
             return {
@@ -512,8 +503,9 @@ export default function SbfpForms({
               rec: {
                 ...rec,
                 teacherName,
-                teacherDisplayName:
-                  rec.teacherDisplayName || orgAdviser?.displayName || "",
+                teacherDisplayName: orgAdviser
+                  ? orgAdviser.displayName
+                  : rec.teacherDisplayName || "",
               },
               section,
               heightCm,
@@ -531,7 +523,7 @@ export default function SbfpForms({
           })
           .filter(Boolean),
       ),
-    [students, schoolYear, period, isIeces, iecesAdvisers, nsLearnerScope, config],
+    [students, schoolYear, period, schoolAdvisers, nsLearnerScope, config],
   );
   const nsGradeOptions = useMemo(
     () =>
@@ -580,9 +572,29 @@ export default function SbfpForms({
     [nsReportStudents, nsGrade, nsClass],
   );
   const nsClasses = useMemo(
-    () => buildNsReportClasses(displayedNsStudents, nsTeacherFor),
-    [displayedNsStudents],
+    () =>
+      buildNsReportClasses(displayedNsStudents, nsTeacherFor).map(
+        (reportClass) => {
+          const edited = nsAdvisers[
+            nsAdviserKey(schoolYear, reportClass.section)
+          ]?.trim();
+          return {
+            ...reportClass,
+            defaultPreparedBy: reportClass.preparedBy,
+            preparedBy: edited || reportClass.preparedBy,
+          };
+        },
+      ),
+    [displayedNsStudents, nsAdvisers, schoolYear],
   );
+  // The class's grade advisers, offered as the "Prepared by" dropdown.
+  const nsAdviserChoices = (section) => [
+    ...new Set(
+      advisersForGrade(schoolAdvisers, gradeFromSection(section)).map(
+        (adviser) => adviser.displayName,
+      ),
+    ),
+  ];
   const nsMeta = {
     schoolName,
     address: formDetails.cityBarangay,
@@ -1085,6 +1097,14 @@ export default function SbfpForms({
                     address={formDetails.cityBarangay}
                     period={period}
                     schoolYear={schoolYear}
+                    adviserValue={
+                      nsAdvisers[nsAdviserKey(schoolYear, reportClass.section)] ??
+                      reportClass.defaultPreparedBy
+                    }
+                    onAdviserChange={(value) =>
+                      updateNsAdviser(reportClass.section, value)
+                    }
+                    adviserChoices={nsAdviserChoices(reportClass.section)}
                   />
                 ))}
               </div>

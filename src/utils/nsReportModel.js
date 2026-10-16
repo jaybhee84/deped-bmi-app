@@ -1,6 +1,7 @@
 // One model for the Nutritional Status Report, shared by the on-screen Folio
 // sheet, its printout and the Excel download, so all three always match.
 import { ageInMonths, normalizeHeightMeters } from "./bmi";
+import { titleCaseName } from "./nameCase.js";
 
 export const NS_BMI_ORDER = ["Severely Wasted", "Wasted", "Normal", "Overweight", "Obese"];
 export const NS_HFA_ORDER = ["Severely Stunted", "Stunted", "Normal", "Tall"];
@@ -151,10 +152,10 @@ export function nsTeacherFor(section, classStudents) {
   const teacherRecord = classStudents.find(
     (student) => student.rec?.teacherName,
   )?.rec;
-  return (
+  return titleCaseName(
     teacherRecord?.teacherDisplayName ||
-    teacherDisplayName(
-      teacherRecord?.teacherName || teacherFromSection(section),
-    )
+      teacherDisplayName(
+        teacherRecord?.teacherName || teacherFromSection(section),
+      ),
   );
 }

@@ -1,4 +1,34 @@
 export const RELEASE_NOTES = {
+  '4.0.5': {
+    title: 'v4.0.5',
+    sections: [
+      {
+        heading: 'Class Advisers',
+        items: [
+          'New Class Advisers tab for schools to add, edit and remove the advisers of each grade level. Advisers are saved to the cloud and kept on the computer for offline use.',
+          'NS Entries now selects the class adviser from a dropdown of the grade’s advisers instead of typed name fields. Teachers saved on a computer before this update move into the Class Advisers list automatically.',
+          'IECES keeps its Project Rising org chart as its adviser list, now shown as the same adviser dropdown.',
+        ],
+      },
+      {
+        heading: 'Classes and NS Report',
+        items: [
+          'Database adds Edit Class, from the toolbar or the pencil in the Section column, to rename a class or change its adviser for all of its learners and their measurements.',
+          'The NS Report “Prepared by” name can be chosen from the class’s grade advisers. The choice is used on screen, in print and in the Excel download.',
+          'Advisers are matched to classes by grade and family name, including small spelling differences such as Elliot and Eliot, and the adviser list spelling is used.',
+          'Class and adviser names use first-letter capitals, for example Grade 6 - Eliot and Juan D. Eliot.',
+        ],
+      },
+      {
+        heading: 'Audit Mode',
+        items: [
+          'Audit mode can open any school in the division, including schools without an account. Official DepEd School IDs are filled in automatically, and school onboarding prefills them too.',
+          'Opening a school no longer shows learners cached from a previously opened school.',
+          'School Information shows the audited school’s name, School ID and logo, and the app always uses the audited school’s ID.',
+        ],
+      },
+    ],
+  },
   '4.0.4': {
     title: 'v4.0.4',
     sections: [

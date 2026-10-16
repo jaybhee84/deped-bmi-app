@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
 import {
+  fetchSchoolById,
   fetchSchoolForUser,
   fetchSchoolForUserOfflineFirst,
 } from "../utils/syncService";
@@ -87,9 +88,18 @@ export default function Information({
       return !value || value === "N/A";
     }
 
+    // The school being viewed is the session's school. A school bound to the
+    // signed-in account (e.g. the admin's own, in audit mode) is a different
+    // school and must not be shown or re-saved here.
+    const sessionSchoolId = String(currentUser?.school_id || "");
+    const isSessionSchool = (row) =>
+      !sessionSchoolId ||
+      String(row?.school_id || row?.id || "") === sessionSchoolId;
+
     async function loadSchoolDb() {
       try {
         let localSchool = null;
+        let shown = false;
 
         // 1. Load whatever we have locally first, regardless of whether
         // district/address happen to be filled in. Previously this whole
@@ -99,8 +109,10 @@ export default function Information({
         // cache a chance to be repaired.
         if (window.sqlite?.loadSchool) {
           localSchool = await window.sqlite.loadSchool(currentUser?.id);
+          if (localSchool && !isSessionSchool(localSchool)) localSchool = null;
 
           if (localSchool) {
+            shown = true;
             const onboardingSchool = localSchool.school_id
               ? await window.sqlite?.getSchoolById?.(localSchool.school_id)
               : null;
@@ -141,6 +153,7 @@ export default function Information({
           : null;
 
         if (!localSchool && onboardingSchool) {
+          shown = true;
           setSchool({
             name: onboardingSchool.school_name || onboardingSchool.name || "",
             id: onboardingSchool.school_id || directorySchoolId,
@@ -176,7 +189,8 @@ export default function Information({
               ? await fetchSchoolForUser(currentUser.id)
               : await fetchSchoolForUserOfflineFirst(currentUser.id);
 
-            if (boundSchool) {
+            if (boundSchool && isSessionSchool(boundSchool)) {
+              shown = true;
               // fetchSchoolForUserOfflineFirst returns the school id under `id`
               const schoolId = boundSchool.school_id || boundSchool.id || "";
 
@@ -192,7 +206,8 @@ export default function Information({
               setSchoolLogo(logoUrl);
 
               // Resave to SQLite to correct the local storage record file
-              if (window.sqlite?.saveSchool) {
+              // (never in audit mode: the admin account is not bound to this school).
+              if (window.sqlite?.saveSchool && !currentUser?.auditMode) {
                 await window.sqlite.saveSchool(
                   {
                     school_name: boundSchool.name,
@@ -214,6 +229,27 @@ export default function Information({
               e.message,
             );
           }
+        }
+
+        // Nothing bound locally (e.g. auditing a school with no account yet):
+        // show the session's school, its Supabase row if it has one, and its logo.
+        if (!shown && sessionSchoolId) {
+          let row = null;
+          try {
+            if (navigator.onLine) row = await fetchSchoolById(sessionSchoolId);
+          } catch (e) {
+            console.warn("[Information] Failed to fetch school by id:", e.message);
+          }
+          const name = row?.name || currentUser?.school_name || "";
+          setSchool({
+            name,
+            id: sessionSchoolId,
+            division: "Division of Isabela City",
+            district: row?.district || "",
+            address: row?.address || "",
+          });
+          setSchoolLogo(row?.logo_url || getSchoolLogoUrl(name));
+          setSchoolLoaded(true);
         }
       } catch (e) {
         console.error("[SQLite] Failed to load school context info:", e);

@@ -121,3 +121,23 @@ test('SQLite save rollback restores original learners when insertion fails', () 
   assert.deepEqual(sqlite.prepare('SELECT id FROM students').all().map(row => row.id), ['original']);
   sqlite.close();
 });
+
+test("opening another school never shows the cached school's learners", async () => {
+  storage.clear();
+  const ieces = (id) => ({ id, schoolId: '126001', schoolName: 'Isabela East Central Elementary School', name: id, records: [] });
+  local = [ieces('a'), ieces('b')];
+  sync.queueStudentForSync('b');
+  const requested = [];
+  globalThis.fetch = async (url) => {
+    requested.push(String(url));
+    // Only the cached school's rows exist; a by-name lookup would find them.
+    if (String(url).includes('school_id=eq.198006')) return response([]);
+    return response([{ id: 'a', school_id: '126001', school_name: 'Isabela East Central Elementary School', name: 'a', records: [] }]);
+  };
+  const result = await sync.syncFromServer('198006');
+  assert.equal(result.success, true);
+  assert.deepEqual(result.students, []);
+  assert.equal(requested.some((url) => url.includes('school_name=')), false);
+  assert.equal(sync.belongsToSchool({ schoolId: '126001' }, '198006'), false);
+  assert.equal(sync.belongsToSchool({ name: 'legacy row' }, '198006'), true);
+});

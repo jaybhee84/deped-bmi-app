@@ -62,7 +62,10 @@ export const SchoolProvider = ({ children, initialUser }) => {
           // Supabase or a prior "school-bound" event). Fall back to
           // constructing details from the session itself rather than
           // leaving the context unresolved.
-          if (!details || (!details.school_id && !details.id)) {
+          // In audit mode the local row is the admin account's own school, not
+          // the one being audited, so a row for another school is ignored too.
+          const detailsSchoolId = String(details?.school_id || details?.id || "");
+          if (!detailsSchoolId || detailsSchoolId !== String(user.school_id)) {
             details = {
               school_id: user.school_id,
               school_name: user.school_name || "",

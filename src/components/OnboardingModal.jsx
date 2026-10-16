@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../utils/supabase";
-import { SCHOOL_OPTIONS } from "../utils/schools";
+import { SCHOOL_OPTIONS, officialSchoolId } from "../utils/schools";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 
 const DISTRICT_OPTIONS = [
@@ -91,7 +91,8 @@ export default function OnboardingModal({ user, onComplete }) {
           setAddress(school.address || "");
           setIsPreExisting(true);
         } else {
-          setSchoolId("");
+          // Not registered yet: prefill its official DepEd School ID (still editable).
+          setSchoolId(officialSchoolId(name));
           setDistrict("");
           setAddress("");
           setIsPreExisting(false);

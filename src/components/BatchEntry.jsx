@@ -16,30 +16,12 @@ import { generateRegistryNumbers } from "../utils/registry";
 import Papa from "papaparse";
 import CSVUpload from "./CSVUpload";
 import { parseMeasurementHeight, parseMeasurementWeight } from "../utils/measurementInput";
-import {
-  fetchIecesAdvisers,
-  isIecesSchool,
-} from "../utils/iecesOrgChart";
+import { isIecesSchool } from "../utils/iecesOrgChart";
+import { titleCaseName } from "../utils/nameCase";
+import { advisersForGrade, useSchoolAdvisers } from "../utils/schoolAdvisers";
 
 // Tapping into the context tunnel up one directory level
 import { useSchoolScope } from "../context/SchoolContext";
-
-const STORAGE_KEY = "deped_bmi_teachers";
-
-function loadSavedTeachers() {
-  try {
-    const r = localStorage.getItem(STORAGE_KEY);
-    return r ? JSON.parse(r) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveTeachersToStorage(map) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
-  } catch {}
-}
 
 function emptyRow() {
   return {
@@ -77,7 +59,7 @@ function downloadCsvTemplate() {
   URL.revokeObjectURL(url);
 }
 
-export default function BatchEntry({ students, setStudents, currentUser }) {
+export default function BatchEntry({ students, setStudents, currentUser, onOpenAdvisers }) {
   const fileInputRef = useRef(null);
 
   // Pull data out of the shared global tunnel
@@ -87,6 +69,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
   const [teacherFamilyName, setTeacherFamilyName] = useState("");
   const [teacherFirstName, setTeacherFirstName] = useState("");
   const [teacherMiddleName, setTeacherMiddleName] = useState("");
+  const [adviserId, setAdviserId] = useState("");
   const [session, setSession] = useState("Morning");
   const [sy, setSy] = useState("2026–2027");
 
@@ -98,11 +81,15 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
   const [saved, setSaved] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
 
-  const [savedTeachers, setSavedTeachers] = useState(loadSavedTeachers);
-  const [iecesTeachers, setIecesTeachers] = useState({});
-  const teacherSuggestions = isIecesSchool(school?.school_id)
-    ? iecesTeachers[gradeLevel] || []
-    : savedTeachers[gradeLevel] || [];
+  // Advisers come from a list, never typed here: IECES uses its Project Rising
+  // org chart, other schools their Class Advisers tab.
+  const { advisers: schoolAdvisers, status: advisersStatus } = useSchoolAdvisers(
+    school?.school_id,
+  );
+  const isIeces = isIecesSchool(school?.school_id);
+  const gradeAdvisers = gradeLevel ? advisersForGrade(schoolAdvisers, gradeLevel) : [];
+  // Only if the IECES org chart cannot be reached do the typed fields return.
+  const typeAdviser = isIeces && advisersStatus === "offline" && !schoolAdvisers.length;
   const middleInitial = teacherMiddleName.trim()
     ? `${teacherMiddleName.trim().charAt(0).toUpperCase()}.`
     : "";
@@ -123,31 +110,9 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
   const schoolName = school?.school_name || school?.name || "Unknown School";
   const verifiedSchoolId = school?.school_id || "";
 
-  useEffect(() => {
-    if (!isIecesSchool(verifiedSchoolId)) return;
-    let active = true;
-    fetchIecesAdvisers()
-      .then((advisers) => {
-        if (!active) return;
-        setIecesTeachers(() => {
-          const next = {};
-          advisers.forEach((person) => {
-            const grade = person.grade_level || "Unassigned";
-            const fullName = [person.first_name, person.middle_name, person.family_name]
-              .filter(Boolean)
-              .join(" ");
-            next[grade] = [...new Set([...(next[grade] || []), fullName])];
-          });
-          return next;
-        });
-      })
-      .catch((error) => console.warn("Unable to load IECES advisers:", error.message));
-    return () => { active = false; };
-  }, [verifiedSchoolId]);
-
   function handleCsvUpload(event) {
     if (!teacherFamilyName.trim() || !teacherFirstName.trim()) {
-      alert("Please enter the teacher's family name and first name first.");
+      alert("Please select the class adviser first.");
       return;
     }
 
@@ -211,32 +176,6 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
     });
 
     event.target.value = "";
-  }
-
-  function handleTeacherBlur() {
-    const name = teacherName.trim();
-    if (!name || !gradeLevel) return;
-    // IECES advisers come exclusively from the organizational chart.
-    // Baseline entry must never create or modify that staff directory.
-    if (isIecesSchool(verifiedSchoolId)) return;
-    setSavedTeachers((prev) => {
-      const existing = prev[gradeLevel] || [];
-      if (existing.includes(name)) return prev;
-      const updated = { ...prev, [gradeLevel]: [...existing, name] };
-      saveTeachersToStorage(updated);
-      return updated;
-    });
-  }
-
-  function removeTeacher(grade, name) {
-    setSavedTeachers((prev) => {
-      const updated = {
-        ...prev,
-        [grade]: (prev[grade] || []).filter((n) => n !== name),
-      };
-      saveTeachersToStorage(updated);
-      return updated;
-    });
   }
 
   const updateRow = useCallback((i, field, value) => {
@@ -372,7 +311,6 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
       return updated;
     });
 
-    handleTeacherBlur();
     setSaved(true);
     setRows([emptyRow()]);
     setTimeout(() => setSaved(false), 3500);
@@ -433,6 +371,7 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
                   setTeacherFamilyName("");
                   setTeacherFirstName("");
                   setTeacherMiddleName("");
+                  setAdviserId("");
                 }}
               >
                 <option value="" disabled>
@@ -444,28 +383,78 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
               </select>
             </div>
 
-            <div className="form-group teacher-family-group">
-              <label className="form-label">Family Name <span className="label-hint">(class name)</span></label>
-              <input
-                className="form-input"
-                placeholder="e.g. Santos"
-                value={teacherFamilyName}
-                onChange={(e) => setTeacherFamilyName(e.target.value.toUpperCase())}
-                onBlur={handleTeacherBlur}
-              />
-            </div>
+            {!typeAdviser ? (
+              <div className="form-group teacher-org-group">
+                <label className="form-label">
+                  Class Adviser{" "}
+                  <span className="label-hint">({isIeces ? "org chart" : "Class Advisers list"})</span>
+                </label>
+                {gradeLevel && !gradeAdvisers.length && advisersStatus !== "loading" ? (
+                  <div className="adviser-empty">
+                    <span>
+                      {isIeces
+                        ? `No ${gradeLevel} advisers in the org chart.`
+                        : `No ${gradeLevel} advisers yet.`}
+                    </span>
+                    {!isIeces && onOpenAdvisers && (
+                      <button type="button" className="adviser-empty-link" onClick={onOpenAdvisers}>
+                        Add in Class Advisers →
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <select
+                    className="form-select full-width"
+                    value={adviserId}
+                    disabled={!gradeLevel}
+                    onChange={(e) => {
+                      const person = gradeAdvisers.find((p) => p.id === e.target.value);
+                      setAdviserId(e.target.value);
+                      setTeacherFirstName(person?.first || "");
+                      setTeacherMiddleName(person?.middle || "");
+                      setTeacherFamilyName(person?.family || "");
+                    }}
+                  >
+                    <option value="" disabled>
+                      {!gradeLevel
+                        ? "Select a grade level first"
+                        : advisersStatus === "loading" && !gradeAdvisers.length
+                          ? "Loading advisers…"
+                          : `Select ${gradeLevel} adviser`}
+                    </option>
+                    {gradeAdvisers.map((person) => (
+                      <option key={person.id} value={person.id}>
+                        {person.displayName}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="form-group teacher-family-group">
+                  <label className="form-label">Family Name <span className="label-hint">(class name)</span></label>
+                  <input
+                    className="form-input"
+                    placeholder="e.g. Santos"
+                    value={teacherFamilyName}
+                    onChange={(e) => setTeacherFamilyName(titleCaseName(e.target.value))}
+                  />
+                </div>
 
-            <div className="form-group teacher-first-group">
-              <label className="form-label">First Name</label>
-              <input className="form-input" placeholder="e.g. Maria" value={teacherFirstName}
-                onChange={(e) => setTeacherFirstName(e.target.value)} onBlur={handleTeacherBlur} />
-            </div>
+                <div className="form-group teacher-first-group">
+                  <label className="form-label">First Name</label>
+                  <input className="form-input" placeholder="e.g. Maria" value={teacherFirstName}
+                    onChange={(e) => setTeacherFirstName(titleCaseName(e.target.value))} />
+                </div>
 
-            <div className="form-group teacher-middle-group">
-              <label className="form-label">Middle Name / Initial</label>
-              <input className="form-input" placeholder="e.g. Cruz or C" value={teacherMiddleName}
-                onChange={(e) => setTeacherMiddleName(e.target.value)} onBlur={handleTeacherBlur} maxLength={40} />
-            </div>
+                <div className="form-group teacher-middle-group">
+                  <label className="form-label">Middle Name / Initial</label>
+                  <input className="form-input" placeholder="e.g. Cruz or C" value={teacherMiddleName}
+                    onChange={(e) => setTeacherMiddleName(titleCaseName(e.target.value))} maxLength={40} />
+                </div>
+              </>
+            )}
 
             {gradeLevel === "Kinder" && (
               <div className="form-group">
@@ -506,39 +495,6 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
             </div>
           </div>
 
-          {teacherSuggestions.length > 0 && (
-            <div className="teacher-chips-row">
-              <span className="teacher-chips-label">
-                {isIecesSchool(verifiedSchoolId) ? "Org Chart:" : "Saved:"}
-              </span>
-              <div className="teacher-chips">
-                {teacherSuggestions.map((t) => (
-                  <span
-                    key={t}
-                    className={`teacher-chip ${teacherName === t ? "active" : ""}`}
-                    onClick={() => {
-                      const parts = t.trim().split(/\s+/);
-                      setTeacherFirstName(parts.shift() || "");
-                      setTeacherFamilyName(parts.pop() || "");
-                      setTeacherMiddleName(parts.join(" ").replace(/\.$/, ""));
-                    }}
-                  >
-                    {t}
-                    {!isIecesSchool(verifiedSchoolId) && <button
-                      className="chip-remove"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeTeacher(gradeLevel, t);
-                      }}
-                    >
-                      ×
-                    </button>}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="section-preview">
             <span className="section-preview-label">Class:</span>
             <span className="section-preview-value">
@@ -546,7 +502,9 @@ export default function BatchEntry({ students, setStudents, currentUser }) {
                 sectionLabel
               ) : (
                 <span className="section-preview-empty">
-                  Enter teacher family name above
+                  {typeAdviser
+                    ? "Enter teacher family name above"
+                    : "Select the class adviser above"}
                 </span>
               )}
             </span>
