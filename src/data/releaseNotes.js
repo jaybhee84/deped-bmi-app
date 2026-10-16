@@ -20,6 +20,13 @@ export const RELEASE_NOTES = {
         ],
       },
       {
+        heading: 'SDO Reports',
+        items: [
+          'Midline and Endline nutritional status reports are now counted against the SBFP beneficiaries, who are the learners weighed in those periods, instead of every enrolled learner. Pupils Weighed now reaches 100% when all beneficiaries are weighed.',
+          'The Enrolment column reads SBFP Beneficiaries for Midline and Endline on screen, in print and in the Excel download. Baseline reports still count every enrolled learner.',
+        ],
+      },
+      {
         heading: 'Audit Mode',
         items: [
           'Audit mode can open any school in the division, including schools without an account. Official DepEd School IDs are filled in automatically, and school onboarding prefills them too.',

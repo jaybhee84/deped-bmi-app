@@ -13,6 +13,7 @@ import "./SDOReports.css";
 import "./ReportsLanding.css";
 import { SCHOOL_OPTIONS } from "../utils/schools.js";
 import { loadSbfpEnrolment } from "../utils/sbfpConfig";
+import { isSbfpBeneficiary, useSbfpConfig } from "../utils/sbfpBeneficiary";
 import ReportsLanding from "./ReportsLanding";
 import Immunization from "./Immunization";
 import SbfpForms from "./SbfpForms";
@@ -362,7 +363,27 @@ function computeSexStats(students, sy, period) {
   return stats;
 }
 
-function computeGradeSummary(students, sy, period) {
+// Midline and Endline weigh only the SBFP beneficiaries chosen at Baseline, so
+// those reports are counted against the beneficiaries, not every enrolled learner.
+function isBaselinePeriod(period) {
+  return isMatchPeriod(period, "Baseline");
+}
+
+function reportPopulation(students, sy, period, sbfpConfig) {
+  if (isBaselinePeriod(period)) return students;
+  return students.filter((student) => {
+    const baseline = student.records?.find(
+      (r) => isMatchSY(r.sy, sy) && isMatchPeriod(r.q, "Baseline"),
+    );
+    return Boolean(baseline) && isSbfpBeneficiary(student, baseline.sy, sbfpConfig);
+  });
+}
+
+const populationLabel = (period) =>
+  isBaselinePeriod(period) ? "Enrolment" : "SBFP Beneficiaries";
+
+function computeGradeSummary(allStudents, sy, period, sbfpConfig) {
+  const students = reportPopulation(allStudents, sy, period, sbfpConfig);
   const grades = [
     "Kinder",
     "Grade 1",
@@ -504,6 +525,7 @@ export default function SDOReports({
   const containerRef = useRef(null);
 
   const [officialEnrolmentMap, setOfficialEnrolmentMap] = useState({});
+  const sbfpConfig = useSbfpConfig();
 
   const students = useMemo(() => {
     if (selectedSchool === "CONSOLIDATED" || selectedSchool === "ALL SCHOOLS") {
@@ -702,7 +724,7 @@ export default function SDOReports({
     return () => container.removeEventListener("wheel", handleWheel);
   }, [zoomScale]);
 
-  const filtered = students.filter((s) => {
+  const filtered = reportPopulation(students, sy, period, sbfpConfig).filter((s) => {
     return (s.records || []).some(
       (r) => isMatchSY(r.sy, sy) && isMatchPeriod(r.q, period),
     );
@@ -731,8 +753,8 @@ export default function SDOReports({
     .filter(Boolean);
 
   const reportData = useMemo(() => {
-    return computeGradeSummary(students, sy, period, officialEnrolmentMap);
-  }, [students, sy, period, officialEnrolmentMap]);
+    return computeGradeSummary(students, sy, period, sbfpConfig);
+  }, [students, sy, period, sbfpConfig]);
 
   const counts = {
     Normal: 0,
@@ -798,7 +820,7 @@ export default function SDOReports({
             schoolStudents,
             sy,
             period,
-            schoolEnrolment,
+            sbfpConfig,
           );
 
           return {
@@ -806,6 +828,8 @@ export default function SDOReports({
               schoolName: schoolKey,
               sy,
               period,
+              baseLabel: populationLabel(period),
+              scope: isBaselinePeriod(period) ? "" : "SBFP Beneficiaries",
               date: new Date().toLocaleDateString("en-PH"),
             },
             rows: summary.rows,
@@ -829,6 +853,8 @@ export default function SDOReports({
               : selectedSchool,
           sy,
           period,
+          baseLabel: populationLabel(period),
+          scope: isBaselinePeriod(period) ? "" : "SBFP Beneficiaries",
           date: new Date().toLocaleDateString("en-PH"),
         },
         rows: reportData.rows,
@@ -871,7 +897,7 @@ export default function SDOReports({
 
     worksheet.mergeCells("A3:Y3");
     const r3 = worksheet.getCell("A3");
-    r3.value = `${period} | ${sy}`;
+    r3.value = `${period} | ${sy}${isBaselinePeriod(period) ? "" : " | SBFP Beneficiaries"}`;
     r3.font = { name: "Calibri", size: 10, italic: true };
     r3.alignment = { horizontal: "center", vertical: "middle" };
 
@@ -880,7 +906,7 @@ export default function SDOReports({
     worksheet.getRow(5).values = [
       "Grade Levels",
       "Sex",
-      "Enrolment",
+      populationLabel(period),
       "Pupils Weighed",
       "",
       "BODY MASS INDEX (BMI)",
@@ -1394,6 +1420,7 @@ export default function SDOReports({
             }}
           >
             {period} | {sy}
+            {!isBaselinePeriod(period) && " | SBFP Beneficiaries"}
           </div>
         </div>
 
@@ -1443,7 +1470,7 @@ export default function SDOReports({
               <tr>
                 <th rowSpan="3">Grade Levels</th>
                 <th rowSpan="3">Sex</th>
-                <th rowSpan="3">Enrolment</th>
+                <th rowSpan="3">{populationLabel(period)}</th>
                 <th colSpan="2" rowSpan="2">
                   Pupils Weighed
                 </th>

@@ -58,7 +58,7 @@ function summaryPageHtml({ meta, rows, grand }) {
           <tr>
             <th rowspan="3" class="grade-col">Grade Levels</th>
             <th rowspan="3">Sex</th>
-            <th rowspan="3">Enrolment</th>
+            <th rowspan="3">${escapeHtml(meta.baseLabel || "Enrolment")}</th>
             <th colspan="2" rowspan="2">Pupils Weighed</th>
             <th colspan="10">Body Mass Index (BMI)</th>
             <th colspan="8">Height-for-Age (HFA)</th>
