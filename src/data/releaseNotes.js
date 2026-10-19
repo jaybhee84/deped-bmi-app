@@ -1,4 +1,22 @@
 export const RELEASE_NOTES = {
+  '4.0.6': {
+    title: 'v4.0.6',
+    sections: [
+      {
+        heading: 'SBFP Beneficiaries',
+        items: [
+          'SBFP Forms keep every beneficiary chosen at Baseline in Midline and Endline, even learners whose status is now Normal. Their later measurements are still shown.',
+          'The SDO Dashboard SBFP Beneficiaries count uses the same Baseline list, so it no longer drops learners who recovered at Midline or Endline.',
+        ],
+      },
+      {
+        heading: 'Sign In',
+        items: [
+          'Register here and Forgot Password? on the sign-in screen no longer show a highlighted box on hover.',
+        ],
+      },
+    ],
+  },
   '4.0.5': {
     title: 'v4.0.5',
     sections: [
@@ -24,7 +42,6 @@ export const RELEASE_NOTES = {
         items: [
           'Midline and Endline nutritional status reports are now counted against the SBFP beneficiaries, who are the learners weighed in those periods, instead of every enrolled learner. Pupils Weighed now reaches 100% when all beneficiaries are weighed.',
           'The Enrolment column reads SBFP Beneficiaries for Midline and Endline on screen, in print and in the Excel download. Baseline reports still count every enrolled learner.',
-          'SBFP Forms and the SDO Dashboard keep every beneficiary chosen at Baseline in Midline and Endline, even learners whose status is now Normal.',
         ],
       },
       {

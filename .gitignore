@@ -82,3 +82,6 @@ students.db
 
 # Local migration exports may contain learner information
 migration-data/
+
+# Local agent instructions
+CLAUDE.md
