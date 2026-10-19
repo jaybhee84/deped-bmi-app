@@ -42,8 +42,8 @@ input, select, button {
 
 /* Shared interaction treatment across every screen and button variant. */
 @media screen {
-  :is(button, input[type="button"], input[type="submit"], input[type="reset"], a.btn, [role="button"]):not(:disabled):not([aria-disabled="true"]):not(.sidebar *):hover,
-  :is(button, input[type="button"], input[type="submit"], input[type="reset"], a.btn, [role="button"]):not(:disabled):not([aria-disabled="true"]):not(.sidebar *):focus-visible {
+  :is(button, input[type="button"], input[type="submit"], input[type="reset"], a.btn, [role="button"]):not(:disabled):not([aria-disabled="true"]):not(.sidebar *):not(.register-link-btn, .forgot-password-btn):hover,
+  :is(button, input[type="button"], input[type="submit"], input[type="reset"], a.btn, [role="button"]):not(:disabled):not([aria-disabled="true"]):not(.sidebar *):not(.register-link-btn, .forgot-password-btn):focus-visible {
     background: #1e40af !important;
     color: #fff !important;
     border-color: #facc15 !important;
@@ -51,7 +51,7 @@ input, select, button {
     opacity: 1 !important;
   }
 
-  :is(button, input[type="button"], input[type="submit"], input[type="reset"], a.btn, [role="button"]):not(:disabled):not([aria-disabled="true"]):not(.sidebar *):focus-visible {
+  :is(button, input[type="button"], input[type="submit"], input[type="reset"], a.btn, [role="button"]):not(:disabled):not([aria-disabled="true"]):not(.sidebar *):not(.register-link-btn, .forgot-password-btn):focus-visible {
     outline: 2px solid #facc15 !important;
     outline-offset: 2px;
   }

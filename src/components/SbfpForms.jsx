@@ -471,8 +471,10 @@ export default function SbfpForms({
                 : null,
             };
           })
+          // Beneficiaries are chosen at Baseline. Midline and Endline show their
+          // later measurements, so a learner who is now Normal stays listed.
           .filter((student) =>
-            isOfficialBeneficiary(student, student.baz, student.haz, config),
+            isSbfpBeneficiary(student, schoolYear, config),
           ),
       ),
     [students, schoolYear, period, config],

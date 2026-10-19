@@ -389,6 +389,15 @@
   text-decoration: underline;
 }
 
+/* Text links: underline on keyboard focus instead of the shared button box. */
+.register-link-btn:focus-visible,
+.forgot-password-btn:focus-visible {
+  text-decoration: underline;
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
 .login-offline-hint {
   margin-top: 14px;
   padding: 10px 14px;

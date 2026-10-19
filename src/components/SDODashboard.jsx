@@ -21,9 +21,9 @@ import {
 } from "../utils/enrolmentTotals";
 import {
   DEFAULT_SBFP_CONFIG,
-  isOfficialBeneficiary,
   loadSbfpConfig,
 } from "../utils/sbfpConfig";
+import { isSbfpBeneficiary } from "../utils/sbfpBeneficiary";
 
 // ── Multi-Segment SVG Donut Chart Component ──────────────────────────────────
 import { SCHOOL_OPTIONS } from "../utils/schools";
@@ -485,28 +485,17 @@ export default function SDODashboard({
       .filter(Boolean);
   }, [students, filterSY, filterPeriod]);
 
+  // Same rule as the SBFP Beneficiaries filter: qualified at this SY's Baseline,
+  // and still counted at Midline/Endline whatever their later status.
   const sbfpBeneficiaryCount = useMemo(
     () =>
-      students.filter((student) => {
-        const record = student.records?.find(
-          (item) => item.sy === filterSY && item.q === filterPeriod,
-        );
-        if (!record) return false;
-        const bmi = calcBMI(record.weight, record.height);
-        const bmiStatus = bmi
-          ? getBMIStatus(bmi, student.sex, student.birthdate, record.date)
-          : null;
-        const hazStatus = record.height
-          ? getHAZStatus(
-              record.height,
-              student.sex,
-              student.birthdate,
-              record.date,
-            )
-          : null;
-        return isOfficialBeneficiary(student, bmiStatus, hazStatus, sbfpConfig);
-      }).length,
-    [students, filterSY, filterPeriod, sbfpConfig],
+      students.filter(
+        (student) =>
+          student.records?.some(
+            (r) => r.sy === filterSY && r.q === "Baseline",
+          ) && isSbfpBeneficiary(student, filterSY, sbfpConfig),
+      ).length,
+    [students, filterSY, sbfpConfig],
   );
 
   const statusCounts = useMemo(() => {
