@@ -1,3 +1,4 @@
+import { secureStorage } from './secureStorage';
 // ── Registry Number System ────────────────────────────────────────────────
 // Format: YYYY-SCHOOLCODE-GX-NNNN
 //   YYYY       = school year start (e.g. 2026 for SY 2026–2027)
@@ -79,13 +80,13 @@ export function getSchoolCode(schoolName) {
 
 function loadCounters() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = secureStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch { return {}; }
 }
 
 function saveCounters(counters) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(counters)); } catch {}
+  try { secureStorage.setItem(STORAGE_KEY, JSON.stringify(counters)); } catch {}
 }
 
 function getSYYear(sy) {

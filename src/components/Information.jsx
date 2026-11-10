@@ -1,14 +1,16 @@
+import { secureStorage } from '../utils/secureStorage';
 import React, { useState, useEffect, useMemo } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
 import {
   fetchSchoolById,
   fetchSchoolForUser,
-  fetchSchoolForUserOfflineFirst,
 } from "../utils/syncService";
 import { RELEASE_NOTES } from "../data/releaseNotes";
 import "./Information.css";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 import buzzjayLogo from "../images/buzzj1.png";
+import { supabase } from "../utils/supabaseClient";
+import { countPortalEnrolments, normalizeSchoolYear } from "../utils/enrolmentTotals";
 import {
   DEFAULT_SBFP_CONFIG,
   loadSbfpConfig,
@@ -16,7 +18,7 @@ import {
 
 function loadCachedSbfpConfig() {
   try {
-    const cached = localStorage.getItem("sbfp_cached_config");
+    const cached = secureStorage.getItem("sbfp_cached_config");
     return cached ? JSON.parse(cached) : DEFAULT_SBFP_CONFIG;
   } catch {
     return DEFAULT_SBFP_CONFIG;
@@ -34,6 +36,7 @@ export default function Information({
   schoolName,
   setSchoolName,
   currentUser,
+  schoolYear,
   students = [], // Connected student data footprint mapped from workspace payload structure
 }) {
   const [school, setSchool] = useState({
@@ -56,10 +59,30 @@ export default function Information({
     ? RELEASE_NOTES["2.0.0"]
     : versionNotes;
 
-  // Dynamic calculations monitoring real-time total student profiles tracking context
-  const totalLearnersEnrolled = useMemo(() => {
-    return students.length;
-  }, [students]);
+  const [cloudEnrolment, setCloudEnrolment] = useState(null);
+  const [enrolmentError, setEnrolmentError] = useState(false);
+  const localEnrolment = useMemo(() => countPortalEnrolments(
+    students, schoolYear, currentUser?.school_id || "",
+  ), [students, currentUser?.school_id, schoolYear]);
+  const totalLearnersEnrolled = cloudEnrolment ?? localEnrolment;
+
+  useEffect(() => {
+    let cancelled = false;
+    setCloudEnrolment(null);
+    setEnrolmentError(false);
+    if (!navigator.onLine || !currentUser?.school_id || !schoolYear) return;
+    supabase.from("students").select("id", { count: "exact", head: true })
+      .eq("school_id", String(currentUser.school_id))
+      .eq("school_year", normalizeSchoolYear(schoolYear))
+      .then(({ count, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.warn("[Information] Unable to refresh enrolment:", error.message);
+          setEnrolmentError(true);
+        } else setCloudEnrolment(count);
+      });
+    return () => { cancelled = true; };
+  }, [currentUser?.school_id, schoolYear, students]);
 
   useEffect(() => {
     if (window.electronAPI?.getAppVersion) {
@@ -74,7 +97,7 @@ export default function Information({
       if (!config) return;
       setSbfpConfig(config);
       try {
-        localStorage.setItem("sbfp_cached_config", JSON.stringify(config));
+        secureStorage.setItem("sbfp_cached_config", JSON.stringify(config));
       } catch (error) {
         console.warn("Unable to cache the SBFP configuration.", error);
       }
@@ -82,182 +105,79 @@ export default function Information({
   }, []);
 
   useEffect(() => {
-    // A field counts as "missing" if it's empty/null or the literal
-    // placeholder string "N/A" that older cached records were saved with.
-    function isMissing(value) {
-      return !value || value === "N/A";
-    }
-
-    // The school being viewed is the session's school. A school bound to the
-    // signed-in account (e.g. the admin's own, in audit mode) is a different
-    // school and must not be shown or re-saved here.
+    let cancelled = false;
     const sessionSchoolId = String(currentUser?.school_id || "");
-    const isSessionSchool = (row) =>
-      !sessionSchoolId ||
-      String(row?.school_id || row?.id || "") === sessionSchoolId;
+    const present = (value) => value && String(value).trim().toUpperCase() !== "N/A" ? value : "";
+    const matches = (row) => row && (!sessionSchoolId ||
+      String(row.school_id || row.id || "") === sessionSchoolId);
 
     async function loadSchoolDb() {
+      let cached = null;
       try {
-        let localSchool = null;
-        let shown = false;
-
-        // 1. Load whatever we have locally first, regardless of whether
-        // district/address happen to be filled in. Previously this whole
-        // block was skipped unless district AND address were already
-        // valid, which meant a stale/incomplete local cache silently
-        // blocked name/id from ever showing, and never gave the local
-        // cache a chance to be repaired.
-        if (window.sqlite?.loadSchool) {
-          localSchool = await window.sqlite.loadSchool(currentUser?.id);
-          if (localSchool && !isSessionSchool(localSchool)) localSchool = null;
-
-          if (localSchool) {
-            shown = true;
-            const onboardingSchool = localSchool.school_id
-              ? await window.sqlite?.getSchoolById?.(localSchool.school_id)
-              : null;
-            setSchool({
-              name: localSchool.school_name || localSchool.name || "",
-              id: localSchool.school_id || "",
-              division: "Division of Isabela City",
-              district: isMissing(localSchool.district)
-                ? onboardingSchool?.district || ""
-                : localSchool.district,
-              address: isMissing(localSchool.address)
-                ? onboardingSchool?.address || ""
-                : localSchool.address,
-            });
-
-            setSchoolLoaded(true);
-
-            const logoUrl = getSchoolLogoUrl(
-              localSchool.school_name || localSchool.name,
-            );
-            setSchoolLogo(logoUrl);
-
-            if (localSchool.school_id) {
-              const localLogo = await window.sqlite.loadSchoolLogo(
-                localSchool.school_id,
-              );
-              if (localLogo) {
-                setSchoolLogo(localLogo);
-              }
-            }
-          }
+        const local = await window.sqlite?.loadSchool?.(currentUser?.id);
+        if (matches(local)) cached = local;
+        const directory = await window.sqlite?.getSchoolById?.(sessionSchoolId || cached?.school_id);
+        if (matches(directory)) {
+          cached = {
+            ...directory, ...cached,
+            district: present(cached?.district) || present(directory.district),
+            address: present(cached?.address) || present(directory.address),
+          };
         }
+      } catch (error) {
+        console.warn("[Information] Unable to load cached school:", error.message);
+      }
 
-        const directorySchoolId =
-          localSchool?.school_id || currentUser?.school_id || "";
-        const onboardingSchool = directorySchoolId
-          ? await window.sqlite?.getSchoolById?.(directorySchoolId)
-          : null;
-
-        if (!localSchool && onboardingSchool) {
-          shown = true;
-          setSchool({
-            name: onboardingSchool.school_name || onboardingSchool.name || "",
-            id: onboardingSchool.school_id || directorySchoolId,
-            division: "Division of Isabela City",
-            district: isMissing(onboardingSchool.district)
-              ? ""
-              : onboardingSchool.district,
-            address: isMissing(onboardingSchool.address)
-              ? ""
-              : onboardingSchool.address,
-          });
-          setSchoolLogo(
-            getSchoolLogoUrl(
-              onboardingSchool.school_name || onboardingSchool.name,
-            ),
-          );
-          setSchoolLoaded(true);
+      const show = (row) => {
+        if (cancelled) return;
+        const name = row?.name || row?.school_name || currentUser?.school_name || schoolName || "";
+        setSchool({
+          name,
+          id: row?.school_id || row?.id || sessionSchoolId,
+          division: present(row?.division) || "Division of Isabela City",
+          district: present(row?.district),
+          address: present(row?.address),
+        });
+        setSchoolLogo(row?.logo_url || getSchoolLogoUrl(name));
+        setSchoolLoaded(true);
+      };
+      show(cached);
+      try {
+        const logo = await window.sqlite?.loadSchoolLogo?.(sessionSchoolId || cached?.school_id);
+        if (logo && !cancelled) setSchoolLogo(logo);
+      } catch (error) {
+        console.warn("[Information] Unable to load cached logo:", error.message);
+      }
+      if (!navigator.onLine) return;
+      try {
+        // Audit mode must refresh the viewed school, not the admin's bound school.
+        const remote = sessionSchoolId
+          ? await fetchSchoolById(sessionSchoolId)
+          : await fetchSchoolForUser(currentUser?.id);
+        if (!matches(remote) || cancelled) return;
+        const merged = {
+          ...cached, ...remote,
+          district: present(remote.district) || present(cached?.district),
+          address: present(remote.address) || present(cached?.address),
+        };
+        show(merged);
+        if (remote.name) setSchoolName(remote.name);
+        if (window.sqlite?.saveSchool && !currentUser?.auditMode) {
+          await window.sqlite.saveSchool({
+            school_name: merged.name,
+            school_id: merged.school_id || merged.id,
+            division: merged.division || "Division of Isabela City",
+            district: merged.district,
+            address: merged.address,
+          }, currentUser.id);
         }
-
-        const localIncomplete =
-          (!localSchool && !onboardingSchool) ||
-          (isMissing(localSchool?.district) &&
-            isMissing(onboardingSchool?.district)) ||
-          (isMissing(localSchool?.address) &&
-            isMissing(onboardingSchool?.address));
-
-        // 2. Try to fetch the current record from Supabase (if online) and use it to
-        // both update what's on screen AND repair the local cache. If offline, use the
-        // offline-first function which will return local cache.
-        if (localIncomplete && currentUser?.id) {
-          try {
-            const boundSchool = navigator.onLine
-              ? await fetchSchoolForUser(currentUser.id)
-              : await fetchSchoolForUserOfflineFirst(currentUser.id);
-
-            if (boundSchool && isSessionSchool(boundSchool)) {
-              shown = true;
-              // fetchSchoolForUserOfflineFirst returns the school id under `id`
-              const schoolId = boundSchool.school_id || boundSchool.id || "";
-
-              setSchool({
-                name: boundSchool.name || "",
-                id: schoolId,
-                division: "Division of Isabela City",
-                district: boundSchool.district || "",
-                address: boundSchool.address || "",
-              });
-
-              const logoUrl = getSchoolLogoUrl(boundSchool.name);
-              setSchoolLogo(logoUrl);
-
-              // Resave to SQLite to correct the local storage record file
-              // (never in audit mode: the admin account is not bound to this school).
-              if (window.sqlite?.saveSchool && !currentUser?.auditMode) {
-                await window.sqlite.saveSchool(
-                  {
-                    school_name: boundSchool.name,
-                    school_id: schoolId,
-                    division: "Division of Isabela City",
-                    district: boundSchool.district,
-                    address: boundSchool.address,
-                  },
-                  currentUser.id,
-                );
-              }
-
-              setSchoolName(boundSchool.name);
-              setSchoolLoaded(true);
-            }
-          } catch (e) {
-            console.warn(
-              "[Information] Failed to fetch school data:",
-              e.message,
-            );
-          }
-        }
-
-        // Nothing bound locally (e.g. auditing a school with no account yet):
-        // show the session's school, its Supabase row if it has one, and its logo.
-        if (!shown && sessionSchoolId) {
-          let row = null;
-          try {
-            if (navigator.onLine) row = await fetchSchoolById(sessionSchoolId);
-          } catch (e) {
-            console.warn("[Information] Failed to fetch school by id:", e.message);
-          }
-          const name = row?.name || currentUser?.school_name || "";
-          setSchool({
-            name,
-            id: sessionSchoolId,
-            division: "Division of Isabela City",
-            district: row?.district || "",
-            address: row?.address || "",
-          });
-          setSchoolLogo(row?.logo_url || getSchoolLogoUrl(name));
-          setSchoolLoaded(true);
-        }
-      } catch (e) {
-        console.error("[SQLite] Failed to load school context info:", e);
+      } catch (error) {
+        console.warn("[Information] Unable to refresh school:", error.message);
       }
     }
-
     loadSchoolDb();
-  }, [currentUser, setSchoolName]);
+    return () => { cancelled = true; };
+  }, [currentUser?.id, currentUser?.school_id, currentUser?.school_name, currentUser?.auditMode, setSchoolName, schoolName]);
 
   return (
     <div className="page">
@@ -333,11 +253,16 @@ export default function Information({
                     className="school-preview-row"
                     style={{ fontSize: "13px", color: "#0f172a" }}
                   >
-                    <strong>Total Learners Enrolled (Active):</strong>{" "}
+                    <strong>Learners Enrolled ({schoolYear}):</strong>{" "}
                     <span style={{ color: "#2563eb", fontWeight: "700" }}>
                       {totalLearnersEnrolled}
                     </span>
                   </div>
+                  {cloudEnrolment === null && (
+                    <p style={{ fontSize: "12px", marginBottom: 0 }} role="status">
+                      {enrolmentError ? "Cloud count unavailable. Showing locally loaded records for this school year." : "Showing locally loaded records until the cloud count is available."}
+                    </p>
+                  )}
                 </div>
               </>
             ) : (

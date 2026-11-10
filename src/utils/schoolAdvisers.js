@@ -1,3 +1,4 @@
+import { secureStorage } from './secureStorage';
 // One adviser list per school, used by NS Entries, Edit Class and the NS Report.
 // - IECES: read-only, from its Project Rising org chart (custom setup, unchanged).
 // - Other schools: entered on the Class Advisers tab, saved to Supabase
@@ -39,7 +40,7 @@ const toRow = (adviser, schoolId) => ({
   updated_at: new Date().toISOString(),
 });
 
-function readJson(key, fallback, store = localStorage) {
+function readJson(key, fallback, store = secureStorage) {
   try {
     const value = JSON.parse(store.getItem(key));
     return value ?? fallback;
@@ -50,7 +51,7 @@ function readJson(key, fallback, store = localStorage) {
 
 function writeJson(key, value) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    secureStorage.setItem(key, JSON.stringify(value));
   } catch (error) {
     console.error("Unable to save class advisers locally.", error);
   }
@@ -98,7 +99,7 @@ export function loadLocalAdvisers(schoolId) {
   writeJson(cacheKey(schoolId), migrated);
   if (migrated.length) {
     try {
-      localStorage.removeItem(LEGACY_TEACHERS_KEY);
+      secureStorage.removeItem(LEGACY_TEACHERS_KEY);
     } catch {
       // Already copied; a leftover legacy list is harmless once this cache exists.
     }

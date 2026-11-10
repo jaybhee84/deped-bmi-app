@@ -15,6 +15,8 @@ globalThis.window = {
   sqlite: { async loadStudents() { return structuredClone(local); }, async saveStudents(rows) { local = structuredClone(rows); } },
 };
 const source = readFileSync(new URL('../src/utils/syncService.js', import.meta.url), 'utf8')
+  .replace(/import .* from '\.\/secureStorage';/, 'const secureStorage = globalThis.localStorage;')
+  .replace(/import .* from '\.\/schoolDataFetch';/, 'const fetch = (...args) => globalThis.fetch(...args);')
   .replace(/import .* from '\.\/supabaseClient';/, "const supabase = { auth: { async getSession() { return { data: { session: null } }; } } }; const SUPABASE_URL = 'https://example.invalid'; const SUPABASE_ANON_KEY = 'test';")
   .replace(/import .* from '\.\/schoolLogoMap';/, "const SCHOOL_LOGO_BUCKET = 'test';");
 const sync = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
@@ -115,7 +117,8 @@ test('SQLite save rollback restores original learners when insertion fails', () 
   };
   const databaseSource = readFileSync(new URL('../electron/database.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   const body = databaseSource.match(/export function saveStudents\(students, isDirty = false\) \{([\s\S]*?)\n\}\n/)[1];
-  const save = new Function('db', 'students', 'isDirty', body);
+  const implementation = new Function('db', 'students', 'isDirty', 'protectData', body);
+  const save = (db, students, isDirty) => implementation(db, students, isDirty, JSON.stringify);
   save(db, [{ id: 'original' }], false);
   assert.throws(() => save(db, [{ id: 'duplicate' }, { id: 'duplicate' }], true));
   assert.deepEqual(sqlite.prepare('SELECT id FROM students').all().map(row => row.id), ['original']);

@@ -1,3 +1,4 @@
+import { secureStorage } from './secureStorage';
 // Who is an SBFP beneficiary, shared by every page's "SBFP Beneficiaries"
 // filter: a learner who qualified at the school year's Baseline under the
 // SDO's SBFP settings. Midline and Endline measurements do not change the
@@ -34,7 +35,7 @@ export function filterByLearnerScope(students, learnerScope, sy, config) {
 export function useSbfpConfig() {
   const [config, setConfig] = useState(() => {
     try {
-      const cached = localStorage.getItem(CONFIG_CACHE_KEY);
+      const cached = secureStorage.getItem(CONFIG_CACHE_KEY);
       return cached ? JSON.parse(cached) : DEFAULT_SBFP_CONFIG;
     } catch {
       return DEFAULT_SBFP_CONFIG;
@@ -46,7 +47,7 @@ export function useSbfpConfig() {
       if (!active || !loaded) return;
       setConfig(loaded);
       try {
-        localStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(loaded));
+        secureStorage.setItem(CONFIG_CACHE_KEY, JSON.stringify(loaded));
       } catch {
         // The cache is a convenience; the live config is already in use.
       }

@@ -60,7 +60,7 @@ export default function UserManagement({ currentUser }) {
       role:     form.role,
       position: form.position,
     });
-    if (!ok) { setError('Username already exists.'); return; }
+    if (!ok.ok) { setError(ok.error); return; }
     refresh();
     setAddOpen(false);
   }

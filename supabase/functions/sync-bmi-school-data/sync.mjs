@@ -55,6 +55,7 @@ export function createHandler(env, fetcher = fetch) {
     if (request.method !== 'POST') return json(405, { error: 'Method not allowed' });
     const secret = env.get('MIRROR_WEBHOOK_SECRET');
     if (!secret || request.headers.get('x-mirror-secret') !== secret) return json(401, { error: 'Unauthorized' });
+    if (env.get('IECES_EXCLUSIVE_DATA') === 'true') return json(410, { error: 'Cross-project IECES synchronization is disabled' });
     let options;
     try { options = await request.json(); } catch { return json(400, { error: 'Invalid JSON' }); }
     if (!options || typeof options !== 'object' || Array.isArray(options)) return json(400, { error: 'Expected a JSON object' });

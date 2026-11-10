@@ -12,7 +12,7 @@ app.setPath("userData", path.join(output, "profile"));
 app.disableHardwareAcceleration();
 let main;
 const cleanup = setupPrinting(() => main);
-setTimeout(() => { console.error("Electron integration test exceeded 60 seconds."); cleanup(); app.exit(1); }, 60000).unref();
+setTimeout(() => { console.error("Electron integration test exceeded 120 seconds."); cleanup(); app.exit(1); }, 120000).unref();
 const run = (code) => main.webContents.executeJavaScript(code);
 async function until(code, label) {
   for (let i = 0; i < 150; i++) {

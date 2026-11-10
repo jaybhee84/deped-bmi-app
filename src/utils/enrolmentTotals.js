@@ -7,11 +7,12 @@ export function normalizeSchoolYear(value) {
     .replace(/\s+/g, "");
 }
 
-export function countPortalEnrolments(students, schoolYear) {
+export function countPortalEnrolments(students, schoolYear, schoolId) {
   const targetYear = normalizeSchoolYear(schoolYear);
   if (!targetYear) return 0;
 
   return (students || []).filter((student) => {
+    if (schoolId != null && String(student?.schoolId || student?.school_id || "") !== String(schoolId)) return false;
     const enrolledYear =
       student?.schoolYear || student?.school_year || student?.enrolmentSy;
     return normalizeSchoolYear(enrolledYear) === targetYear;

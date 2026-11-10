@@ -1,4 +1,6 @@
+import { secureStorage } from './secureStorage';
 import { createClient } from '@supabase/supabase-js';
+import { schoolDataFetch } from './schoolDataFetch';
 
 export const SUPABASE_URL =
   import.meta.env.VITE_SUPABASE_URL ||
@@ -12,4 +14,7 @@ export const SUPABASE_ANON_KEY =
 // service-role key in this client application.
 export const SCHOOL_MIRROR_ID = '126001';
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  global: { fetch: schoolDataFetch },
+  auth: { storage: secureStorage },
+});

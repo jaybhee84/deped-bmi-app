@@ -1,17 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import SDOAllowedUsers from "./SDOAllowedUsers";
 import { supabase } from "../utils/supabase";
 import "./Sidebar.css";
-
-// "admin1" satisfies the creator check in SDOAllowedUsers so the panel can
-// see and manage the protected creator emails too. The email intentionally
-// reflects the real, dedicated backing account (not a personal account) so
-// "Added by" attribution in the allowlist stays honest.
-const ADMIN_USER = {
-  username: "admin1",
-  email: "bmi-secret-admin@deped-bmi.internal",
-  fullName: "System Administrator",
-};
 
 const USERS_ICON = (
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -20,6 +10,14 @@ const USERS_ICON = (
 );
 
 export default function SecretAdminDashboard({ onExit }) {
+  const [currentUser, setCurrentUser] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getUser().then(({ data }) => {
+      if (!cancelled) setCurrentUser(data.user);
+    });
+    return () => { cancelled = true; };
+  }, []);
   return (
     <div className="app-shell">
       <aside className="sidebar no-print">
@@ -59,7 +57,7 @@ export default function SecretAdminDashboard({ onExit }) {
       </aside>
 
       <main className="main-content">
-        <SDOAllowedUsers currentUser={ADMIN_USER} />
+        {currentUser && <SDOAllowedUsers currentUser={currentUser} />}
       </main>
     </div>
   );

@@ -1,3 +1,4 @@
+import { secureStorage } from '../utils/secureStorage';
 import React, { useMemo, useState, useRef, useEffect } from "react";
 import { filterByLearnerScope, useSbfpConfig } from "../utils/sbfpBeneficiary";
 import {
@@ -46,7 +47,7 @@ export default function Dashboard({ students: allStudents, currentUser, onOpenPr
         currentUser?.school_name || currentUser?.schoolName || "";
       const targetSchoolId =
         currentUser?.school_id ||
-        window.localStorage.getItem("current_school_id");
+        secureStorage.getItem("current_school_id");
 
       if (currentName) {
         setSchoolName(currentName);

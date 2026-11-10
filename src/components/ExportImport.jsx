@@ -1,7 +1,8 @@
 import React, { useRef } from 'react';
 import './ExportImport.css';
+import { mergeStudentImport } from '../utils/mergeStudentImport';
 
-export default function ExportImport({ students, setStudents }) {
+export default function ExportImport({ students, setStudents, schoolId }) {
   const fileRef = useRef();
 
   function handleExport() {
@@ -18,40 +19,21 @@ export default function ExportImport({ students, setStudents }) {
   function handleImport(e) {
     const file = e.target.files[0];
     if (!file) return;
+    if (file.size > 50 * 1024 * 1024) { alert('Choose an export smaller than 50 MB.'); return; }
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const parsed = JSON.parse(evt.target.result);
-        if (!Array.isArray(parsed)) {
-          alert('Invalid file. Please use a file exported from this app.');
-          return;
-        }
-        setStudents(prev => {
-          const merged = [...prev];
-          parsed.forEach(incoming => {
-            const existing = merged.find(
-              s => s.lrn === incoming.lrn && incoming.lrn !== '—'
-            );
-            if (existing) {
-              const existingKeys = new Set(
-                existing.records.map(r => `${r.sy}-${r.q}-${r.date}`)
-              );
-              const newRecs = incoming.records.filter(
-                r => !existingKeys.has(`${r.sy}-${r.q}-${r.date}`)
-              );
-              existing.records = [...existing.records, ...newRecs];
-            } else {
-              merged.push({ ...incoming, id: Date.now() + Math.random() });
-            }
-          });
-          return merged;
-        });
+        // Validate before scheduling a React update so malformed files are caught here.
+        mergeStudentImport([], parsed, schoolId);
+        setStudents(prev => mergeStudentImport(prev, parsed, schoolId));
         alert(`✓ Import successful! ${parsed.length} student records loaded.`);
       } catch {
         alert('Failed to read file. Make sure it is a valid JSON export.');
       }
       e.target.value = '';
     };
+    reader.onerror = () => alert('Unable to read the selected file.');
     reader.readAsText(file);
   }
 

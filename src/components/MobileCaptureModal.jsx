@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Modal from "./Modal";
+import { QRCodeSVG } from 'qrcode.react';
 
 export default function MobileCaptureModal({
   student,
@@ -22,7 +23,6 @@ export default function MobileCaptureModal({
   const captureUrl = `http://${currentHost}:${currentPort}/capture/${student.id}`;
 
   // Encodes the dynamic URL safely into the QR Code API
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(captureUrl)}`;
 
   useEffect(() => {
     if (!supabaseClient) return;
@@ -39,11 +39,11 @@ export default function MobileCaptureModal({
           filter: `id=eq.${student.id}`,
         },
         (payload) => {
-          if (payload.new && payload.new.photo) {
+          if (payload.new && payload.new.photo_url) {
             setSyncStatus("Photo received! Saving locally to SQLite...");
             setIsScanning(false);
 
-            onPhotoSynced(payload.new.photo);
+            onPhotoSynced(payload.new.photo_url);
 
             setTimeout(() => {
               onClose();
@@ -69,11 +69,7 @@ export default function MobileCaptureModal({
             </p>
 
             <div className="qr-code-box">
-              <img
-                src={qrImageUrl}
-                alt="Scan to capture"
-                style={{ width: "200px", height: "200px", display: "block" }}
-              />
+              <QRCodeSVG value={captureUrl} size={200} title="Scan to capture" />
             </div>
 
             <div className="sync-status-indicator pulse">

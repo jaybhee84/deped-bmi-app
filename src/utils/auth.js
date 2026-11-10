@@ -1,3 +1,4 @@
+import { secureStorage } from './secureStorage';
 // ── Auth utility ───────────────────────────────────────────────────────────
 const STORAGE_KEY = 'deped_bmi_users';
 const SESSION_KEY = 'deped_bmi_session';
@@ -18,31 +19,19 @@ export const DIVISION_POSITIONS = [
   'Nurse II',
 ];
  
-const DEFAULT_USERS = [
-  {
-    id:        '1',
-    username:  'admin',
-    password:  'deped2025',
-    lastName:  'Administrator',
-    firstName: '',
-    middleInitial: '',
-    fullName:  'Administrator',
-    role:      ROLES.SCHOOL,
-    position:  'Administrative Officer II',
-  },
-];
+const DEFAULT_USERS = [];
  
 // ── User store ─────────────────────────────────────────────────────────────
  
 export function loadUsers() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = secureStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : DEFAULT_USERS;
   } catch { return DEFAULT_USERS; }
 }
  
 export function saveUsers(users) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(users)); } catch {}
+  try { secureStorage.setItem(STORAGE_KEY, JSON.stringify(users)); } catch {}
 }
  
 export function addUser(user) {
@@ -89,7 +78,7 @@ export function login(username, password) {
 export function logout() {
   try { 
     sessionStorage.removeItem(SESSION_KEY); 
-    localStorage.removeItem(SESSION_KEY); // Remove legacy key if exists
+    secureStorage.removeItem(SESSION_KEY); // Remove legacy key if exists
   } catch {}
 }
  
@@ -119,52 +108,25 @@ export function canViewOnly(session) {
   return session?.role === ROLES.DIVISION;
 }
 
-// ── Offline credential cache (Stored in localStorage permanently) ─────────
-// Versioned for the new division Supabase. The legacy cache may contain
-// credentials for accounts that have not registered in the new Auth project.
-const OFFLINE_CACHE_KEY = 'deped_bmi_offline_cache_division_v1';
+// ── Offline credential cache (Stored in secureStorage permanently) ─────────
+// Discard legacy plaintext credentials; users must sign in online once after upgrading.
+for (const key of ['deped_bmi_offline_cache_division_v1', 'deped_bmi_offline_cache', 'deped_bmi_users']) {
+  secureStorage.removeItem(key);
+}
 
-export function cacheOfflineCredentials(profile, password) {
+export async function cacheOfflineCredentials(profile, password) {
+  if (!window.sqlite?.saveUserLocally) return false;
+  const result = await window.sqlite.saveUserLocally(profile, password);
+  return result?.success === true;
+}
+
+export async function deleteOfflineCredentials(username) {
+  return window.sqlite?.deleteLocalProfile?.({ username });
+}
+
+export async function attemptOfflineLogin(username, password) {
   try {
-    const cache = loadOfflineCache();
-    const key = (profile.username || '').toLowerCase();
-    if (!key) return;
-
-    cache[key] = { profile, password };
-    localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(cache));
-  } catch {}
-}
-
-function loadOfflineCache() {
-  try {
-    const raw = localStorage.getItem(OFFLINE_CACHE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
-
-export function deleteOfflineCredentials(username) {
-  try {
-    const cache = loadOfflineCache();
-    const key = (username || '').toLowerCase();
-    if (!key || !cache[key]) return false;
-
-    delete cache[key];
-    localStorage.setItem(OFFLINE_CACHE_KEY, JSON.stringify(cache));
-    return true;
-  } catch {
-    return false;
-  }
-}
-export function attemptOfflineLogin(username, password) {
-  const cache = loadOfflineCache();
-  const entry = cache[(username || '').toLowerCase()];
-
-  if (!entry || entry.password !== password) return null;
-
-  return entry.profile;
-}
-
-export function hasOfflineCredentials(username) {
-  const cache = loadOfflineCache();
-  return Boolean(cache[(username || '').toLowerCase()]);
+    const result = await window.sqlite?.offlineLoginCheck?.(username, password);
+    return result?.success ? result.user : null;
+  } catch { return null; }
 }

@@ -115,6 +115,7 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - run: npm run build
 
       - name: Build Windows installer
@@ -160,6 +161,7 @@ jobs:
       # Fresh node_modules on this runner only.
       - run: npm ci
       - run: npm run lint
+      - run: npm test
       - run: npm run build
 
       # Rebuild the SQLite driver for Electron (the version in package.json)

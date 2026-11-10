@@ -1,4 +1,16 @@
 const { contextBridge, ipcRenderer } = require("electron");
+contextBridge.exposeInMainWorld('dataProtection', {
+  seal: value => {
+    const result = ipcRenderer.sendSync('storage:seal', value);
+    if (result.error) throw new Error(result.error);
+    return result.value;
+  },
+  open: value => {
+    const result = ipcRenderer.sendSync('storage:open', value);
+    if (result.error) throw new Error(result.error);
+    return result.value;
+  },
+});
 
 console.log("PRELOAD LOADED");
 

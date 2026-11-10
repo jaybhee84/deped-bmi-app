@@ -184,6 +184,8 @@ To start a build by hand (as `buzzjay84`): `gh workflow run build-from-private.y
 
 This application handles learner and school information. Deployments should follow applicable DepEd data-privacy policies and local access-control procedures. Limit accounts to authorized personnel, protect exported files, and avoid placing real learner data in issues, screenshots, test fixtures, or source-control commits.
 
+Read [SECURITY-AUDIT.md](SECURITY-AUDIT.md) before deploying the security update. It includes the required database migration, private-photo storage changes, school assignments, account revocation, recovery website configuration, and verification limits. Local learner/enrolment payloads and persistent app caches use OS-protected encryption; exports and printouts remain unencrypted. Backups need the original OS keychain context, and upgrading requires one online sign-in to renew the offline credential cache.
+
 ## Project structure
 
 ```text
@@ -199,6 +201,6 @@ supabase/migrations/   Cloud database migrations
 
 ## License and support
 
-No open-source license is currently declared for this repository. Unless a license is added, the source code remains under the copyright holder's default rights.
+The [end-user agreement and security notice](LICENSE-AGREEMENT.txt) is configured for Windows NSIS and macOS DMG installation and included with packaged resources. It is not an open-source license. Have institutional legal counsel review it before distribution; it does not waive duties or liability that applicable law prevents excluding.
 
 For bugs or enhancement requests, use the repository's [GitHub Issues](https://github.com/jaybhee84/deped-bmi-app/issues) page and remove all learner-identifying information before submitting logs or screenshots.

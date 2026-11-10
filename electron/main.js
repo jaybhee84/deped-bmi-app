@@ -4,6 +4,9 @@ import fs from "fs";
 import https from "https";
 import { fileURLToPath } from "url";
 import { app, BrowserWindow, ipcMain, shell, dialog, Menu } from "electron";
+import db from './database.js';
+import { migrateProtectedData, protectData, readProtectedData } from './protected-data.js';
+import { validateMacUpdate } from './security.js';
 import { PDFDocument } from "pdf-lib";
 import pkg from "electron-updater";
 
@@ -13,7 +16,7 @@ const { autoUpdater } = pkg;
 // PLATFORM FLAG
 // ==========================================
 const isMac = process.platform === "darwin";
-const GITHUB_REPO = "jaybhee84/deped-bmi-app";
+const GITHUB_REPO = "buzzjay84/deped-bmi-app";
 
 // IMPORT LOCAL DATABASE ENGINE ATTRIBUTES
 import {
@@ -137,11 +140,21 @@ autoUpdater.on("error", (err) => {
   );
 });
 
-ipcMain.on("restart-app-for-update", () => {
+function handleAppIpc(channel, action) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
+      throw new Error('Only the app window may access local data.');
+    }
+    return action(event, ...args);
+  });
+}
+
+ipcMain.on("restart-app-for-update", (event) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) return;
   installDownloadedUpdate();
 });
 
-ipcMain.handle("app:getVersion", () => {
+handleAppIpc("app:getVersion", () => {
   return app.getVersion();
 });
 
@@ -151,7 +164,7 @@ const BUNDLED_TEMPLATE_FILES = new Set([
   "SBFP FORM 2.xlsx",
 ]);
 
-ipcMain.handle("assets:loadTemplate", async (_, filename) => {
+handleAppIpc("assets:loadTemplate", async (_, filename) => {
   if (!BUNDLED_TEMPLATE_FILES.has(filename)) {
     throw new Error("The requested template is not allowed.");
   }
@@ -176,7 +189,7 @@ ipcMain.handle("assets:loadTemplate", async (_, filename) => {
 // ==========================================
 // UNIFIED "CHECK FOR UPDATES" HANDLER
 // ==========================================
-ipcMain.handle("app:checkForUpdates", async () => {
+handleAppIpc("app:checkForUpdates", async () => {
   if (isMac) {
     try {
       return await checkForUpdatesMac();
@@ -304,7 +317,9 @@ async function checkForUpdatesMac() {
   };
 }
 
-ipcMain.handle("app:downloadUpdateMac", async (event, { dmgUrl, dmgName }) => {
+handleAppIpc("app:downloadUpdateMac", async (event, { dmgUrl, dmgName }) => {
+  try { validateMacUpdate(dmgUrl, dmgName, GITHUB_REPO); }
+  catch { return { success: false, error: 'Invalid update download.' }; }
   if (!dmgUrl || !dmgName) {
     return { success: false, error: "Missing dmgUrl/dmgName." };
   }
@@ -324,7 +339,7 @@ ipcMain.handle("app:downloadUpdateMac", async (event, { dmgUrl, dmgName }) => {
   }
 });
 
-ipcMain.handle("app:openReleasesPage", async () => {
+handleAppIpc("app:openReleasesPage", async () => {
   await shell.openExternal(`https://github.com/${GITHUB_REPO}/releases/latest`);
   return true;
 });
@@ -333,7 +348,7 @@ ipcMain.handle("app:openReleasesPage", async () => {
 // HYBRID ARCHITECTURE REGISTRIES & USER AUTH
 // ==========================================
 
-ipcMain.handle("user:saveLocally", async (event, { user, password }) => {
+handleAppIpc("user:saveLocally", async (event, { user, password }) => {
   try {
     updateLocalProfile({
       id: user.id,
@@ -341,7 +356,8 @@ ipcMain.handle("user:saveLocally", async (event, { user, password }) => {
       username: user.username || user.firstname || "",
       role: user.role,
       school_id: user.school_id,
-      password_hash: password,
+      ...user,
+      password,
     });
     return { success: true };
   } catch (error) {
@@ -350,7 +366,7 @@ ipcMain.handle("user:saveLocally", async (event, { user, password }) => {
   }
 });
 
-ipcMain.handle("get-school-by-id", async (event, schoolId) => {
+handleAppIpc("get-school-by-id", async (event, schoolId) => {
   try {
     const row = getSchoolById(schoolId);
     return row || null;
@@ -360,7 +376,7 @@ ipcMain.handle("get-school-by-id", async (event, schoolId) => {
   }
 });
 
-ipcMain.handle("get-school-by-name", async (event, schoolName) => {
+handleAppIpc("get-school-by-name", async (event, schoolName) => {
   try {
     const row = getSchoolByName(schoolName);
     return row || null;
@@ -370,7 +386,7 @@ ipcMain.handle("get-school-by-name", async (event, schoolName) => {
   }
 });
 
-ipcMain.handle("save-school-locally", async (event, school) => {
+handleAppIpc("save-school-locally", async (event, school) => {
   try {
     saveSchoolLocally(school);
     return true;
@@ -380,7 +396,7 @@ ipcMain.handle("save-school-locally", async (event, school) => {
   }
 });
 
-ipcMain.handle("update-local-profile", async (event, profileData) => {
+handleAppIpc("update-local-profile", async (event, profileData) => {
   try {
     updateLocalProfile(profileData);
     return true;
@@ -390,7 +406,7 @@ ipcMain.handle("update-local-profile", async (event, profileData) => {
   }
 });
 
-ipcMain.handle("profile:deleteLocal", async (event, identity) => {
+handleAppIpc("profile:deleteLocal", async (event, identity) => {
   try {
     return { success: true, deleted: deleteLocalProfile(identity) };
   } catch (error) {
@@ -399,7 +415,7 @@ ipcMain.handle("profile:deleteLocal", async (event, identity) => {
   }
 });
 
-ipcMain.handle("offline-login-check", async (event, { email, password }) => {
+handleAppIpc("offline-login-check", async (event, { email, password }) => {
   try {
     return offlineLoginCheck(email, password);
   } catch (error) {
@@ -412,36 +428,36 @@ ipcMain.handle("offline-login-check", async (event, { email, password }) => {
 // STUDENTS & LEGACY SCHOOL IPC
 // ==========================================
 
-ipcMain.handle("students:save", (_, payload) => {
+handleAppIpc("students:save", (_, payload) => {
   const students = Array.isArray(payload) ? payload : payload.students;
   const isDirty = Array.isArray(payload) ? false : payload.isDirty;
   saveStudents(students, isDirty);
   return true;
 });
 
-ipcMain.handle("students:load", () => {
+handleAppIpc("students:load", () => {
   return loadStudents();
 });
 
-ipcMain.handle("students:getDirty", () => {
+handleAppIpc("students:getDirty", () => {
   return getDirtyStudents();
 });
 
-ipcMain.handle("students:markClean", () => {
+handleAppIpc("students:markClean", () => {
   markStudentsClean();
   return true;
 });
 
-ipcMain.handle("school:save", (_, { school, userId }) => {
+handleAppIpc("school:save", (_, { school, userId }) => {
   saveSchool(school, userId);
   return true;
 });
 
-ipcMain.handle("school:load", (_, userId) => {
+handleAppIpc("school:load", (_, userId) => {
   return loadSchool(userId);
 });
 
-ipcMain.handle("school:loadWithLogo", (_, userId) => {
+handleAppIpc("school:loadWithLogo", (_, userId) => {
   const schoolData = loadSchool(userId);
   if (!schoolData || !schoolData.school_id) return null;
   const logoUrl = loadSchoolLogo(schoolData.school_id);
@@ -451,21 +467,21 @@ ipcMain.handle("school:loadWithLogo", (_, userId) => {
   };
 });
 
-ipcMain.handle("school:clear", () => {
+handleAppIpc("school:clear", () => {
   clearSchool();
   return true;
 });
 
-ipcMain.handle("school:saveLogo", (_, { schoolId, filename, dataUrl }) => {
+handleAppIpc("school:saveLogo", (_, { schoolId, filename, dataUrl }) => {
   saveSchoolLogo(schoolId, filename, dataUrl);
   return true;
 });
 
-ipcMain.handle("school:loadLogo", (_, schoolId) => {
+handleAppIpc("school:loadLogo", (_, schoolId) => {
   return loadSchoolLogo(schoolId);
 });
 
-ipcMain.handle("school:deleteLogo", (_, schoolId) => {
+handleAppIpc("school:deleteLogo", (_, schoolId) => {
   deleteSchoolLogo(schoolId);
   return true;
 });
@@ -474,7 +490,7 @@ ipcMain.handle("school:deleteLogo", (_, schoolId) => {
 // SBFP ENROLMENT (offline-first local SQLite)
 // ==========================================
 
-ipcMain.handle("sbfp-enrolment:save", (_, schoolId, sy, data, total) => {
+handleAppIpc("sbfp-enrolment:save", (_, schoolId, sy, data, total) => {
   try {
     saveEnrolmentLocally(schoolId, sy, data, total);
     return true;
@@ -484,7 +500,7 @@ ipcMain.handle("sbfp-enrolment:save", (_, schoolId, sy, data, total) => {
   }
 });
 
-ipcMain.handle("sbfp-enrolment:load", (_, schoolId, sy) => {
+handleAppIpc("sbfp-enrolment:load", (_, schoolId, sy) => {
   try {
     return loadEnrolmentLocally(schoolId, sy);
   } catch (error) {
@@ -493,7 +509,7 @@ ipcMain.handle("sbfp-enrolment:load", (_, schoolId, sy) => {
   }
 });
 
-ipcMain.handle("sbfp-enrolment:markClean", (_, schoolId, sy) => {
+handleAppIpc("sbfp-enrolment:markClean", (_, schoolId, sy) => {
   try {
     markEnrolmentClean(schoolId, sy);
     return true;
@@ -503,7 +519,7 @@ ipcMain.handle("sbfp-enrolment:markClean", (_, schoolId, sy) => {
   }
 });
 
-ipcMain.handle("sbfp-enrolment:dirty", () => {
+handleAppIpc("sbfp-enrolment:dirty", () => {
   try {
     return getDirtyEnrolmentRows();
   } catch (error) {
@@ -512,7 +528,7 @@ ipcMain.handle("sbfp-enrolment:dirty", () => {
   }
 });
 
-ipcMain.handle("sbfp-enrolment:totals", (_, sy) => {
+handleAppIpc("sbfp-enrolment:totals", (_, sy) => {
   try {
     return loadEnrolmentTotalsForSY(sy);
   } catch (error) {
@@ -525,7 +541,7 @@ ipcMain.handle("sbfp-enrolment:totals", (_, sy) => {
 // SCHOOL LOGO CACHE
 // ==========================================
 
-ipcMain.handle("logo-cache:save", (_, { schoolKey, filename, dataUrl }) => {
+handleAppIpc("logo-cache:save", (_, { schoolKey, filename, dataUrl }) => {
   try {
     saveLogoToCache(schoolKey, filename, dataUrl);
     return true;
@@ -535,7 +551,7 @@ ipcMain.handle("logo-cache:save", (_, { schoolKey, filename, dataUrl }) => {
   }
 });
 
-ipcMain.handle("logo-cache:load", (_, schoolKey) => {
+handleAppIpc("logo-cache:load", (_, schoolKey) => {
   try {
     return loadLogoFromCache(schoolKey);
   } catch (error) {
@@ -544,7 +560,7 @@ ipcMain.handle("logo-cache:load", (_, schoolKey) => {
   }
 });
 
-ipcMain.handle("logo-cache:loadAll", () => {
+handleAppIpc("logo-cache:loadAll", () => {
   try {
     return loadAllCachedLogos();
   } catch (error) {
@@ -553,7 +569,7 @@ ipcMain.handle("logo-cache:loadAll", () => {
   }
 });
 
-ipcMain.handle("logo-cache:keys", () => {
+handleAppIpc("logo-cache:keys", () => {
   try {
     return getCachedLogoKeys();
   } catch (error) {
@@ -566,6 +582,7 @@ ipcMain.handle("logo-cache:keys", () => {
 // WINDOW INTERACTION ACTIONS
 // ==========================================
 ipcMain.on("close-current-window", (event) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) return;
   const targetWindow = BrowserWindow.fromWebContents(event.sender);
   if (targetWindow) {
     targetWindow.close();
@@ -577,6 +594,15 @@ ipcMain.on("close-current-window", (event) => {
 // ==========================================
 
 let mainWindow;
+for (const [channel, action] of [['storage:seal', protectData], ['storage:open', readProtectedData]]) {
+  ipcMain.on(channel, (event, value) => {
+    try {
+      if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame ||
+          typeof value !== 'string' || value.length > 50_000_000) throw new Error('Invalid protected storage request.');
+      event.returnValue = { value: action(value) };
+    } catch (error) { event.returnValue = { error: error.message }; }
+  });
+}
 
 // ==========================================
 // INITIALIZE PRINT PREVIEW SERVICE
@@ -595,10 +621,14 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
 
   mainWindow.maximize();
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', event => event.preventDefault());
+  mainWindow.webContents.session.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
 
   mainWindow.on("closed", () => {
     cleanupPrinting();
@@ -749,7 +779,8 @@ function buildMenu() {
 // ==========================================
 // FOCUS RECOVERY
 // ==========================================
-ipcMain.on("force-refocus-window", () => {
+ipcMain.on("force-refocus-window", (event) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) return;
   if (!mainWindow) return;
   mainWindow.blur();
   mainWindow.focus();
@@ -761,6 +792,7 @@ ipcMain.on("force-refocus-window", () => {
 // ==========================================
 app.whenReady().then(() => {
   initDatabase();
+  migrateProtectedData(db);
   createWindow();
   buildMenu();
 
@@ -776,6 +808,9 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+}).catch(error => {
+  dialog.showErrorBox('Unable to open protected data', error.message);
+  app.quit();
 });
 
 app.on("window-all-closed", () => {

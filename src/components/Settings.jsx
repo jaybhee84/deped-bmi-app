@@ -1,3 +1,4 @@
+import { secureStorage } from '../utils/secureStorage';
 import React, { useState, useEffect } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
 import UserManagement from "./UserManagement";
@@ -75,7 +76,7 @@ export default function Settings({
     async function loadSchoolDb() {
       try {
         // 1. Try local SQLite first (fast, works offline)
-        const schoolData = await window.sqlite.loadSchool();
+        const schoolData = await window.sqlite.loadSchool(currentUser?.id);
 
         if (schoolData) {
           setSchool({
@@ -124,7 +125,7 @@ export default function Settings({
               division: boundSchool.division,
               district: boundSchool.district,
               address: boundSchool.address,
-            });
+            }, currentUser.id);
 
             setSchoolName(boundSchool.name);
             setSchoolLoaded(true);
@@ -159,18 +160,15 @@ export default function Settings({
     }
 
     try {
-      // Save locally first
-      await window.sqlite.saveSchool(school);
-
       // Sync to Supabase if online
       if (navigator.onLine) {
         if (!schoolExists) {
-          await saveSchoolInfo(school);
+          if (!await saveSchoolInfo(school)) throw new Error('Could not save the school online.');
         }
 
         if (currentUser?.id) {
           try {
-            const success = await bindSchoolToUser(school.id, currentUser.id);
+            await bindSchoolToUser(school.id, currentUser.id);
 
             window.dispatchEvent(
               new CustomEvent("school-bound", {
@@ -185,9 +183,15 @@ export default function Settings({
             alert(
               "School saved, but could not bind it to your account. You may need to set it up again next time.",
             );
+            return;
           }
         }
       }
+
+      if (!navigator.onLine && String(school.id) !== String(currentUser?.school_id)) {
+        throw new Error('Connect online to change your assigned school.');
+      }
+      await window.sqlite.saveSchool(school, currentUser?.id);
 
       setSchoolName(school.name);
       setSchoolSaved(true);
@@ -197,7 +201,7 @@ export default function Settings({
       }, 2500);
     } catch (e) {
       console.error(e);
-      alert("School saved locally but failed to sync to Supabase.");
+      alert(e.message || 'Could not save the school.');
     }
   }
 
@@ -249,12 +253,12 @@ export default function Settings({
     if (!confirmed) return;
 
     const counters = JSON.parse(
-      localStorage.getItem("deped_bmi_registry_counters") || "{}",
+      secureStorage.getItem("deped_bmi_registry_counters") || "{}",
     );
 
     counters["2026-ieces-G4"] = 0;
 
-    localStorage.setItem(
+    secureStorage.setItem(
       "deped_bmi_registry_counters",
       JSON.stringify(counters),
     );

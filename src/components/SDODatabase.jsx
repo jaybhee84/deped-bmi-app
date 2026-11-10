@@ -242,8 +242,8 @@ export default function SDOStudents({
         age: parseInt(form.age) || 0,
         sex: form.sex,
         section: form.section,
-        dewormed: "Y",
-        parentConsent: "Y",
+        dewormed: "N",
+        parentConsent: "N",
         member4ps: "N",
         records: [],
       },
@@ -504,9 +504,9 @@ export default function SDOStudents({
                       </td>
                       <td style={{ textAlign: "center" }}>
                         <span
-                          className={`sdo-yn-pill ${(s.parentConsent || "Y") === "Y" ? "is-yes" : "is-no"}`}
+                          className={`sdo-yn-pill ${(s.parentConsent || "N") === "Y" ? "is-yes" : "is-no"}`}
                         >
-                          {s.parentConsent || "Y"}
+                          {s.parentConsent || "N"}
                         </span>
                       </td>
                       <td style={{ textAlign: "center" }}>

@@ -11,8 +11,8 @@ import {
   SECTIONS,
 } from "../utils/bmi";
 import Badge from "./Badge";
+import { parseMeasurementHeight, parseMeasurementWeight } from '../utils/measurementInput';
 import Modal from "./Modal";
-import MobileCaptureModal from "./MobileCaptureModal";
 import "./Profile.css";
 
 // Helper function to convert YYYY-MM-DD or standard dates to MM/DD/YYYY
@@ -193,13 +193,43 @@ export default function Profile({
   autoOpenAddRecord,
 }) {
   const student = students.find((s) => s.id === studentId);
+  const [authorizedPhoto, setAuthorizedPhoto] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    setAuthorizedPhoto(null);
+    async function loadPhoto() {
+      const photo = student?.photo;
+      if (!photo) return;
+      if (photo.startsWith('data:image/')) { if (!cancelled) setAuthorizedPhoto(photo); return; }
+      if (!supabase) return;
+      try {
+        let url;
+        if (String(student.schoolId || student.school_id) === '126001') {
+          const body = new FormData();
+          body.append('action', 'read'); body.append('student_id', String(student.id));
+          const { data, error } = await supabase.functions.invoke('upload-learner-photo', { body });
+          if (error) throw error;
+          url = data?.signedUrl;
+        } else {
+          const path = new URL(photo).pathname.split('/storage/v1/object/public/profiles/')[1];
+          if (!path) return;
+          const { data, error } = await supabase.storage.from('profiles').createSignedUrl(path, 600);
+          if (error) throw error;
+          url = data?.signedUrl;
+        }
+        if (!cancelled) setAuthorizedPhoto(url || null);
+      } catch { if (!cancelled) setAuthorizedPhoto(null); }
+    }
+    loadPhoto();
+    const timer = setInterval(loadPhoto, 5 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [student?.photo, student?.id, student?.schoolId, student?.school_id, supabase]);
   const [addOpen, setAddOpen] = useState(!!autoOpenAddRecord);
 
   useEffect(() => {
     if (autoOpenAddRecord) setAddOpen(true);
   }, [studentId, autoOpenAddRecord]);
 
-  const [mobileSyncOpen, setMobileSyncOpen] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [isSavingChanges, setIsSavingChanges] = useState(false);
   const [showPhotoDeleteConfirm, setShowPhotoDeleteConfirm] = useState(false);
@@ -413,12 +443,18 @@ export default function Profile({
   }
 
   function saveRecord() {
-    if (!rec.date || !rec.weight || !rec.height) return;
+    if (readOnly) return;
+    const weight = parseMeasurementWeight(rec.weight);
+    const height = parseMeasurementHeight(rec.height);
+    if (!rec.date || !weight || !height) {
+      triggerStatusFeedback('Enter a measurement date, positive weight, and a height between 0.3 and 3 meters.');
+      return;
+    }
     const newRec = {
       ...rec,
       section: student.section,
-      weight: parseFloat(rec.weight),
-      height: normalizeHeightMeters(rec.height),
+      weight,
+      height,
     };
     setStudents((prev) =>
       prev.map((s) => {
@@ -443,8 +479,13 @@ export default function Profile({
   }
 
   async function handleManualPhotoUpload(e) {
+    if (readOnly) return;
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+      triggerStatusFeedback('Choose a PNG, JPEG, or WebP image no larger than 5 MB.');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async () => {
@@ -469,9 +510,9 @@ export default function Profile({
       if (supabase) {
         try {
           setIsUploading(true);
-          const fileExt = file.name.split(".").pop() || "jpg";
-          const fileName = `${safeRegistryName}.${fileExt}`;
-          const filePath = `avatars/${fileName}`;
+          const fileExt = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[file.type];
+          const fileName = `${crypto.randomUUID()}.${fileExt}`;
+          const filePath = `avatars/${student.schoolId || student.school_id}/${student.id}/${fileName}`;
 
           const isIeceStudent = String(student.schoolId || student.school_id || "") === "126001";
           let publicUrl;
@@ -494,7 +535,7 @@ export default function Profile({
               .from("profiles")
               .upload(filePath, file, {
                 upsert: true,
-                contentType: `image/${fileExt}`,
+                contentType: file.type,
               });
 
             if (uploadError) throw uploadError;
@@ -632,10 +673,10 @@ export default function Profile({
         <div className="card profile-info-card">
           <div
             className={`avatar avatar-clickable ${isUploading ? "loading-shimmer" : ""}`}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => { if (!readOnly) fileInputRef.current?.click(); }}
             onContextMenu={(e) => {
               e.preventDefault();
-              if (student.photo) {
+              if (!readOnly && student.photo) {
                 setShowPhotoDeleteConfirm(true);
               }
             }}
@@ -645,9 +686,9 @@ export default function Profile({
                 : "Left-click to upload photo manually."
             }
           >
-            {student.photo ? (
+            {authorizedPhoto ? (
               <img
-                src={student.photo}
+                src={authorizedPhoto}
                 alt={student.name}
                 className="profile-photo"
               />
@@ -675,7 +716,7 @@ export default function Profile({
                   width: "100%",
                   fontWeight: "600",
                 }}
-                onClick={() => setMobileSyncOpen(true)}
+                disabled title="Mobile capture has no deployed capture service. Use the photo upload above."
               >
                 📸 Take Photo via Phone
               </button>
@@ -1100,31 +1141,6 @@ export default function Profile({
             </button>
           </div>
         </Modal>
-      )}
-
-      {mobileSyncOpen && (
-        <MobileCaptureModal
-          student={student}
-          supabaseClient={supabase}
-          fileName={`${safeRegistryName}.jpg`}
-          onClose={() => setMobileSyncOpen(false)}
-          onPhotoSynced={async (updatedPhotoData) => {
-            setStudents((prev) =>
-              prev.map((s) =>
-                s.id === student.id ? { ...s, photo: updatedPhotoData } : s,
-              ),
-            );
-            if (window.electronAPI?.saveToSQLite) {
-              await window.electronAPI.saveToSQLite({
-                id: student.id,
-                photo: updatedPhotoData,
-              });
-            }
-            triggerStatusFeedback(
-              "Photo successfully received from phone camera!",
-            );
-          }}
-        />
       )}
 
       {showConfirmModal && (

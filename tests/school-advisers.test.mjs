@@ -48,6 +48,7 @@ const orgChart = readFileSync(new URL('../src/utils/iecesOrgChart.js', import.me
 const nameCase = readFileSync(new URL('../src/utils/nameCase.js', import.meta.url), 'utf8');
 const orgNames = orgChart.slice(orgChart.indexOf('// "Juan Dela Cruz Eliot"'));
 const source = readFileSync(new URL('../src/utils/schoolAdvisers.js', import.meta.url), 'utf8')
+  .replace(/import .* from '\.\/secureStorage';/, 'const secureStorage = globalThis.localStorage;')
   .replace(/import \{ useCallback[^\n]*\n/, 'const useCallback = () => {}, useEffect = () => {}, useState = () => [];\n')
   .replace(/import \{ supabase \}[^\n]*\n/, 'const supabase = globalThis.__testSupabase;\n')
   .replace(/import \{ fetchIecesAdvisers[^\n]*\n/, `${nameCase.replace('export function', 'function')}\nconst fetchIecesAdvisers = async () => [];\nconst isIecesSchool = (id) => String(id) === '126001';\n${orgNames.replace('export function', 'function')}\n`);

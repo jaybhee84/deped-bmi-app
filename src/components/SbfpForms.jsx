@@ -1,3 +1,4 @@
+import { secureStorage } from '../utils/secureStorage';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ExcelJS from "exceljs";
 import depedSeal from "../images/deped.png";
@@ -259,7 +260,7 @@ function nsAdvisersStorageKey(currentUser, schoolName) {
 function initialNsAdvisers(currentUser, schoolName) {
   try {
     const saved = JSON.parse(
-      localStorage.getItem(nsAdvisersStorageKey(currentUser, schoolName)),
+      secureStorage.getItem(nsAdvisersStorageKey(currentUser, schoolName)),
     );
     return saved && typeof saved === "object" ? saved : {};
   } catch {
@@ -270,7 +271,7 @@ const nsAdviserKey = (schoolYear, section) => `${schoolYear}|${section}`;
 function initialForm2Details(currentUser, schoolName) {
   try {
     const saved = JSON.parse(
-      localStorage.getItem(form2DetailsStorageKey(currentUser, schoolName)),
+      secureStorage.getItem(form2DetailsStorageKey(currentUser, schoolName)),
     );
     return saved && typeof saved === "object"
       ? { feedingStartDate: "", lastMile: "N", ...saved }
@@ -290,7 +291,7 @@ function initialFormDetails(currentUser, schoolName) {
   };
   try {
     const saved = JSON.parse(
-      localStorage.getItem(formDetailsStorageKey(currentUser, schoolName)),
+      secureStorage.getItem(formDetailsStorageKey(currentUser, schoolName)),
     );
     return saved && typeof saved === "object"
       ? { ...defaults, ...saved }
@@ -394,7 +395,7 @@ export default function SbfpForms({
       const next = { ...previous, [nsAdviserKey(schoolYear, section)]: value };
       if (!value.trim()) delete next[nsAdviserKey(schoolYear, section)];
       try {
-        localStorage.setItem(
+        secureStorage.setItem(
           nsAdvisersStorageKey(currentUser, schoolName),
           JSON.stringify(next),
         );
@@ -407,7 +408,7 @@ export default function SbfpForms({
     setForm2Details((previous) => {
       const next = { ...previous, [field]: value };
       try {
-        localStorage.setItem(
+        secureStorage.setItem(
           form2DetailsStorageKey(currentUser, schoolName),
           JSON.stringify(next),
         );
@@ -427,7 +428,7 @@ export default function SbfpForms({
     setFormDetails((previous) => {
       const next = { ...previous, [field]: value };
       try {
-        localStorage.setItem(
+        secureStorage.setItem(
           formDetailsStorageKey(currentUser, schoolName),
           JSON.stringify(next),
         );
@@ -1266,8 +1267,8 @@ export default function SbfpForms({
                         <td>{CODES[student.baz?.label] || "—"}</td>
                         <td>{CODES[student.haz?.label] || "—"}</td>
                         {[
-                          ["dewormed", student.dewormed || "Y"],
-                          ["parentConsent", student.parentConsent || "Y"],
+                          ["dewormed", student.dewormed || "N"],
+                          ["parentConsent", student.parentConsent || "N"],
                           ["member4ps", student.member4ps],
                           ["previousSbfp", student.previousSbfpBeneficiary],
                         ].map(([field, fetchedValue]) => {

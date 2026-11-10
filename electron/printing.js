@@ -7,6 +7,7 @@ import crypto from "crypto";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { pathToFileURL } from 'node:url';
 import { buildSettings, pageRanges } from "./print-settings.js";
 
 export function setupPrinting(getMainWindow) {
@@ -45,6 +46,7 @@ export function setupPrinting(getMainWindow) {
     documentSetup = { paper: input.paper, margin: input.margin, orientation: input.orientation };
     sourceWindow = new BrowserWindow({ show: false, webPreferences: {
       sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: false,
+      partition: `print-${crypto.randomUUID()}`,
     } });
     sourceWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     sourceWindow.webContents.on("will-navigate", (event) => event.preventDefault());
@@ -52,7 +54,12 @@ export function setupPrinting(getMainWindow) {
       // Load from a temp file: embedded logos easily exceed Chromium's 2 MB
       // URL limit, which makes data: URLs fail with ERR_INVALID_URL.
       tempFile = path.join(os.tmpdir(), `bmi-print-${crypto.randomUUID()}.html`);
-      await fs.promises.writeFile(tempFile, input.html, "utf8");
+      sourceWindow.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+        const allowed = details.url.startsWith('data:') ||
+          (details.resourceType === 'mainFrame' && details.url === pathToFileURL(tempFile).href);
+        callback({ cancel: !allowed });
+      });
+      await fs.promises.writeFile(tempFile, input.html, { encoding: 'utf8', mode: 0o600 });
       await sourceWindow.loadFile(tempFile);
     } catch (error) { cleanup(); throw error; }
     return { success: true };

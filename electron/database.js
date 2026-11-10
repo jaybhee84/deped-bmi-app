@@ -2,6 +2,9 @@ import Database from "better-sqlite3";
 import { app } from "electron";
 import path from "path";
 import fs from "node:fs";
+import { createHash } from 'node:crypto';
+import { hashPassword, verifyPassword } from './security.js';
+import { protectData, readProtectedData } from './protected-data.js';
 
 const dataDirectory = app.getPath("userData");
 fs.mkdirSync(dataDirectory, { recursive: true });
@@ -10,9 +13,11 @@ const dbPath = path.join(dataDirectory, "students.db");
 console.log("SQLite DB Path:", dbPath);
 
 const db = new Database(dbPath);
+db.pragma('secure_delete = ON');
 
 // Enable WAL mode for better offline performance and concurrent write handling
 db.pragma("journal_mode = WAL");
+const identityKey = value => createHash('sha256').update(String(value || '').trim().toLowerCase()).digest('hex');
 
 // ==========================================
 // INITIALIZE EXTRA SYNC SCHEMA (New Tables & Migrations)
@@ -51,6 +56,15 @@ export function initDatabase() {
   if (!profileCols.some((c) => c.name === "username")) {
     db.exec("ALTER TABLE bmi_profiles ADD COLUMN username TEXT");
   }
+  if (!profileCols.some((c) => c.name === 'profile_data')) {
+    db.exec('ALTER TABLE bmi_profiles ADD COLUMN profile_data TEXT');
+  }
+  if (!profileCols.some(c => c.name === 'email_key')) {
+    // Only the obsolete login cache is reset; learner records remain intact.
+    db.exec('DELETE FROM bmi_profiles; ALTER TABLE bmi_profiles ADD COLUMN email_key TEXT; ALTER TABLE bmi_profiles ADD COLUMN username_key TEXT;');
+  }
+  // Legacy plaintext credentials must be replaced by a fresh online login.
+  db.prepare("UPDATE bmi_profiles SET password_hash = NULL WHERE password_hash NOT LIKE 'scrypt:%'").run();
 
   // Global Schools Table for offline binding/autocomplete
   db.exec(`
@@ -180,33 +194,37 @@ export function saveSchoolLocally(school) {
 }
 
 export function updateLocalProfile(profile) {
+  const { password, password_hash: _passwordHash, ...publicProfile } = profile;
   const reconcileProfile = db.transaction((nextProfile) => {
     const cached = db
       .prepare(
-        "SELECT password_hash FROM bmi_profiles WHERE id = ? OR email = ? LIMIT 1",
+        "SELECT password_hash, profile_data FROM bmi_profiles WHERE id = ? OR email_key = ? LIMIT 1",
       )
-      .get(nextProfile.id, nextProfile.email);
+      .get(nextProfile.id, identityKey(nextProfile.email));
 
     // A legacy cache can contain this email under an obsolete auth user ID.
     // Reconcile both keys before inserting so the UNIQUE(email) constraint
     // cannot block onboarding, while retaining offline login credentials.
-    db.prepare("DELETE FROM bmi_profiles WHERE id = ? OR email = ?").run(
+    db.prepare("DELETE FROM bmi_profiles WHERE id = ? OR email_key = ?").run(
       nextProfile.id,
-      nextProfile.email,
+      identityKey(nextProfile.email),
     );
 
     db.prepare(
       `
-      INSERT INTO bmi_profiles (id, email, username, role, school_id, password_hash)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO bmi_profiles (id, email, username, role, school_id, password_hash, profile_data, email_key, username_key)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     ).run(
       nextProfile.id,
-      nextProfile.email,
-      nextProfile.username || "",
+      protectData(nextProfile.email),
+      protectData(nextProfile.username || ""),
       nextProfile.role,
       nextProfile.school_id,
-      nextProfile.password_hash ?? cached?.password_hash ?? null,
+      password ? hashPassword(password) : cached?.password_hash ?? null,
+      password ? protectData({ ...publicProfile, offlineCachedAt: Date.now() }) : cached?.profile_data ?? null,
+      identityKey(nextProfile.email),
+      identityKey(nextProfile.username),
     );
   });
 
@@ -222,12 +240,12 @@ export function deleteLocalProfile({ id, email, username } = {}) {
     values.push(String(id));
   }
   if (email) {
-    conditions.push("email = ? COLLATE NOCASE");
-    values.push(String(email));
+    conditions.push("email_key = ?");
+    values.push(identityKey(email));
   }
   if (username) {
-    conditions.push("username = ? COLLATE NOCASE");
-    values.push(String(username));
+    conditions.push("username_key = ?");
+    values.push(identityKey(username));
   }
 
   if (conditions.length === 0) return 0;
@@ -237,19 +255,33 @@ export function deleteLocalProfile({ id, email, username } = {}) {
     .run(...values).changes;
 }
 
+const loginFailures = new Map();
 export function offlineLoginCheck(email, password) {
+  if (typeof email !== 'string' || email.length > 320) return { success: false, message: 'Invalid credentials.' };
+  const key = email.trim().toLowerCase();
+  const failures = loginFailures.get(key);
+  if (failures?.count >= 5 && Date.now() - failures.at < 5 * 60 * 1000) {
+    return { success: false, message: 'Too many attempts. Try again in five minutes.' };
+  }
   const user = db
-    .prepare("SELECT * FROM bmi_profiles WHERE email = ?")
-    .get(email);
+    .prepare("SELECT * FROM bmi_profiles WHERE email_key = ? OR username_key = ?")
+    .get(identityKey(key), identityKey(key));
   if (!user)
     return {
       success: false,
       message: "No local profile found. Connect online to log in.",
     };
 
-  if (user.password_hash === password) {
-    return { success: true, user };
+  if (verifyPassword(password, user.password_hash) && user.profile_data) {
+    const { password: _password, password_hash: _hash, ...profile } = readProtectedData(user.profile_data);
+    // shortcut: disconnected devices retain access for seven days; require online-only login for immediate revocation.
+    if (!Number.isFinite(profile.offlineCachedAt) || Date.now() - profile.offlineCachedAt > 7 * 86400000) {
+      return { success: false, message: 'Connect online to renew offline access.' };
+    }
+    loginFailures.delete(key);
+    return { success: true, user: profile };
   } else {
+    loginFailures.set(key, { count: failures && Date.now() - failures.at < 5 * 60 * 1000 ? failures.count + 1 : 1, at: Date.now() });
     return { success: false, message: "Invalid credentials." };
   }
 }
@@ -267,7 +299,7 @@ export function saveStudents(students, isDirty = false) {
   const tx = db.transaction((rows) => {
     db.prepare("DELETE FROM students").run();
     rows.forEach((student) => {
-      stmt.run(String(student.id), JSON.stringify(student), isDirty ? 1 : 0);
+      stmt.run(String(student.id), protectData(student), isDirty ? 1 : 0);
     });
   });
 
@@ -278,14 +310,14 @@ export function loadStudents() {
   return db
     .prepare("SELECT data FROM students")
     .all()
-    .map((r) => JSON.parse(r.data));
+    .map((r) => readProtectedData(r.data));
 }
 
 export function getDirtyStudents() {
   return db
     .prepare("SELECT data FROM students WHERE dirty = 1")
     .all()
-    .map((r) => JSON.parse(r.data));
+    .map((r) => readProtectedData(r.data));
 }
 
 export function markStudentsClean() {
@@ -441,7 +473,7 @@ export function saveEnrolmentLocally(schoolId, sy, data, total) {
   ).run(
     String(schoolId),
     sy,
-    JSON.stringify(data || {}),
+    protectData(data || {}),
     Number(total) || 0,
     new Date().toISOString(),
   );
@@ -455,7 +487,7 @@ export function loadEnrolmentLocally(schoolId, sy) {
   if (!row) return null;
 
   return {
-    data: JSON.parse(row.data || "{}"),
+    data: readProtectedData(row.data || "{}"),
     total: row.total || 0,
     updatedAt: row.updated_at,
   };
@@ -474,7 +506,7 @@ export function getDirtyEnrolmentRows() {
     .map((row) => ({
       schoolId: row.school_id,
       sy: row.sy,
-      data: JSON.parse(row.data || "{}"),
+      data: readProtectedData(row.data || "{}"),
       total: row.total || 0,
       updatedAt: row.updated_at,
     }));

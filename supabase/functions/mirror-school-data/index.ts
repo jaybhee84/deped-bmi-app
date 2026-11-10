@@ -37,6 +37,9 @@ async function handleRequest(request: Request) {
   if (!webhookSecret || suppliedSecret !== webhookSecret) {
     return json(401, { error: "Unauthorized" });
   }
+  if (Deno.env.get("IECES_EXCLUSIVE_DATA") === "true") {
+    return json(410, { error: "Cross-project IECES mirroring is disabled" });
+  }
 
   const destinationUrl = Deno.env.get("SCHOOL_SUPABASE_URL")?.replace(/\/$/, "");
   const destinationKey = Deno.env.get("SCHOOL_SUPABASE_SERVICE_ROLE_KEY");

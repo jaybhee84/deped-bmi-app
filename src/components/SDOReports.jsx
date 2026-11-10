@@ -1,3 +1,4 @@
+import { secureStorage } from '../utils/secureStorage';
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
@@ -676,7 +677,7 @@ export default function SDOReports({
                 `sbfp_enrolment_${sy}`,
               ];
               for (const k of keysToTry) {
-                const item = localStorage.getItem(k);
+                const item = secureStorage.getItem(k);
                 if (item) {
                   rawData = JSON.parse(item);
                   break;

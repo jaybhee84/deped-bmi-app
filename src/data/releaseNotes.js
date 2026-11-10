@@ -1,4 +1,35 @@
 export const RELEASE_NOTES = {
+  '4.0.7': {
+    title: 'v4.0.7',
+    sections: [
+      {
+        heading: 'Security and Installation',
+        items: [
+          'Windows installers and macOS disk images include the end-user agreement and data security notice.',
+          'Local learner records and persistent app caches use operating-system encryption. Offline passwords use salted hashes; sign in online once after upgrading to renew offline access.',
+          'Administrator access uses individual division accounts. Added stricter desktop navigation, local-data access, update-download, and print-resource checks.',
+          'Updated dependencies and added security regression tests to release builds.',
+        ],
+      },
+      {
+        heading: 'Data Entry and School Access',
+        items: [
+          'Fixed JSON import merging for learners without LRNs, duplicate measurements, and exports from another school.',
+          'Profile measurements use the shared validation rules. New or missing consent and deworming values default to No until entered.',
+          'Fixed school settings persistence and failed-save feedback. Added administrator-approved school assignments and private learner-photo access.',
+          'School data routing supports the separate IECES project without falling back to another school database.',
+          'Password recovery supports a configured secure recovery website. The unavailable phone-capture entry point is disabled; manual photo upload remains available.',
+        ],
+      },
+      {
+        heading: 'Deployment Requirements',
+        items: [
+          'Administrators must apply the security database migration, review existing accounts and school assignments, configure private photo storage, and deploy the matching Edge Functions before production rollout. See SECURITY-AUDIT.md in the source repository.',
+          'Exports and printouts remain unencrypted. Protect device backups and retain the original operating-system keychain needed to decrypt local data.',
+        ],
+      },
+    ],
+  },
   '4.0.6': {
     title: 'v4.0.6',
     sections: [

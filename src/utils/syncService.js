@@ -1,9 +1,11 @@
+import { secureStorage } from './secureStorage';
 // ── DepEd BMI System — Sync Service ───────────────────────────────────────
 // Saves data locally first (always works offline).
 // When Supabase is configured and internet is available, auto-syncs to server.
 
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabaseClient';
 import { SCHOOL_LOGO_BUCKET } from './schoolLogoMap';
+import { schoolDataFetch as fetch } from './schoolDataFetch';
 
 const KEYS = {
   STUDENTS:     'deped_bmi_students',
@@ -51,7 +53,7 @@ export async function unbindSchoolFromUser(userId) {
 
 export function saveSupabaseConfig(url, key) {
   try {
-    localStorage.setItem(KEYS.SUPABASE, JSON.stringify({ url: url.trim(), key: key.trim() }));
+    secureStorage.setItem(KEYS.SUPABASE, JSON.stringify({ url: url.trim(), key: key.trim() }));
   } catch {}
 }
 
@@ -123,9 +125,6 @@ export async function bindSchoolToUser(schoolId, userId) {
     .update({ school_id: schoolId })
     .eq("id", userId)
     .select();
-
-  console.log("[BIND] data =", data);
-  console.log("[BIND] error =", error);
 
   if (error) throw error;
   return data;
@@ -243,8 +242,8 @@ export async function fetchSchoolForUserOfflineFirst(userId) {
 
 export async function saveSchoolsCache(schools) {
   try {
-    localStorage.setItem(KEYS.SCHOOLS_CACHE, JSON.stringify(schools));
-    localStorage.setItem(KEYS.SCHOOLS_CACHE_TIME, new Date().toISOString());
+    secureStorage.setItem(KEYS.SCHOOLS_CACHE, JSON.stringify(schools));
+    secureStorage.setItem(KEYS.SCHOOLS_CACHE_TIME, new Date().toISOString());
   } catch (e) {
     console.warn("[Cache] Failed to save schools cache:", e);
   }
@@ -252,7 +251,7 @@ export async function saveSchoolsCache(schools) {
 
 export function loadSchoolsCache() {
   try {
-    const raw = localStorage.getItem(KEYS.SCHOOLS_CACHE);
+    const raw = secureStorage.getItem(KEYS.SCHOOLS_CACHE);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -261,7 +260,7 @@ export function loadSchoolsCache() {
 
 export function getSchoolsCacheTime() {
   try {
-    const raw = localStorage.getItem(KEYS.SCHOOLS_CACHE_TIME);
+    const raw = secureStorage.getItem(KEYS.SCHOOLS_CACHE_TIME);
     return raw ? new Date(raw) : null;
   } catch {
     return null;
@@ -419,7 +418,7 @@ export async function fetchAllSchools() {
 
 function loadQueue() {
   try {
-    const raw = localStorage.getItem(KEYS.SYNC_QUEUE);
+    const raw = secureStorage.getItem(KEYS.SYNC_QUEUE);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
@@ -427,33 +426,33 @@ function loadQueue() {
 function saveQueue(queue) {
   try {
     const normalized = [...new Set(queue.map(id => String(id)))];
-    localStorage.setItem(KEYS.SYNC_QUEUE, JSON.stringify(normalized));
+    secureStorage.setItem(KEYS.SYNC_QUEUE, JSON.stringify(normalized));
     window.dispatchEvent(new Event("local-storage-sync-update"));
   } catch {}
 }
 
 function loadDeleteQueue() {
   try {
-    const raw = localStorage.getItem(KEYS.DELETE_QUEUE);
+    const raw = secureStorage.getItem(KEYS.DELETE_QUEUE);
     return raw ? JSON.parse(raw) : [];
   } catch { return []; }
 }
 
 function saveDeleteQueue(queue) {
   try {
-    localStorage.setItem(KEYS.DELETE_QUEUE, JSON.stringify(queue));
+    secureStorage.setItem(KEYS.DELETE_QUEUE, JSON.stringify(queue));
   } catch {}
 }
 
 function loadRevisions() {
-  try { return JSON.parse(localStorage.getItem(KEYS.QUEUE_REVISIONS) || '{}'); }
+  try { return JSON.parse(secureStorage.getItem(KEYS.QUEUE_REVISIONS) || '{}'); }
   catch { return {}; }
 }
 
 function bumpRevision(id) {
   const revisions = loadRevisions();
   revisions[id] = (revisions[id] || 0) + 1;
-  localStorage.setItem(KEYS.QUEUE_REVISIONS, JSON.stringify(revisions));
+  secureStorage.setItem(KEYS.QUEUE_REVISIONS, JSON.stringify(revisions));
 }
 
 function completeBatch(ids, revisions, deleting = false) {
@@ -584,14 +583,14 @@ function removeFromSyncQueue(ids) {
 
 export function saveLastSync(date) {
   try {
-    localStorage.setItem(KEYS.LAST_SYNC, date.toISOString());
+    secureStorage.setItem(KEYS.LAST_SYNC, date.toISOString());
     window.dispatchEvent(new Event("local-storage-sync-update"));
   } catch {}
 }
 
 export function loadLastSync() {
   try {
-    const raw = localStorage.getItem(KEYS.LAST_SYNC);
+    const raw = secureStorage.getItem(KEYS.LAST_SYNC);
     return raw ? new Date(raw) : null;
   } catch { return null; }
 }
@@ -629,8 +628,8 @@ async function supabaseUpsert(cfg, students) {
       age: s.age || 0,
       sex: s.sex,
       section: s.section,
-      dewormed: s.dewormed || 'Y',
-      parent_consent: s.parentConsent || 'Y',
+      dewormed: s.dewormed || 'N',
+      parent_consent: s.parentConsent || 'N',
       member_4ps: s.member4ps || 'N',
       previous_sbfp_beneficiary: s.previousSbfpBeneficiary || 'N',
       records: s.records,
@@ -749,8 +748,8 @@ async function supabaseFetchAll(cfg, schoolId, schoolName = "") {
     sex: r.sex,
     section: r.section,
     schoolYear: r.school_year || "",
-    dewormed: r.dewormed || 'Y',
-    parentConsent: r.parent_consent || 'Y',
+    dewormed: r.dewormed || 'N',
+    parentConsent: r.parent_consent || 'N',
     member4ps: r.member_4ps || 'N',
     previousSbfpBeneficiary: r.previous_sbfp_beneficiary || 'N',
     records: normalizeStudentRecords(r.records),

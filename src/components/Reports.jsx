@@ -1,3 +1,4 @@
+import { secureStorage } from '../utils/secureStorage';
 import React, { useState, useEffect } from "react";
 import {
   calcBMI,
@@ -47,7 +48,7 @@ function formatBirthdate(birthdate) {
 
 function loadSbfpSettings(sy) {
   try {
-    const raw = localStorage.getItem(getSbfpKey(sy));
+    const raw = secureStorage.getItem(getSbfpKey(sy));
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -86,7 +87,7 @@ export default function Reports({ students = [] }) {
   // Initialize state with cached local data if available for instant offline loading
   const [sbfpConfig, setSbfpConfig] = useState(() => {
     try {
-      const cached = localStorage.getItem("sbfp_cached_config");
+      const cached = secureStorage.getItem("sbfp_cached_config");
       return cached ? JSON.parse(cached) : DEFAULT_SBFP_CONFIG;
     } catch {
       return DEFAULT_SBFP_CONFIG;
@@ -100,7 +101,7 @@ export default function Reports({ students = [] }) {
         setSbfpConfig(resolvedConfig);
         try {
           // Save a copy locally so it's available next time the user is offline
-          localStorage.setItem(
+          secureStorage.setItem(
             "sbfp_cached_config",
             JSON.stringify(resolvedConfig),
           );

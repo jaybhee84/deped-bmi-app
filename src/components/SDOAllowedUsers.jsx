@@ -24,6 +24,7 @@ export default function SDOAllowedUsers({ currentUser }) {
   const [allowed, setAllowed] = useState([]);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("school");
+  const [assignedSchool, setAssignedSchool] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [removingId, setRemovingId] = useState(null);
@@ -39,7 +40,7 @@ export default function SDOAllowedUsers({ currentUser }) {
     const [p, live, list, schoolList] = await Promise.all([
       supabase.from("bmi_profiles").select("id,email,fullname,position,school_id,school_name,role,created_at").eq("role", "school").order("fullname"),
       supabase.from("user_presence").select("user_id,email,status,last_seen").eq("app_id", "bmi"),
-      supabase.from("bmi_allowed_users").select("id,email,role,added_by,created_at").order("created_at", { ascending: false }),
+      supabase.from("bmi_allowed_users").select("id,email,role,school_id,added_by,created_at").order("created_at", { ascending: false }),
       supabase.from("schools").select("school_id,name,logo_url").order("name"),
     ]);
     if (version !== loadVersion.current) return;
@@ -97,8 +98,7 @@ export default function SDOAllowedUsers({ currentUser }) {
   ), [schools]);
 
   const isCreator =
-    currentUser?.email?.trim().toLowerCase() === "jaybhee84@gmail.com" ||
-    currentUser?.username?.trim().toLowerCase() === "admin1";
+    currentUser?.email?.trim().toLowerCase() === "jaybhee84@gmail.com";
   const visibleAllowed = useMemo(
     () => isCreator
       ? allowed
@@ -116,7 +116,7 @@ export default function SDOAllowedUsers({ currentUser }) {
     const normalized = `${localPart}@deped.gov.ph`;
     if (allowed.some((row) => row.email.toLowerCase() === normalized)) return setMessage("That email is already allowed.");
     setSaving(true);
-    const { error } = await supabase.from("bmi_allowed_users").insert({ email: normalized, role, added_by: currentUser?.email || currentUser?.username || "SDO" });
+    const { error } = await supabase.from("bmi_allowed_users").insert({ email: normalized, role, school_id: role === 'school' ? assignedSchool || null : null, added_by: currentUser?.email || currentUser?.username || "SDO" });
     setSaving(false);
     if (error) setMessage(error.message);
     else { setEmail(""); setMessage(`${normalized} can now register as ${role === "division" ? "SDO Based" : "School Based"}.`); await load(); }
@@ -166,9 +166,18 @@ export default function SDOAllowedUsers({ currentUser }) {
     </div>
     {message && <div className="sdo-users-message">{message}</div>}
     {tab === "allowed" ? <div className="card sdo-users-card">
-      <form className="sdo-allow-form" onSubmit={addEmail}><div className="sdo-email-input"><input className="form-input" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email username" autoCapitalize="none" autoCorrect="off" /><span>@deped.gov.ph</span></div><select className="form-input sdo-role-select" value={role} onChange={(e) => setRole(e.target.value)}><option value="school">School Based</option><option value="division">SDO Based</option></select><button className="btn btn-primary" disabled={saving}>{saving ? "Adding…" : "+ Add Email"}</button></form>
+      <form className="sdo-allow-form" onSubmit={addEmail}><div className="sdo-email-input"><input className="form-input" type="text" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email username" autoCapitalize="none" autoCorrect="off" /><span>@deped.gov.ph</span></div><select className="form-input sdo-role-select" value={role} onChange={(e) => setRole(e.target.value)}><option value="school">School Based</option><option value="division">SDO Based</option></select>{role === 'school' && <select aria-label="Assigned school" className="form-input" value={assignedSchool} onChange={e => setAssignedSchool(e.target.value)}><option value="">Assign school later</option>{schools.map(school => <option key={school.school_id} value={school.school_id}>{school.name}</option>)}</select>}<button className="btn btn-primary" disabled={saving}>{saving ? "Adding…" : "+ Add Email"}</button></form>
       <p className="sdo-users-help"><strong>Hint:</strong> Enter only the email username—the <span>@deped.gov.ph</span> domain is added automatically. The role you pick here locks in the account type, so the registrant still ends up correctly registered even if they open the wrong register card. Only emails listed here can create a BMI app account.</p>
-      {loading ? <div className="sdo-users-empty">Loading…</div> : visibleAllowed.length === 0 ? <div className="sdo-users-empty">No allowed emails yet.</div> : <div className="sdo-users-list">{visibleAllowed.map((row) => <div className="sdo-allowed-row" key={row.id}><div><strong>{row.email}</strong><span>{roleLabel(row.role)} · Added by {row.added_by || "—"} · {formatDate(row.created_at)}</span></div><button className="sdo-remove-btn" disabled={removingId !== null} onClick={() => removeEmail(row)}>{removingId === row.id ? "Removing..." : "Remove"}</button></div>)}</div>}
+      {loading ? <div className="sdo-users-empty">Loading…</div> : visibleAllowed.length === 0 ? <div className="sdo-users-empty">No allowed emails yet.</div> : <div className="sdo-users-list">{visibleAllowed.map((row) => <div className="sdo-allowed-row" key={row.id}><div><strong>{row.email}</strong><span>{roleLabel(row.role)} · Added by {row.added_by || "—"} · {formatDate(row.created_at)}</span></div>{row.role !== 'division' && <select aria-label={`Assigned school for ${row.email}`} className="form-input" value={row.school_id || ''} disabled={saving} onChange={async e => {
+        setSaving(true);
+        try {
+          const { error } = await supabase.from('bmi_allowed_users').update({ school_id: e.target.value || null }).eq('id', row.id);
+          if (error) throw error;
+          setMessage('School permission updated. The user can bind to the assigned school in Settings.');
+          await load();
+        } catch (error) { setMessage(error.message); }
+        finally { setSaving(false); }
+      }}><option value="">Assign school</option>{schools.map(school => <option key={school.school_id} value={school.school_id}>{school.name}</option>)}</select>}<button className="sdo-remove-btn" disabled={removingId !== null} onClick={() => removeEmail(row)}>{removingId === row.id ? "Removing..." : "Remove"}</button></div>)}</div>}
     </div> : <div className="card sdo-users-card">
       {loading ? <div className="sdo-users-empty">Loading…</div> : profiles.length === 0 ? <div className="sdo-users-empty">No registered School-Based users yet.</div> : <div className="sdo-users-table-wrap"><table className="data-table sdo-users-table"><thead><tr><th>Full Name</th><th>Email</th><th className="sdo-school-column">School</th><th>Position</th><th>Status</th><th>Last Login / Activity</th><th>Actions</th></tr></thead><tbody>{profiles.map((profile) => { const live = presenceByUser.get(String(profile.id)) || presenceByUser.get((profile.email || "").toLowerCase()); const online = isOnline(live); const school = schoolsById.get(String(profile.school_id)); const schoolName = school?.name || profile.school_name || "Not assigned"; const logo = getCachedLogoSrc(schoolName) || school?.logo_url; return <tr key={profile.id}><td><strong>{profile.fullname || "—"}</strong></td><td>{profile.email}</td><td className="sdo-school-column"><div className="sdo-school-cell">{logo ? <img src={logo} alt="" /> : <span className="sdo-school-logo-fallback">{schoolName === "Not assigned" ? "—" : schoolName.charAt(0)}</span>}<div><strong>{schoolName}</strong>{profile.school_id && <small>School ID: {profile.school_id}</small>}</div></div></td><td>{profile.position || "—"}</td><td><span className={`sdo-presence ${online ? "online" : "offline"}`}><i />{online ? "Online" : "Offline"}</span></td><td>{formatDate(live?.last_seen)}</td><td><button className="sdo-remove-btn" disabled={removingId !== null} onClick={() => removeEmail(profile)}>{removingId === profile.id ? "Removing..." : "Remove"}</button></td></tr>; })}</tbody></table></div>}
     </div>}

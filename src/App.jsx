@@ -1,3 +1,4 @@
+import { secureStorage } from './utils/secureStorage';
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
@@ -149,6 +150,7 @@ function AppContent({
               <ExportImport
                 students={safeStudents}
                 setStudents={updateStudents}
+                schoolId={session?.school_id}
               />
             )}
             <SyncStatus
@@ -297,6 +299,7 @@ function AppContent({
             setSchoolName={setSchoolName}
             currentUser={session}
             students={safeStudents}
+            schoolYear={selectedSY}
           />
         )}
 
@@ -396,9 +399,9 @@ export default function App() {
       }
     }
     // Clean up outdated session tokens without wiping offline credentials
-    localStorage.removeItem("sb_auth_token");
-    localStorage.removeItem("sb_user_session");
-    localStorage.removeItem("deped_bmi_session");
+    secureStorage.removeItem("sb_auth_token");
+    secureStorage.removeItem("sb_user_session");
+    secureStorage.removeItem("deped_bmi_session");
     return null;
   });
 
@@ -606,7 +609,7 @@ export default function App() {
     async function checkReleaseNotes() {
       if (!window.electronAPI?.getAppVersion) return;
       const version = await window.electronAPI.getAppVersion();
-      const lastSeen = localStorage.getItem("last_seen_version");
+      const lastSeen = secureStorage.getItem("last_seen_version");
 
       if (
         version !== lastSeen &&
@@ -615,7 +618,7 @@ export default function App() {
       ) {
         setReleaseData(RELEASE_NOTES[version]);
         setShowReleaseNotes(true);
-        localStorage.setItem("last_seen_version", version);
+        secureStorage.setItem("last_seen_version", version);
       }
     }
     checkReleaseNotes();
@@ -673,19 +676,6 @@ export default function App() {
       return null;
     }
   }
-
-  useEffect(() => {
-    async function saveStudentsToDb() {
-      if (students.length > 0) {
-        if (window.sqlite?.saveStudents) {
-          await window.sqlite.saveStudents(students, true);
-        } else {
-          await localSaveStudents(students);
-        }
-      }
-    }
-    saveStudentsToDb();
-  }, [students]);
 
   useEffect(() => {
     async function pushToServer() {
@@ -953,7 +943,10 @@ export default function App() {
       });
 
       if (window.sqlite?.saveStudents) {
-        window.sqlite.saveStudents(deduplicatedNext, true);
+        window.sqlite.saveStudents(deduplicatedNext, true).catch(error => {
+          console.error('Local learner save failed:', error);
+          window.alert('Your latest changes could not be saved to this device. Keep the app open and export a backup before closing.');
+        });
       }
 
       return deduplicatedNext;
@@ -1059,9 +1052,9 @@ export default function App() {
     logout();
     sessionStorage.clear();
 
-    localStorage.removeItem("sb_auth_token");
-    localStorage.removeItem("sb_user_session");
-    localStorage.removeItem("deped_bmi_session");
+    secureStorage.removeItem("sb_auth_token");
+    secureStorage.removeItem("sb_user_session");
+    secureStorage.removeItem("deped_bmi_session");
 
     setSession(null);
     setStudents([]);

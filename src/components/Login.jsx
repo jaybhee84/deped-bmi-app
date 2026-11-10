@@ -9,13 +9,13 @@ import {
   cacheOfflineCredentials,
   deleteOfflineCredentials,
   attemptOfflineLogin,
-  hasOfflineCredentials,
 } from "../utils/auth";
 import { supabase } from "../utils/supabase";
 import { fetchAllSchools } from "../utils/syncService";
 import { SCHOOL_OPTIONS, officialSchoolId } from "../utils/schools";
 import "./Login.css";
 import logo from "../images/sbfp.png";
+import { passwordRecoveryUrl } from '../utils/passwordRecovery';
 
 // ── Local Background Images (PNG) ─────────────────────────────────────────
 import bg1 from "../images/bg1.png";
@@ -33,17 +33,8 @@ const BG_IMAGES = [bg1, bg2, bg3, bg4, bg5, bg6, bg7, bg8, bg9];
 const CREATOR_SDO_EMAIL = "jaybhee84@gmail.com";
 const CREATOR_SCHOOL_EMAIL = "jl3hee@gmail.com";
 
-const SECRET_ADMIN_USERNAME = "jaybhee84";
-const SECRET_ADMIN_PASSWORD = "admin123";
 const SECRET_LOGO_CLICKS = 5;
 const SECRET_LOGO_CLICK_WINDOW_MS = 1500;
-
-// Dedicated Supabase account (division role) used only to back the secret
-// admin panel, so its Allowed Users actions pass real RLS checks. Kept
-// separate from the visible gate credentials and from any real personal
-// account so exposure of either one doesn't compromise the other.
-const SECRET_ADMIN_BACKING_EMAIL = "bmi-secret-admin@deped-bmi.internal";
-const SECRET_ADMIN_BACKING_PASSWORD = "lWdg2iIucmkUKc11XuxXrU5";
 
 // ── Subcomponent: Secret admin login ──────────────────────────────────────
 function SecretAdminLogin({ onSuccess, onBack }) {
@@ -54,33 +45,31 @@ function SecretAdminLogin({ onSuccess, onBack }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (
-      username.trim() !== SECRET_ADMIN_USERNAME ||
-      password !== SECRET_ADMIN_PASSWORD
-    ) {
-      setError("Invalid admin credentials.");
-      return;
-    }
-
     setLoading(true);
     setError("");
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: SECRET_ADMIN_BACKING_EMAIL,
-      password: SECRET_ADMIN_BACKING_PASSWORD,
-    });
-    setLoading(false);
-
-    if (signInError) {
-      setError("Admin panel backing account isn't set up yet.");
-      return;
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: username.trim(), password,
+      });
+      if (error) throw error;
+      const { data: profile, error: profileError } = await supabase.from('bmi_profiles')
+        .select('role').eq('id', data.user.id).single();
+      if (profileError || profile?.role !== 'division') {
+        await supabase.auth.signOut();
+        throw new Error('An authorized division account is required.');
+      }
+      onSuccess();
+    } catch {
+      setError('Unable to sign in. Use your authorized division email and password.');
+    } finally {
+      setLoading(false);
     }
-    onSuccess();
   }
 
   return (
     <form className="login-form" onSubmit={handleSubmit}>
       <div className="login-field">
-        <label className="form-label">Admin Username</label>
+        <label className="form-label">Division Email</label>
         <input
           className="form-input login-input"
           value={username}
@@ -240,7 +229,7 @@ function AuditPicker({ onConfirm, onBack }) {
         role: isSchoolAudit ? ROLES.SCHOOL : ROLES.DIVISION,
         school_id: isSchoolAudit ? selectedSchool.id : null,
         school_name: isSchoolAudit ? selectedSchool.name : "",
-        username: "admin1",
+        username: profile.username,
         fullname: isSchoolAudit
           ? `Audit Mode — ${selectedSchool.name}`
           : "Audit Mode — Division",
@@ -409,9 +398,13 @@ function ForgotPassword({ onBack }) {
       return;
     }
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: "http://localhost:5173/reset-password",
-    });
+    let redirectTo;
+    try { redirectTo = passwordRecoveryUrl(import.meta.env.VITE_PASSWORD_RESET_URL, window.location); }
+    catch {
+      setError('Password recovery is not configured. Contact your administrator.');
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
     if (error) {
       setError(error.message);
@@ -548,8 +541,8 @@ function RegisterForm({ role, onSuccess, onBack }) {
       return;
     }
 
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (form.password.length < 12) {
+      setError("Password must be at least 12 characters.");
       return;
     }
 
@@ -729,7 +722,7 @@ function RegisterForm({ role, onSuccess, onBack }) {
           <input
             className="form-input login-input"
             type={showPw ? "text" : "password"}
-            placeholder="At least 6 characters"
+            placeholder="At least 12 characters"
             value={form.password}
             onChange={(e) => upd("password", e.target.value)}
             required
@@ -898,7 +891,7 @@ export default function Login({
 
       // A completed remote lookup is authoritative: remove an account that
       // no longer exists in Supabase from both offline caches.
-      deleteOfflineCredentials(normalizedUsername);
+      await deleteOfflineCredentials(normalizedUsername);
       try {
         await window.sqlite?.deleteLocalProfile?.({
           username: normalizedUsername,
@@ -946,7 +939,7 @@ export default function Login({
 
       if (!profile && (!profileError || profileError.code === "PGRST116")) {
         const normalizedUsername = username.trim();
-        deleteOfflineCredentials(normalizedUsername);
+        await deleteOfflineCredentials(normalizedUsername);
         try {
           await window.sqlite?.deleteLocalProfile?.({
             id: data.user.id,
@@ -974,7 +967,7 @@ export default function Login({
       };
 
       saveSession(session);
-      cacheOfflineCredentials(session, password);
+      await cacheOfflineCredentials(session, password);
       onLogin(session);
     } catch (err) {
       return attemptOfflineFallback(err);
@@ -992,8 +985,8 @@ export default function Login({
       );
     }
 
-    function attemptOfflineFallback(originalErr) {
-      const cachedProfile = attemptOfflineLogin(username.trim(), password);
+    async function attemptOfflineFallback(originalErr) {
+      const cachedProfile = await attemptOfflineLogin(username.trim(), password);
       setLoading(false);
 
       if (cachedProfile) {
@@ -1006,9 +999,7 @@ export default function Login({
         return;
       }
 
-      if (hasOfflineCredentials(username.trim())) {
-        setError("Incorrect password.");
-      } else if (navigator.onLine === false) {
+      if (navigator.onLine === false) {
         setError(
           "Offline access is not active for this account yet. Connect to the internet and sign in once to enable offline login on this device.",
         );

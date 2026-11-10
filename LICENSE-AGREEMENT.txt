@@ -1,0 +1,83 @@
+DEPED BMI APP - END USER AGREEMENT AND DATA SECURITY NOTICE
+Version 1.0 - 10 November 2026
+Developer: BuzzJay
+
+READ BEFORE INSTALLING. Select "I Agree" to accept these terms. If you do
+not accept, cancel installation and do not use the software. You may accept
+for an institution only if you have authority to do so. macOS distribution
+must present this agreement before use if the packaging does not show it.
+
+1. PERMISSION TO USE
+The developer grants you a non-exclusive right to use the supplied software
+for authorized school and division administration. This agreement does not
+transfer ownership of the software, learner records, or third-party works.
+Third-party components remain subject to their own licenses.
+
+2. RESPONSIBILITY FOR PERSONAL DATA
+The deploying school, division, or other responsible organization determines
+its lawful basis, authorized users, purposes, retention, and disclosures.
+Use only data you are authorized to process. Follow applicable Philippine
+law, DepEd policies, and your organization's privacy and security procedures.
+Installation does not provide consent to process a learner's information.
+
+3. REQUIRED SECURITY PRACTICES
+Use individual accounts, strong passwords, supported operating systems,
+screen locks, device encryption, and protected backups. Limit access to
+authorized personnel. Keep the app and its cloud services updated. Review
+school assignments and permissions. Secure exports, printouts, screenshots,
+and files shared with others; exported files are not encrypted by this app.
+Do not publish learner information in support requests or public repositories.
+
+4. SECURITY LIMITS
+No software is guaranteed to be free of defects, vulnerabilities, outages,
+data loss, or unauthorized access. Local record encryption depends on the
+operating system's secure storage. It does not protect against malware or
+someone controlling your unlocked account. It is not end-to-end encryption:
+authorized cloud services process readable records. Cloud permissions and
+encryption, backups, updates, and incident procedures require correct
+deployment and administration. Do not use this agreement as evidence of
+security certification or compliance.
+
+5. NO WARRANTY
+To the maximum extent permitted by applicable law, the software is provided
+"AS IS" and "AS AVAILABLE", without warranties of merchantability, fitness
+for a particular purpose, uninterrupted operation, or freedom from defects.
+Review calculations and reports before official use. Keep verified backups.
+
+6. LIMITATION OF LIABILITY
+To the maximum extent permitted by applicable law, the developer disclaims
+liability for indirect, incidental, special, consequential, or punitive
+damages, lost profits, interruption, and loss or disclosure of data arising
+from use of the software, including security incidents and third-party
+service failures. To that same extent, the developer's total aggregate
+liability relating to the software is limited to the amount paid directly
+to the developer for this software in the twelve months before the event.
+For a free distribution, this limit is zero only where legally permitted.
+
+7. RIGHTS AND DUTIES THAT CANNOT BE EXCLUDED
+Nothing in this agreement excludes liability or duties that cannot lawfully
+be excluded, including applicable privacy obligations, breach notification,
+or liability for conduct that applicable law prevents a party from waiving.
+This agreement is not a release from statutory accountability and does not
+bind learners or other people who have not agreed to it.
+
+8. INCIDENTS AND SUPPORT
+Stop unauthorized access, preserve evidence, and promptly notify your
+organization's designated administrator and Data Protection Officer of a
+suspected incident. Meet applicable reporting requirements. Do not send
+passwords, access tokens, or identifiable learner records to the developer.
+No support, availability, or security-response service level is promised
+unless separately agreed in writing.
+
+9. ENDING USE
+You may end use at any time. Follow your organization's approved retention
+and disposal procedure. Uninstalling may leave local data and does not
+delete cloud records, backups, exports, or printouts.
+
+10. APPLICABLE LAW
+This agreement is subject to applicable Philippine law. An unenforceable
+provision does not remove the remaining provisions to the extent allowed
+by law. Any separately signed institutional agreement must be reconciled
+with these terms before deployment.
+
+Have institutional legal counsel review these terms before distribution.

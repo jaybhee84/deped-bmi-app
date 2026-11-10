@@ -371,8 +371,8 @@ export default function Database({
         age: parseInt(form.age) || 0,
         sex: form.sex,
         section: form.section,
-        dewormed: "Y",
-        parentConsent: "Y",
+        dewormed: "N",
+        parentConsent: "N",
         member4ps: "N",
         records: [],
       },
@@ -779,9 +779,9 @@ export default function Database({
                         </td>
                         <td>
                           <select
-                            value={s.parentConsent || "Y"}
+                            value={s.parentConsent || "N"}
                             disabled={readOnly}
-                            className={`yn-select ${(s.parentConsent || "Y") === "Y" ? "is-yes" : "is-no"}`}
+                            className={`yn-select ${(s.parentConsent || "N") === "Y" ? "is-yes" : "is-no"}`}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) =>
                               updateStudentField(
