@@ -8,6 +8,7 @@ import {
   SCHOOL_YEARS,
   GRADE_LEVELS,
   QUARTERS,
+  getCurrentSchoolYear
 } from "../utils/bmi";
 import Badge from "./Badge";
 import "./Reports.css";
@@ -56,21 +57,9 @@ function loadSbfpSettings(sy) {
 }
 
 // Flexible helper function to detect current school year
+// Matching "includes(2027)" would also hit "2026–2027", so ask bmi.js directly.
 function getDefaultSchoolYear() {
-  if (!SCHOOL_YEARS || SCHOOL_YEARS.length === 0) return "";
-
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-
-  const targetStartYear = month >= 5 ? year : year - 1;
-
-  const matched =
-    SCHOOL_YEARS.find((sy) => sy.includes(String(targetStartYear))) ||
-    SCHOOL_YEARS.find((sy) => sy.includes(String(year))) ||
-    SCHOOL_YEARS[0];
-
-  return matched || "";
+  return getCurrentSchoolYear();
 }
 
 export default function Reports({ students = [] }) {

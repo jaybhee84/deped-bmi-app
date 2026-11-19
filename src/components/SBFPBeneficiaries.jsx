@@ -10,6 +10,7 @@ import {
   SCHOOL_YEARS,
   QUARTERS,
   formatHeightMeters,
+  getCurrentSchoolYear
 } from "../utils/bmi";
 import {
   loadSbfpConfig,
@@ -202,7 +203,7 @@ export default function SBFPBeneficiaries({
   currentUser,
 }) {
   const { requestPrint } = usePrintPreview();
-  const [filterSY, setFilterSY] = useState("2026–2027");
+  const [filterSY, setFilterSY] = useState(getCurrentSchoolYear);
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
   const [filterSection, setFilterSection] = useState("All");

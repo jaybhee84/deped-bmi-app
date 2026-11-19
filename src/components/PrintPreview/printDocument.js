@@ -103,6 +103,15 @@ export async function documentFromElement(element, options = {}) {
       img.removeAttribute("srcset");
     }),
   );
+  // A clone drops what was typed into inputs, so print each field's current value as text.
+  const sourceFields = element.querySelectorAll("input, select, textarea");
+  clone.querySelectorAll("input, select, textarea").forEach((field, index) => {
+    if (/^(checkbox|radio|file|hidden)$/i.test(field.type)) return;
+    const text = document.createElement("span");
+    text.className = field.className;
+    text.textContent = sourceFields[index]?.value ?? "";
+    field.replaceWith(text);
+  });
   clone.querySelectorAll(".no-print").forEach((node) => node.remove());
   return htmlDocument({ ...options, body: clone.outerHTML });
 }

@@ -7,6 +7,7 @@ import {
   GRADE_LEVELS,
   SCHOOL_YEARS,
   QUARTERS,
+  getCurrentSchoolYear
 } from "../utils/bmi";
 import Badge from "./Badge";
 import { fetchAllSchools } from "../utils/syncService";
@@ -214,7 +215,7 @@ export default function SDODashboard({
     };
   }, []);
 
-  const [filterSY, setFilterSY] = useState("2026–2027");
+  const [filterSY, setFilterSY] = useState(getCurrentSchoolYear);
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const incompleteRef = useRef(null);
 

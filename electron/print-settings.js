@@ -11,7 +11,12 @@ function number(value, fallback, min, max) {
 export function buildSettings(input = {}, document = {}) {
   const nativePaper = document.paper || "Folio";
   const paper = !input.paperSize || input.paperSize === "match" ? nativePaper : input.paperSize;
-  if (!PAPERS[paper] || !PAPERS[nativePaper]) throw new Error("Unsupported paper size.");
+  if (!PAPERS[nativePaper]) throw new Error("Unsupported paper size.");
+  // Any size the printer reports arrives with its dimensions in inches.
+  const paperDims = paper === nativePaper || input.paperWidth == null
+    ? PAPERS[paper]
+    : [number(input.paperWidth, 0, 1, 60), number(input.paperHeight, 0, 1, 60)];
+  if (!paperDims) throw new Error("Unsupported paper size.");
   const defaultMargin = number(document.margin, 0, 0, 3);
   const margins = {};
   for (const side of ["top", "right", "bottom", "left"]) {
@@ -23,7 +28,7 @@ export function buildSettings(input = {}, document = {}) {
   const orientation = input.orientation || document.orientation;
   const landscape = orientation === "landscape";
   const nativeLandscape = document.orientation === "landscape";
-  const [width, height] = landscape ? [...PAPERS[paper]].reverse() : PAPERS[paper];
+  const [width, height] = landscape ? [...paperDims].reverse() : paperDims;
   const [nativeWidth, nativeHeight] = nativeLandscape ? [...PAPERS[nativePaper]].reverse() : PAPERS[nativePaper];
   let scale = 1;
   if (input.scaleMode === "custom") scale = number(input.scalePercent, 100, 10, 200) / 100;
@@ -40,10 +45,12 @@ export function buildSettings(input = {}, document = {}) {
   }`;
   return {
     css,
+    flipLandscape: input.flipLandscape === true,
     pdf: { printBackground: true, landscape, preferCSSPageSize: true, scale,
-      pageSize: paper === "Folio" ? { width: 8.5, height: 13 } : paper, margins },
+      pageSize: { width: paperDims[0], height: paperDims[1] }, margins },
     print: { printBackground: true, landscape, color: input.colorMode !== "grayscale",
-      pageSize: paper === "Folio" ? { width: 215900, height: 330200 } : paper,
+      // Microns for the physical print job.
+      pageSize: { width: Math.round(paperDims[0] * 25400), height: Math.round(paperDims[1] * 25400) },
       // Electron's print margins are pixels, whereas PDF margins are inches.
       margins: { marginType: "custom", ...Object.fromEntries(Object.entries(margins).map(([side, inches]) => [side, Math.round(inches * 96)])) },
       scaleFactor: Math.round(scale * 100), copies, collate: true },

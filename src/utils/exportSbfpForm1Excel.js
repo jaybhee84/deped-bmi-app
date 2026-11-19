@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 import { getSchoolAbbreviation } from "./schoolLogoMap";
 import { loadExcelTemplate } from "./loadExcelTemplate";
+import { normalizeHeightMeters } from "./bmi";
 
 const STATUS_CODES = {
   "Severely Wasted": "SW",
@@ -80,10 +81,20 @@ export async function exportSbfpForm1Excel({
     `Name of Principal : ${principalName || ""}`;
   sheet.getCell("G8").value =
     `Name of Feeding Focal Person : ${feedingFocalPerson || ""}`;
-  sheet.getCell("A206").value = feedingFocalPerson || "";
-  sheet.getCell("H206").value = principalName || "";
+  // The template holds 189 learners (rows 14-202). More learners get extra
+  // rows above the signatures instead of being left out of the file.
+  const extra = Math.max(0, beneficiaries.length - 189);
+  if (extra > 0) {
+    // duplicateRow does not move merged cells, so shift the footer merges by hand.
+    const footer = sheet.model.merges.filter((range) => Number(range.match(/\d+/)[0]) >= 203);
+    footer.forEach((range) => sheet.unMergeCells(range));
+    sheet.duplicateRow(202, extra, true);
+    footer.forEach((range) => sheet.mergeCells(range.replace(/\d+/g, (n) => Number(n) + extra)));
+  }
+  sheet.getCell(`A${206 + extra}`).value = feedingFocalPerson || "";
+  sheet.getCell(`H${206 + extra}`).value = principalName || "";
 
-  beneficiaries.slice(0, 189).forEach((student, index) => {
+  beneficiaries.forEach((student, index) => {
     const row = sheet.getRow(14 + index);
     const rec = student.rec;
     row.getCell(1).value = index + 1;
@@ -102,7 +113,8 @@ export async function exportSbfpForm1Excel({
     row.getCell(6).value = toDate(rec?.date) || "";
     row.getCell(7).value = age(student.birthdate);
     row.getCell(8).value = rec?.weight ?? "";
-    row.getCell(9).value = student.heightCm ?? rec?.height ?? "";
+    // Meters, as the on-screen Form 1 shows it.
+    row.getCell(9).value = normalizeHeightMeters(student.heightCm ?? rec?.height) ?? "";
     row.getCell(10).value = student.bmi ? Number(student.bmi.toFixed(2)) : "";
     row.getCell(11).value = STATUS_CODES[student.baz?.label] || "";
     row.getCell(12).value = STATUS_CODES[student.haz?.label] || "";
@@ -113,7 +125,7 @@ export async function exportSbfpForm1Excel({
     row.getCell(5).numFmt = "mm/dd/yyyy";
     row.getCell(6).numFmt = "mm/dd/yyyy";
     row.getCell(8).numFmt = "0.##";
-    row.getCell(9).numFmt = "0.##";
+    row.getCell(9).numFmt = "0.00#";
     row.getCell(10).numFmt = "0.00";
   });
   [5, 32, 6, 23, 13, 13, 13, 9, 9, 13, 10, 10, 13, 13, 13, 13].forEach(
@@ -121,7 +133,7 @@ export async function exportSbfpForm1Excel({
       sheet.getColumn(index + 1).width = width;
     },
   );
-  for (let row = 12; row <= 202; row++)
+  for (let row = 12; row <= 202 + extra; row++)
     for (let col = 1; col <= 16; col++)
       sheet.getCell(row, col).alignment = {
         ...sheet.getCell(row, col).alignment,
@@ -129,6 +141,15 @@ export async function exportSbfpForm1Excel({
         vertical: "middle",
         horizontal: col === 2 ? "left" : "center",
       };
+  // Folio like every print in the app, one page wide, headings on every page.
+  Object.assign(sheet.pageSetup, {
+    paperSize: 14,
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    printArea: `A1:P${209 + extra}`,
+    printTitlesRow: "12:13",
+  });
   saveAs(
     new Blob([await workbook.xlsx.writeBuffer()]),
     `${schoolAbbreviation(schoolName)}_form1_SY${normalizedYear(schoolYear)}.xlsx`,

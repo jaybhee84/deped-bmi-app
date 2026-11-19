@@ -8,6 +8,7 @@ import {
   getHAZStatus,
   normalizeHeightMeters,
   formatHeightMeters,
+  getCurrentSchoolYear
 } from "../utils/bmi";
 import { gradeFromSection } from "../utils/registry";
 import { filterByLearnerScope, useSbfpConfig } from "../utils/sbfpBeneficiary";
@@ -114,7 +115,7 @@ export default function CSVUpload({ students, setStudents, open, setOpen }) {
     setSaved(false);
     setOverwriteCount(null);
   }
-  const [sy, setSy] = useState("2026–2027");
+  const [sy, setSy] = useState(getCurrentSchoolYear);
   const [period, setPeriod] = useState("Midline");
   const [date, setDate] = useState("");
   const [filterGrade, setFilterGrade] = useState("");

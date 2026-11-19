@@ -109,3 +109,25 @@ test('full sex labels use the same reference tables as M and F', () => {
     }
   }
 });
+
+test('BMI and height between two one-decimal bands are rounded, not misclassified', () => {
+  // Boy, exactly 72 months: Wasted 12.1-12.9, Normal 13.0-18.5, Overweight 18.6-20.7.
+  const boy = (bmi) => getBMIStatus(bmi, 'M', '2020-06-01', '2026-06-01')?.label;
+  assert.equal(boy(calcBMI(14.5, 1.06)), 'Wasted'); // 12.905 -> 12.9
+  assert.equal(boy(calcBMI(14.6, 1.06)), 'Normal'); // 12.994 -> 13.0, was "Severely Wasted"
+  assert.equal(boy(18.55), 'Overweight'); // 18.55 -> 18.6
+  assert.equal(boy(12.0), 'Severely Wasted');
+  assert.equal(boy(25), 'Obese');
+  // Height-for-age boy 72 months: Stunted to 106.0, Normal from 106.1.
+  const tall = (cm) => getHAZStatus(cm, 'M', '2020-06-01', '2026-06-01')?.label;
+  assert.equal(tall(106.05), 'Normal'); // was unclassified
+  assert.equal(tall(106.04), 'Stunted');
+});
+
+test('School-year list keeps past years and defaults to the current one', async () => {
+  const { getSchoolYears, getCurrentSchoolYear } = await import(await sourceModule('../src/utils/bmi.js'));
+  const years = getSchoolYears();
+  assert.equal(years[0], '2026–2027');
+  assert.ok(years.includes(getCurrentSchoolYear()));
+  assert.equal(years.at(-1).split('–')[0], String(Number(getCurrentSchoolYear().split('–')[0]) + 3));
+});

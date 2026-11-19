@@ -1,4 +1,5 @@
 import { secureStorage } from './utils/secureStorage';
+import { getCurrentSchoolYear } from "./utils/bmi";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
@@ -414,7 +415,7 @@ export default function App() {
   const [dashboardSchool, setDashboardSchool] = useState("ALL SCHOOLS");
   const [reportsSchool, setReportsSchool] = useState("CONSOLIDATED");
   const [selectedPeriod, setSelectedPeriod] = useState("Baseline");
-  const [selectedSY, setSelectedSY] = useState("2026-2027");
+  const [selectedSY, setSelectedSY] = useState(getCurrentSchoolYear);
   const [schoolName, setSchoolName] = useState("");
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const [releaseData, setReleaseData] = useState(null);
@@ -1065,7 +1066,7 @@ export default function App() {
     setDashboardSchool("ALL SCHOOLS");
     setReportsSchool("CONSOLIDATED");
     setSelectedPeriod("Baseline");
-    setSelectedSY("2026-2027");
+    setSelectedSY(getCurrentSchoolYear());
     setTimeout(() => {
       window.electronAPI?.forceRefocusWindow?.();
     }, 50);
@@ -1086,7 +1087,7 @@ export default function App() {
     setDashboardSchool("ALL SCHOOLS");
     setReportsSchool("CONSOLIDATED");
     setSelectedPeriod("Baseline");
-    setSelectedSY("2026-2027");
+    setSelectedSY(getCurrentSchoolYear());
     sessionStorage.removeItem("sb_current_session");
     setShowAuditPicker(true);
   }

@@ -6,7 +6,7 @@ import swabeLogo from "../images/swabe.png";
 // Supabase client
 import { supabase } from "../utils/supabaseClient";
 
-import { SCHOOL_YEARS } from "../utils/bmi";
+import { SCHOOL_YEARS, getCurrentSchoolYear } from "../utils/bmi";
 import { SCHOOL_OPTIONS } from "../utils/schools";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
 import { getCachedLogoSrc, useLogoCacheHydrated } from "../utils/logoCache";
@@ -222,17 +222,9 @@ const ELEMENTARY_SCHOOLS = SCHOOL_OPTIONS.filter((s) => {
   );
 }).sort((a, b) => a.localeCompare(b));
 
+// Matching "includes(2027)" would also hit "2026–2027", so ask bmi.js directly.
 function getDefaultSchoolYear() {
-  if (!SCHOOL_YEARS || SCHOOL_YEARS.length === 0) return "";
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth();
-  const targetStartYear = month >= 5 ? year : year - 1;
-  return (
-    SCHOOL_YEARS.find((sy) => sy.includes(String(targetStartYear))) ||
-    SCHOOL_YEARS[0] ||
-    ""
-  );
+  return getCurrentSchoolYear();
 }
 
 function calculateAge(dobStr) {

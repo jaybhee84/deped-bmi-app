@@ -8,6 +8,7 @@ import {
   getHAZStatus,
   SCHOOL_YEARS,
   QUARTERS,
+  getCurrentSchoolYear
 } from "../utils/bmi";
 import Badge from "./Badge";
 import "./SDOReports.css";
@@ -519,7 +520,7 @@ export default function SDOReports({
   const selectedSchool = selectedSchoolProp ?? localSelectedSchool;
   const setSelectedSchool = setSelectedSchoolProp ?? setLocalSelectedSchool;
 
-  const [sy, setSy] = useState("2026–2027");
+  const [sy, setSy] = useState(getCurrentSchoolYear);
   const [period, setPeriod] = useState("Baseline");
 
   const [zoomScale, setZoomScale] = useState(1.0);

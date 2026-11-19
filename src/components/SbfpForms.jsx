@@ -2,6 +2,7 @@ import { secureStorage } from '../utils/secureStorage';
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ExcelJS from "exceljs";
 import depedSeal from "../images/deped.png";
+import okSaDepedLogo from "../assets/ok.png";
 import {
   calcBMI,
   getBMIStatus,
@@ -10,6 +11,7 @@ import {
   formatHeightMeters,
   SCHOOL_YEARS,
   QUARTERS,
+  getCurrentSchoolYear
 } from "../utils/bmi";
 import {
   DEFAULT_SBFP_CONFIG,
@@ -21,6 +23,12 @@ import {
   buildForm2Rows,
   exportSbfpForm2Excel,
 } from "../utils/exportSbfpForm2Excel";
+import {
+  buildForm3Pages,
+  exportSbfpForm3Excel,
+  form3SignatoryName,
+  form3WeekLabels,
+} from "../utils/exportSbfpForm3Excel";
 import { exportNsReportExcel } from "../utils/exportNsReportExcel";
 import { nsReportFilename } from "../utils/exportNsReportExcel";
 import { buildNutritionReport } from "../utils/nutritionSummaryModel";
@@ -31,6 +39,10 @@ import {
 } from "../utils/nsReportModel";
 import NsReportSheet from "./NsReportSheet";
 import nsReportSheetCss from "./NsReportSheet.css?raw";
+import form3SheetCss from "./Form3Sheet.css?raw";
+import "./Form3Sheet.css";
+import sbfpFormsCss from "./SbfpForms.css?raw";
+import sbfpFormsOverridesCss from "./SbfpFormsOverrides.css?raw";
 import { usePrintPreview } from "./PrintPreview/PrintPreviewContext";
 import LearnerScopeSelect from "./LearnerScopeSelect";
 import { isSbfpBeneficiary } from "../utils/sbfpBeneficiary";
@@ -41,6 +53,8 @@ import {
   advisersForGrade,
   useSchoolAdvisers,
 } from "../utils/schoolAdvisers";
+import Modal from "./Modal";
+import { fetchSchoolById } from "../utils/syncService";
 import "./SbfpForms.css";
 import "./SbfpFormsOverrides.css";
 
@@ -288,14 +302,28 @@ function initialFormDetails(currentUser, schoolName) {
     principal: currentUser?.principal_name || currentUser?.school_head || "",
     focalPerson:
       currentUser?.feeding_focal_person || currentUser?.username || "",
+    preparedPosition: "",
+    approvedPosition: "School Head",
   };
   try {
+    // Signatories used to be Form 3-only (stored with Form 2 details); carry them over.
+    const legacy = initialForm2Details(currentUser, schoolName);
+    const carried = Object.fromEntries(
+      [
+        ["preparedName", "focalPerson"],
+        ["approvedName", "principal"],
+        ["preparedPosition", "preparedPosition"],
+        ["approvedPosition", "approvedPosition"],
+      ]
+        .filter(([from]) => legacy[from] != null)
+        .map(([from, to]) => [to, legacy[from]]),
+    );
     const saved = JSON.parse(
       secureStorage.getItem(formDetailsStorageKey(currentUser, schoolName)),
     );
     return saved && typeof saved === "object"
-      ? { ...defaults, ...saved }
-      : defaults;
+      ? { ...defaults, ...carried, ...saved }
+      : { ...defaults, ...carried };
   } catch {
     return defaults;
   }
@@ -342,16 +370,30 @@ export default function SbfpForms({
   currentUser,
   schoolName,
   readOnly = false,
-  initialSchoolYear = "2026–2027",
+  initialSchoolYear = getCurrentSchoolYear(),
   initialPeriod = "Baseline",
 }) {
   const { requestPrint } = usePrintPreview();
   const nsPagesRef = useRef(null);
+  const form3PagesRef = useRef(null);
+  const form2SheetRef = useRef(null);
   const [form, setForm] = useState("nsReport"),
     [schoolYear, setSchoolYear] = useState(initialSchoolYear),
     [period, setPeriod] = useState(initialPeriod),
     [config, setConfig] = useState(DEFAULT_SBFP_CONFIG),
     [downloading, setDownloading] = useState(false);
+  // Form 2 keeps its 1303px layout and is scaled down to fit instead of scrolling.
+  const [form2Zoom, setForm2Zoom] = useState(1);
+  useEffect(() => {
+    const area = form2SheetRef.current?.parentElement?.parentElement;
+    if (!area) return undefined;
+    const FORM2_WIDTH = 1373; // table + sheet padding + frame padding
+    const observer = new ResizeObserver(([entry]) =>
+      setForm2Zoom(Math.min(1, entry.contentRect.width / FORM2_WIDTH)),
+    );
+    observer.observe(area);
+    return () => observer.disconnect();
+  }, [form]);
   const summary = useMemo(
     () => buildNutritionReport(students, schoolYear, period),
     [students, schoolYear, period],
@@ -372,6 +414,31 @@ export default function SbfpForms({
   const [nsAdvisers, setNsAdvisers] = useState(() =>
     initialNsAdvisers(currentUser, schoolName),
   );
+  // District comes from the school's record (the same one School Information shows).
+  const [schoolDistrict, setSchoolDistrict] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    const schoolId = String(currentUser?.school_id || "");
+    Promise.all([
+      window.sqlite?.getSchoolById?.(schoolId),
+      window.sqlite?.loadSchool?.(currentUser?.id),
+      // The cloud record is where School Information gets the district.
+      navigator.onLine && schoolId ? fetchSchoolById(schoolId).catch(() => null) : null,
+    ])
+      .then((rows) => {
+        const district = rows
+          .filter((row) => row && (!schoolId || String(row.school_id || row.id || "") === schoolId))
+          .map((row) => String(row.district || "").trim())
+          .find((value) => value && value.toUpperCase() !== "N/A");
+        if (!cancelled) setSchoolDistrict(district || "");
+      })
+      .catch((error) => console.warn("Unable to load the school district.", error));
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.id, currentUser?.school_id]);
+  // Draft while the Signatories window is open; null when closed.
+  const [signatoriesDraft, setSignatoriesDraft] = useState(null);
   const selectingCells = useRef(false);
   const previousYearFileInput = useRef(null);
   const isIeces = isIecesSchool(
@@ -424,9 +491,10 @@ export default function SbfpForms({
     window.addEventListener("mouseup", finishSelection);
     return () => window.removeEventListener("mouseup", finishSelection);
   }, []);
-  const updateDetail = (field, value) =>
+  const updateDetail = (field, value) => saveDetails({ [field]: value });
+  const saveDetails = (patch) =>
     setFormDetails((previous) => {
-      const next = { ...previous, [field]: value };
+      const next = { ...previous, ...patch };
       try {
         secureStorage.setItem(
           formDetailsStorageKey(currentUser, schoolName),
@@ -661,14 +729,14 @@ export default function SbfpForms({
   };
   const exportBeneficiaries = beneficiaries.map((student, index) => ({
     ...student,
+    // Same values the on-screen Form 1 shows: a blank answer is "N" (v4.0.7
+    // rule: a blank must never claim deworming or consent).
     dewormed:
       yesNoEdits[yesNoKey(student, index, "dewormed")] ??
-      student.dewormed ??
-      "Y",
+      (student.dewormed || "N"),
     parentConsent:
       yesNoEdits[yesNoKey(student, index, "parentConsent")] ??
-      student.parentConsent ??
-      "Y",
+      (student.parentConsent || "N"),
     member4ps:
       yesNoEdits[yesNoKey(student, index, "member4ps")] ?? student.member4ps,
     previousSbfpBeneficiary:
@@ -907,12 +975,58 @@ export default function SbfpForms({
         cityBarangay: formDetails.cityBarangay,
         principalName: formDetails.principal,
         feedingFocalPerson: formDetails.focalPerson,
+        preparedPosition: signatories.preparedPosition,
+        approvedPosition: signatories.approvedPosition,
         feedingStartDate: feedingStartDateDisplay,
         lastMile: form2Details.lastMile,
       });
     } catch (error) {
       console.error(error);
       window.alert(error.message || "Unable to create the SBFP Form 2 file.");
+    } finally {
+      setDownloading(false);
+    }
+  };
+  // Form 3 defaults to the current month until the user types another.
+  const form3Defaults = {
+    month: new Date().toLocaleString("en-US", { month: "long" }),
+    startWeek: 1,
+    region: "Region IX", // every school here is in SDO Isabela City
+    district: schoolDistrict,
+  };
+  const form3Value = (field) => form2Details[field] || form3Defaults[field] || "";
+  // One set of signatories for Forms 1-3, edited from the Signatories button.
+  const signatories = {
+    preparedName: formDetails.focalPerson || "",
+    preparedPosition: formDetails.preparedPosition || "",
+    approvedName: formDetails.principal || "",
+    approvedPosition: formDetails.approvedPosition || "",
+  };
+  const signatoryField = {
+    preparedName: "focalPerson",
+    preparedPosition: "preparedPosition",
+    approvedName: "principal",
+    approvedPosition: "approvedPosition",
+  };
+  const form3Month = form3Value("month").toUpperCase();
+  const downloadForm3 = async () => {
+    setDownloading(true);
+    try {
+      await exportSbfpForm3Excel({
+        beneficiaries: exportBeneficiaries,
+        schoolName,
+        schoolId: currentUser?.school_id,
+        schoolYear,
+        division: formDetails.division,
+        ...signatories,
+        month: form3Month,
+        startWeek: form2Details.startWeek ?? 1,
+        region: form3Value("region"),
+        district: form3Value("district"),
+      });
+    } catch (error) {
+      console.error(error);
+      window.alert(error.message || "Unable to create the SBFP Form 3 file.");
     } finally {
       setDownloading(false);
     }
@@ -1034,6 +1148,13 @@ export default function SbfpForms({
           NS Report
         </button>
         <button
+          type="button"
+          className={signatoriesDraft ? "active" : ""}
+          onClick={() => setSignatoriesDraft(signatories)}
+        >
+          Signatories
+        </button>
+        <button
           className={form === "form1" ? "active" : ""}
           onClick={() => setForm("form1")}
         >
@@ -1045,7 +1166,85 @@ export default function SbfpForms({
         >
           Form 2
         </button>
+        <button
+          className={form === "form3" ? "active" : ""}
+          onClick={() => setForm("form3")}
+        >
+          Form 3
+        </button>
       </div>
+      {signatoriesDraft && (
+        <Modal
+          title="Signatories"
+          className="modal-box--signatories"
+          closeOnOverlay={false}
+          onClose={() => setSignatoriesDraft(null)}
+        >
+          <form
+            className="form3-signatories"
+            onSubmit={(event) => {
+              event.preventDefault();
+              saveDetails(
+                Object.fromEntries(
+                  Object.entries(signatoriesDraft).map(([field, value]) => [
+                    signatoryField[field],
+                    value.trim(),
+                  ]),
+                ),
+              );
+              setSignatoriesDraft(null);
+            }}
+          >
+            <p className="sbfp-signatories-note">
+              Saved signatories are used by default on Forms 1, 2 and 3.
+            </p>
+            {[
+              ["Prepared by", "preparedName", "preparedPosition"],
+              ["Approved by", "approvedName", "approvedPosition"],
+            ].map(([heading, nameField, positionField]) => (
+              <fieldset key={nameField}>
+                <legend>{heading}</legend>
+                {[
+                  [nameField, "Name"],
+                  [positionField, "Position"],
+                ].map(([field, label]) => (
+                  <div className="form-group" key={field}>
+                    <label className="form-label" htmlFor={`signatory-${field}`}>
+                      {label}
+                    </label>
+                    <input
+                      id={`signatory-${field}`}
+                      className="form-input"
+                      readOnly={readOnly}
+                      value={signatoriesDraft[field]}
+                      onChange={(event) =>
+                        setSignatoriesDraft((draft) => ({
+                          ...draft,
+                          [field]: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
+              </fieldset>
+            ))}
+            <div className="sbfp-signatories-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setSignatoriesDraft(null)}
+              >
+                Cancel
+              </button>
+              {!readOnly && (
+                <button type="submit" className="btn btn-primary">
+                  Save
+                </button>
+              )}
+            </div>
+          </form>
+        </Modal>
+      )}
       {form === "summary" ? (
         <>
           <div className="sbfp-report-actions">
@@ -1146,18 +1345,7 @@ export default function SbfpForms({
                     }
                   />
                 </span>
-                <span>
-                  Name of Principal:{" "}
-                  <input
-                    className="sbfp-inline-detail"
-                    aria-label="Name of principal"
-                    readOnly={readOnly}
-                    value={formDetails.principal}
-                    onChange={(event) =>
-                      updateDetail("principal", event.target.value)
-                    }
-                  />
-                </span>
+                <span>Name of Principal: {signatories.approvedName}</span>
                 <span>
                   City/Municipality/Barangay:{" "}
                   <input
@@ -1171,16 +1359,7 @@ export default function SbfpForms({
                   />
                 </span>
                 <span>
-                  Name of Feeding Focal Person:{" "}
-                  <input
-                    className="sbfp-inline-detail"
-                    aria-label="Name of feeding focal person"
-                    readOnly={readOnly}
-                    value={formDetails.focalPerson}
-                    onChange={(event) =>
-                      updateDetail("focalPerson", event.target.value)
-                    }
-                  />
+                  Name of Feeding Focal Person: {signatories.preparedName}
                 </span>
                 <span>
                   Name of School / School District: {schoolName || "Not set"}
@@ -1301,18 +1480,258 @@ export default function SbfpForms({
             </div>
           </div>
         </>
+      ) : form === "form3" ? (
+        <>
+          <div className="form3-toolbar">
+            <div className="form3-controls">
+              <label className="form3-field">
+                <span>Month</span>
+                <select
+                  disabled={readOnly}
+                  value={form3Value("month")}
+                  onChange={(event) => updateForm2Detail("month", event.target.value)}
+                >
+                  {Array.from({ length: 12 }, (_, m) =>
+                    new Date(2000, m, 1).toLocaleString("en-US", { month: "long" }),
+                  ).map((month) => (
+                    <option key={month} value={month}>
+                      {month}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {[
+                ["startWeek", "Starting week", "number", "1"],
+                ["region", "Region", "text", "e.g. Region IX"],
+                ["district", "District", "text", "e.g. East District I"],
+              ].map(([field, label, type, placeholder]) => (
+                <label key={field} className="form3-field">
+                  <span>{label}</span>
+                  <input
+                    type={type}
+                    min={type === "number" ? 1 : undefined}
+                    placeholder={placeholder}
+                    readOnly={readOnly}
+                    value={
+                      field === "startWeek"
+                        ? (form2Details.startWeek ?? 1) // may be cleared on purpose
+                        : form2Details[field] || form3Defaults[field] || ""
+                    }
+                    onChange={(event) =>
+                      updateForm2Detail(field, event.target.value)
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <button
+              className="sbfp-download-button"
+              disabled={downloading || exportBeneficiaries.length === 0}
+              onClick={downloadForm3}
+              data-excel-download="true"
+            >
+              {downloading ? "Preparing Form 3…" : "Download Form 3"}
+            </button>
+            <button
+              className="sbfp-download-button sbfp-print-button"
+              disabled={exportBeneficiaries.length === 0}
+              onClick={() =>
+                requestPrint({
+                  element: form3PagesRef.current,
+                  css: form3SheetCss,
+                  orientation: "landscape",
+                  margin: 0.25,
+                  title: `SBFP Form 3 - ${form3Month} SY ${schoolYear}`,
+                })
+              }
+            >
+              Print Form 3
+            </button>
+          </div>
+          {exportBeneficiaries.length === 0 && (
+            <p className="sbfp-empty">
+              No beneficiaries found for the selected school year and period.
+            </p>
+          )}
+          {(() => {
+            // 35 rows per page, the same as the Excel export.
+            const pages = buildForm3Pages(exportBeneficiaries);
+            const weekLabels = form3WeekLabels(form2Details.startWeek);
+            const days = Array.from({ length: 20 }, (_, i) => i);
+            const weekEnd = (i) => (i % 5 === 4 ? "form3-week-end" : undefined);
+            const dayCells = () =>
+              days.map((i) => <td key={i} className={weekEnd(i)} />);
+            return (
+              <div ref={form3PagesRef}>
+                {pages.map((page, pageIndex) => (
+              <section className="form3-page" key={page.name}>
+                <p className="form3-page-tag no-print">
+                  Page {pageIndex + 1} of {pages.length} · <b>{page.name}</b> ·{" "}
+                  {page.learners} learners
+                </p>
+                <div className="form3-paper">
+                  <p className="form3-label">SBFP Form 3 (2026)</p>
+                  <header className="form3-heading">
+                    <img src={depedSeal} alt="DepEd seal" className="form3-logo" />
+                    <div>
+                      <h3>SCHOOL-BASED FEEDING PROGRAM</h3>
+                      <h4>RECORD OF DAILY FEEDING</h4>
+                      <p>
+                        THE MONTH OF {form3Month}, SY{" "}
+                        {String(schoolYear).replace("–", "-")}
+                      </p>
+                    </div>
+                    <img src={okSaDepedLogo} alt="OK sa DepEd" className="form3-logo form3-logo-ok" />
+                  </header>
+                  <dl className="form3-meta">
+                    {[
+                      ["Region", form3Value("region")],
+                      ["School", schoolName],
+                      ["SDO", formDetails.division],
+                      ["School ID Number", currentUser?.school_id],
+                      ["District", form3Value("district")],
+                      ["Grade", page.grade],
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <dt>{label}:</dt>
+                        <dd>{value || " "}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <div className="form3-scroll">
+                    <table className="form3-table">
+                      <colgroup>
+                        <col className="form3-col-no" />
+                        <col className="form3-col-name" />
+                        <col className="form3-col-sex" />
+                        {days.map((i) => (
+                          <col key={i} />
+                        ))}
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th rowSpan="3" colSpan="2">
+                            NAME OF PUPILS
+                          </th>
+                          <th rowSpan="3">SEX</th>
+                          <th colSpan="20">ACTUAL FEEDING</th>
+                        </tr>
+                        <tr>
+                          {[0, 1, 2, 3].map((i) => (
+                            <th colSpan="5" key={i} className="form3-week-end">
+                              {weekLabels[i]}
+                            </th>
+                          ))}
+                        </tr>
+                        <tr>
+                          {days.map((i) => (
+                            <th key={i} className={weekEnd(i)}>
+                              {(i % 5) + 1}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {page.rows.map((row, index) =>
+                          row.header ? (
+                            <tr key={`h${index}`} className="form3-section">
+                              <td colSpan="2">{row.header}</td>
+                              <td />
+                              {dayCells()}
+                            </tr>
+                          ) : (
+                            <tr key={`${row.student.id ?? ""}:${index}`}>
+                              <td className="form3-no">{row.no}</td>
+                              <td>{row.student.name}</td>
+                              <td className="form3-sex">
+                                {String(row.student.sex || "")
+                                  .toUpperCase()
+                                  .startsWith("M")
+                                  ? "M"
+                                  : "F"}
+                              </td>
+                              {dayCells()}
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <footer className="form3-footer">
+                    <div className="form3-signatures">
+                      <div>
+                        <p>Prepared by:</p>
+                        <p className="form3-signer">
+                          {form3SignatoryName(signatories.preparedName) || " "}
+                        </p>
+                        {signatories.preparedPosition && (
+                          <p>{signatories.preparedPosition}</p>
+                        )}
+                        <p>SBFP Coordinator</p>
+                      </div>
+                      <div>
+                        <p>Approved by:</p>
+                        <p className="form3-signer">
+                          {form3SignatoryName(signatories.approvedName) || " "}
+                        </p>
+                        <p>{signatories.approvedPosition}</p>
+                      </div>
+                    </div>
+                    <div className="form3-legend">
+                      <p className="form3-legend-title">B. Deworming</p>
+                      <p>
+                        ( <b>x</b> ) not dewormed
+                      </p>
+                      <p>
+                        ( <b>√</b> ) dewormed
+                      </p>
+                    </div>
+                    <div className="form3-legend">
+                      <p className="form3-legend-title">D. Actual Feeding</p>
+                      <p>
+                        ( <b>H/N + M</b> ) present, served with hot meals or
+                        nutritious food products &amp; milk
+                      </p>
+                      <p>
+                        ( <b>A</b> ) absent, not served
+                      </p>
+                    </div>
+                  </footer>
+                </div>
+              </section>
+                ))}
+              </div>
+            );
+          })()}
+        </>
       ) : (
         <>
-          <button
-            className="sbfp-download-button"
-            disabled={downloading}
-            onClick={downloadForm2}
-            data-excel-download="true"
-          >
-            {downloading ? "Preparing Form 2…" : "Download Form 2"}
-          </button>
-          <div className="sbfp-form-sheet-wrap">
-            <div className="sbfp-form-sheet sbfp-form2-sheet">
+          <div className="sbfp-report-actions">
+            <button
+              className="sbfp-download-button"
+              disabled={downloading}
+              onClick={downloadForm2}
+              data-excel-download="true"
+            >
+              {downloading ? "Preparing Form 2…" : "Download Form 2"}
+            </button>
+            <button
+              className="sbfp-download-button sbfp-print-button"
+              onClick={() =>
+                requestPrint({
+                  element: form2SheetRef.current,
+                  css: [sbfpFormsCss, form3SheetCss, sbfpFormsOverridesCss].join("\n"),
+                  orientation: "landscape",
+                  margin: 0.25,
+                  title: `SBFP Form 2 - SY ${schoolYear}`,
+                })
+              }
+            >
+              Print Form 2
+            </button>
+          </div>
+          <div className="sbfp-form-sheet-wrap" style={{ zoom: form2Zoom }}>
+            <div className="sbfp-form-sheet sbfp-form2-sheet" ref={form2SheetRef}>
               <p className="form-sheet-label">SBFP Form 2 (2026)</p>
               <h2>Department of Education</h2>
               <h3>
@@ -1486,9 +1905,24 @@ export default function SbfpForms({
                   </tbody>
                 </table>
               </div>
-              <div className="form2-signatures">
-                <span>Prepared by: {formDetails.focalPerson}</span>
-                <span>Approved by: {formDetails.principal}</span>
+              <div className="form2-signatures form3-signatures">
+                <div>
+                  <p>Prepared by:</p>
+                  <p className="form3-signer">
+                    {form3SignatoryName(signatories.preparedName) || " "}
+                  </p>
+                  {signatories.preparedPosition && (
+                    <p>{signatories.preparedPosition}</p>
+                  )}
+                  <p>SBFP DepEd Focal</p>
+                </div>
+                <div>
+                  <p>Approved by:</p>
+                  <p className="form3-signer">
+                    {form3SignatoryName(signatories.approvedName) || " "}
+                  </p>
+                  <p>{signatories.approvedPosition}</p>
+                </div>
               </div>
             </div>
           </div>

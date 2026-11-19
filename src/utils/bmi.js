@@ -98,6 +98,11 @@ export function ageInYears(birthdate, referenceDate = new Date()) {
   return age >= 0 ? age : '';
 }
 
+// The DepEd tables use one-decimal bands with 0.1 gaps between them (Wasted
+// ends at 12.9, Normal starts at 13.0). Round to one decimal first so a value
+// such as 12.95 cannot fall between two bands.
+const roundTenth = (value) => Math.round((value + Number.EPSILON) * 10) / 10;
+
 // ── BMI-for-Age (BAZ) ─────────────────────────────────────────────────────
 // Returns: { label, color, bg } | null
 
@@ -126,14 +131,15 @@ export function getBMIStatus(
   const row         = table[clampMonths];
 
   if (row) {
-    if (bmi <= row.sw_max)                      return { label: 'Severely Wasted', ...BAZ_META['Severely Wasted'] };
-    if (bmi >= row.w_from  && bmi <= row.w_to)  return { label: 'Wasted',          ...BAZ_META['Wasted']          };
-    if (bmi >= row.n_from  && bmi <= row.n_to)  return { label: 'Normal',           ...BAZ_META['Normal']          };
-    if (bmi >= row.ow_from && bmi <= row.ow_to) return { label: 'Overweight',       ...BAZ_META['Overweight']      };
-    if (bmi >= row.ob_min)                      return { label: 'Obese',            ...BAZ_META['Obese']           };
+    const b = roundTenth(bmi);
+    if (b <= row.sw_max) return { label: 'Severely Wasted', ...BAZ_META['Severely Wasted'] };
+    if (b <= row.w_to)   return { label: 'Wasted',          ...BAZ_META['Wasted']          };
+    if (b <= row.n_to)   return { label: 'Normal',          ...BAZ_META['Normal']          };
+    if (b <= row.ow_to)  return { label: 'Overweight',      ...BAZ_META['Overweight']      };
+    return                      { label: 'Obese',           ...BAZ_META['Obese']           };
   }
 
-  // Fallback for age < 72 months (Kinder) — simplified thresholds
+  // Only reached if a table row is missing — simplified thresholds
   if (bmi < 14)  return { label: 'Severely Wasted', ...BAZ_META['Severely Wasted'] };
   if (bmi < 16)  return { label: 'Wasted',          ...BAZ_META['Wasted']          };
   if (bmi < 23)  return { label: 'Normal',          ...BAZ_META['Normal']          };
@@ -169,14 +175,13 @@ export function getHAZStatus(
   const clampMonths = Math.max(36, Math.min(228, months));
   const row         = table[clampMonths];
 
-  if (!row) return null;
+  if (!row || h == null) return null;
 
-  if (h <= row.ss_max)                    return { label: 'Severely Stunted', ...HAZ_META['Severely Stunted'] };
-  if (h >= row.s_from  && h <= row.s_to)  return { label: 'Stunted',          ...HAZ_META['Stunted']          };
-  if (h >= row.n_from  && h <= row.n_to)  return { label: 'Normal',           ...HAZ_META['Normal']           };
-  if (h >= row.tall_min)                  return { label: 'Tall',             ...HAZ_META['Tall']             };
-
-  return null;
+  const cm = roundTenth(h);
+  if (cm <= row.ss_max) return { label: 'Severely Stunted', ...HAZ_META['Severely Stunted'] };
+  if (cm <= row.s_to)   return { label: 'Stunted',          ...HAZ_META['Stunted']          };
+  if (cm <= row.n_to)   return { label: 'Normal',           ...HAZ_META['Normal']           };
+  return                       { label: 'Tall',             ...HAZ_META['Tall']             };
 }
 
 // ── Combined nutritional status (both indicators) ─────────────────────────
@@ -220,16 +225,16 @@ export function getCurrentSchoolYear() {
   return `${year - 1}–${year}`;
 }
 
-// Automatically generates the current school year and the next 3 future years
-export function getSchoolYears() {
-  const currentSY = getCurrentSchoolYear();
-  const startYear = parseInt(currentSY.split('–')[0]);
+// The first school year with data in this app. Past years stay in the list so
+// their records can still be opened after a new school year starts.
+const FIRST_SCHOOL_YEAR_START = 2026;
 
+// Every school year from the first one through 3 years after the current one.
+export function getSchoolYears() {
+  const currentStart = parseInt(getCurrentSchoolYear().split('–')[0]);
   const years = [];
-  for (let i = 0; i < 4; i++) {
-    const start = startYear + i;
-    const end = start + 1;
-    years.push(`${start}–${end}`);
+  for (let start = Math.min(FIRST_SCHOOL_YEAR_START, currentStart); start <= currentStart + 3; start++) {
+    years.push(`${start}–${start + 1}`);
   }
   return years;
 }

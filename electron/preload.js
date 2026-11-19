@@ -118,6 +118,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // In-app Print Preview (see electron/printing.js)
   printPrepare: (document) => ipcRenderer.invoke("print:prepare", document),
   printGetPrinters: () => ipcRenderer.invoke("print:get-printers"),
+  printGetPaperSizes: (printerName) => ipcRenderer.invoke("print:get-paper-sizes", { printerName }),
   printRenderPreview: (settings) => ipcRenderer.invoke("print:render-preview", settings),
   printExecute: (settings) => ipcRenderer.invoke("print:execute", settings),
   printCleanupPreview: () => ipcRenderer.invoke("print:cleanup-preview"),

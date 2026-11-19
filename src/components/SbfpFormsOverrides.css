@@ -46,10 +46,11 @@
 .form2-feeding-date-input {
   box-sizing: border-box;
   width: 100%;
-  min-width: 88px;
+  min-width: 0;
   border: 1px solid #94a3b8;
   border-radius: 3px;
-  padding: 3px 4px;
+  padding: 0 4px;
+  line-height: 13px;
   background: #fff;
   color: inherit;
   font: inherit;
@@ -207,9 +208,15 @@
   font-weight: 600;
   font-size: 11px;
 }
-.form2-details label,
-.form2-details span {
+/* Profile.css forces every <label> to 13px with !important; keep all rows the same size. */
+.form2-details > label,
+.form2-details > span {
+  display: block !important;
   min-height: 16px;
+  margin: 0 !important;
+  color: inherit !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
   line-height: 16px;
 }
 .sbfp-form2-sheet h2 {
@@ -233,11 +240,17 @@
   font-size: 11px;
   line-height: 16px;
 }
+/* Show the whole Form 2 page; only the width may scroll. */
 .form2-scroll {
-  max-height: calc(100vh - 390px);
+  max-height: none;
+  min-height: 0;
+  overflow-y: visible;
 }
+/* Fit the sheet's width instead of scrolling: the same column proportions as
+   a 1303px layout, as percentages. */
 .sbfp-form2-table {
-  min-width: 1495px;
+  width: 100%;
+  min-width: 1303px;
   table-layout: fixed;
 }
 .sbfp-form2-table th,
@@ -246,22 +259,22 @@
   text-align: center;
 }
 .sbfp-form2-table col:nth-child(1) {
-  width: 150px;
+  width: 8.6%; /* 112px: grade level */
 }
 .sbfp-form2-table col:nth-child(2) {
-  width: 62px;
+  width: 3.68%; /* 48px: sex */
 }
 .sbfp-form2-table col:nth-child(n + 3):nth-child(-n + 12) {
-  width: 66px;
+  width: 3.99%; /* 52px: weight/height counts */
 }
 .sbfp-form2-table col:nth-child(n + 13):nth-child(-n + 17) {
-  width: 65px;
+  width: 4.99%; /* 65px: secondary targets */
 }
 .sbfp-form2-table col:nth-child(n + 18):nth-child(-n + 20) {
-  width: 70px;
+  width: 5.68%; /* 74px: dewormed, 4Ps, previous year */
 }
 .sbfp-form2-table col:nth-child(21) {
-  width: 85px;
+  width: 5.83%; /* 76px: date */
 }
 .sbfp-form2-table .form2-grade-cell {
   vertical-align: middle;
@@ -273,7 +286,11 @@
   word-break: normal;
   hyphens: none;
 }
+/* Tight rows so all grade levels fit one landscape Folio page. */
 .sbfp-form2-table tbody td {
+  height: 15px;
+  padding: 0 3px;
+  line-height: 14px;
   cursor: default;
   text-align: center !important;
   vertical-align: middle;
@@ -282,19 +299,32 @@
   background: #eef2f7;
   font-weight: 700;
 }
+/* The feeding date is the same on every row; only the counts are totals. */
+.sbfp-form2-table .form2-total-row td:last-child {
+  font-weight: 400;
+}
+/* Same block as Form 3; Approved by starts at column M like the Excel file. */
 .form2-signatures {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 12fr 9fr;
   gap: 0;
-  margin-top: 28px;
-  text-align: center;
-  font-weight: 700;
-}
-.form2-signatures span:first-child {
+  margin-top: 18px;
   text-align: left;
+  font-size: 11px;
+  line-height: 1.5;
 }
-.form2-signatures span:last-child {
-  text-align: center;
+.form2-signatures p {
+  margin: 0;
+}
+.form2-signatures .form3-signer {
+  display: inline-block;
+  min-width: 240px;
+  margin-top: 18px !important;
+}
+.sbfp-signatories-note {
+  margin: 0;
+  color: #475569;
+  font-size: 13px;
 }
 @media (max-width: 1200px) {
   .sbfp-forms-page {
@@ -317,11 +347,8 @@
     width: 100%;
     min-width: 0;
   }
-  .sbfp-table-scroll {
+  .sbfp-table-scroll:not(.form2-scroll) {
     max-height: calc(100vh - 390px);
-  }
-  .form2-scroll {
-    max-height: calc(100vh - 450px);
   }
 }
 @media (max-height: 720px) {
@@ -348,8 +375,7 @@
   .sbfp-form-sheet-wrap {
     padding: 12px;
   }
-  .sbfp-table-scroll,
-  .form2-scroll {
+  .sbfp-table-scroll:not(.form2-scroll) {
     max-height: 300px;
     min-height: 160px;
   }
@@ -684,8 +710,147 @@
   text-transform: uppercase;
 }
 
+.modal-box--signatories {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(90vh, 680px);
+  overscroll-behavior: contain;
+}
+
+.modal-box--signatories .modal-header {
+  padding: 20px 24px 0;
+}
+
+.modal-box--signatories .modal-title {
+  margin: 0;
+  font-size: 17px;
+}
+
+.modal-box--signatories .modal-close {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.modal-box--signatories .modal-close:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+.modal-box--signatories .modal-body {
+  padding: 10px 24px 24px;
+}
+
+.modal-box--signatories .form3-signatories {
+  gap: 16px;
+}
+
+.modal-box--signatories .sbfp-signatories-note {
+  margin: 0;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.modal-box--signatories .form3-signatories fieldset {
+  padding: 12px 14px 14px;
+  border-color: #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.modal-box--signatories .form3-signatories legend {
+  padding-inline: 8px;
+  font-size: 14px;
+}
+
+.modal-box--signatories .form3-signatories .form-group {
+  gap: 4px;
+}
+
+.modal-box--signatories .form3-signatories .form-label {
+  margin: 0 !important;
+  color: #334155 !important;
+  font-size: 12px !important;
+}
+
+.modal-box--signatories .form3-signatories .form-input {
+  box-sizing: border-box;
+  min-height: 40px;
+  border-color: #cbd5e1;
+  border-radius: 7px;
+  font-size: 14px;
+}
+
+.modal-box--signatories .sbfp-signatories-actions {
+  gap: 12px;
+  padding-top: 2px;
+}
+
+.modal-box--signatories .sbfp-signatories-actions .btn {
+  min-width: 88px;
+  min-height: 40px;
+}
+
+@media (max-width: 520px) {
+  .modal-box--signatories {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .modal-box--signatories .modal-header {
+    padding-inline: 18px;
+  }
+
+  .modal-box--signatories .modal-body {
+    padding: 10px 18px 18px;
+  }
+}
+
 @media (max-width: 1050px) {
   .ns-report-summary {
     min-width: 900px;
+  }
+}
+
+
+/* Form 2 print: one landscape Folio page, black lines, no tints (docs/PRINTING.md). */
+@media print {
+  .sbfp-form2-sheet {
+    min-width: 0;
+    padding: 0;
+    box-shadow: none;
+    zoom: 0.9; /* lays the page out about 1330px wide, the size the form was designed at */
+  }
+  .sbfp-form2-sheet .form2-scroll {
+    max-height: none;
+    overflow: visible;
+  }
+  .sbfp-form2-table {
+    min-width: 0;
+  }
+  .sbfp-form2-table th,
+  .sbfp-form2-table td,
+  .form2-signatures .form3-signer {
+    border-color: #000 !important;
+  }
+  .sbfp-form2-table th,
+  .sbfp-form2-table .form2-total-row td {
+    background: #fff !important;
+  }
+  .sbfp-form2-sheet,
+  .sbfp-form2-sheet .form-sheet-label {
+    color: #000;
+  }
+  .sbfp-form2-sheet .sbfp-inline-detail,
+  .form2-feeding-date-input {
+    display: inline-block;
+    min-width: 0;
+    border: 0;
+    padding: 0;
+  }
+  .sbfp-form2-table tr,
+  .form2-signatures {
+    break-inside: avoid;
   }
 }

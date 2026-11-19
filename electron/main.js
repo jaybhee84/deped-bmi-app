@@ -162,6 +162,7 @@ const BUNDLED_TEMPLATE_FILES = new Set([
   "NS REPORT.xlsx",
   "SBFP FORM 1.xlsx",
   "SBFP FORM 2.xlsx",
+  "SBFP FORM 3.xlsx",
 ]);
 
 handleAppIpc("assets:loadTemplate", async (_, filename) => {

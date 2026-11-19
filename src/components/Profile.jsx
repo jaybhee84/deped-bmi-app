@@ -9,6 +9,7 @@ import {
   SCHOOL_YEARS,
   QUARTERS,
   SECTIONS,
+  getCurrentSchoolYear
 } from "../utils/bmi";
 import Badge from "./Badge";
 import { parseMeasurementHeight, parseMeasurementWeight } from '../utils/measurementInput';
@@ -250,7 +251,7 @@ export default function Profile({
 
   const fileInputRef = useRef(null);
   const [rec, setRec] = useState({
-    sy: "2026–2027",
+    sy: getCurrentSchoolYear(),
     q: "Baseline",
     date: "",
     weight: "",
@@ -319,7 +320,7 @@ export default function Profile({
 
     if (recordToLoad) {
       setRec({
-        sy: recordToLoad.sy || "2026–2027",
+        sy: recordToLoad.sy || getCurrentSchoolYear(),
         q: recordToLoad.q || defaultQuarter,
         date: recordToLoad.date || "",
         weight: recordToLoad.weight ? String(recordToLoad.weight) : "",
@@ -327,7 +328,7 @@ export default function Profile({
       });
     } else {
       setRec({
-        sy: "2026–2027",
+        sy: getCurrentSchoolYear(),
         q: defaultQuarter,
         date: "",
         weight: "",
@@ -342,7 +343,7 @@ export default function Profile({
     const existing = findLatestByQuarter(student.records, selectedQuarter);
     if (existing) {
       setRec({
-        sy: existing.sy || "2026–2027",
+        sy: existing.sy || getCurrentSchoolYear(),
         q: selectedQuarter,
         date: existing.date || "",
         weight: existing.weight ? String(existing.weight) : "",
@@ -469,7 +470,7 @@ export default function Profile({
     setAddOpen(false);
     setShowConfirmModal(false);
     setRec({
-      sy: "2026–2027",
+      sy: getCurrentSchoolYear(),
       q: "Baseline",
       date: "",
       weight: "",
@@ -659,7 +660,10 @@ export default function Profile({
 
   const previewBMI =
     rec.weight && rec.height ? calcBMI(rec.weight, rec.height) : null;
-  const previewStatus = previewBMI ? getBMIStatus(previewBMI) : null;
+  // Classification needs the learner's age on the measurement date (today if not set yet).
+  const previewStatus = previewBMI
+    ? getBMIStatus(previewBMI, student?.sex, student?.birthdate, rec.date || new Date())
+    : null;
 
   return (
     <div className="page">

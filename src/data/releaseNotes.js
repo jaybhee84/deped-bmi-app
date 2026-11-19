@@ -1,4 +1,36 @@
 export const RELEASE_NOTES = {
+  '4.0.8': {
+    title: 'v4.0.8',
+    sections: [
+      {
+        heading: 'SBFP Forms',
+        items: [
+          'New SBFP Form 3 (Record of Daily Feeding): one landscape Folio page per class of up to 35 learners, with the DepEd and OK sa DepEd logos, Region, SDO, District, School, School ID and Grade filled in, a Month and Starting week, and a matching Excel download.',
+          'New Signatories tab: set Prepared by and Approved by (name and position) once, then Save. Forms 1, 2 and 3 all use them, and they stay saved on this computer.',
+          'Form 2 now has Print Form 2, a Prepared by and Approved by signature block, and fits the screen without scrolling. Rows are tighter so the whole form fits one landscape Folio page, and header text is one size.',
+          'The feeding date on Form 2 Total rows is no longer bold. Form 1 Excel keeps every learner (more than 189 add rows) and shows height in meters.',
+        ],
+      },
+      {
+        heading: 'Printing',
+        items: [
+          'Landscape printouts now start from the left side of the form (the DepEd seal) on EPSON printers. If a printer feeds the other way, tick Flip landscape pages in Print Preview; the choice is remembered.',
+          'Print Preview lists the paper sizes your printer offers and prints on the printer’s own 8.5 × 13 in paper, so Folio pages are no longer cut off on A4.',
+          'Printouts keep what was typed into a form, such as dates and Last Mile School.',
+          'Printed lines are pure black on every report so color inkjets no longer print them green. The Immunization Excel file is set to Folio.',
+        ],
+      },
+      {
+        heading: 'Fixes',
+        items: [
+          'BMI-for-age and height-for-age now round to one decimal before classifying, so values between two bands (for example 12.95) are no longer misclassified or left blank.',
+          'School year menus default to the current school year and keep past years.',
+          'School Information no longer shows 0 Learners Enrolled when the cloud count is unavailable or uses a different dash in the school year.',
+          'Pop-up windows can be closed with Esc and keep keyboard focus inside them.',
+        ],
+      },
+    ],
+  },
   '4.0.7': {
     title: 'v4.0.7',
     sections: [

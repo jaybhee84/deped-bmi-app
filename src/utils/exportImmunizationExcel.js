@@ -72,10 +72,10 @@ export const exportImmunizationExcel = async ({
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Immunization Masterlist");
 
-  // Page setup for landscape legal printing
+  // Landscape Folio, the same paper as its print preview
   worksheet.pageSetup = {
     orientation: "landscape",
-    paperSize: 5, // Legal
+    paperSize: 14, // Folio 8.5 x 13 in
     fitToPage: true,
     fitToWidth: 1,
     fitToHeight: 0,

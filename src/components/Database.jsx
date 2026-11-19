@@ -72,7 +72,7 @@ export default function Database({
   readOnly,
   currentUser,
 }) {
-  const [filterSy, setFilterSy] = useState("2026–2027");
+  const [filterSy, setFilterSy] = useState(getCurrentSchoolYear);
   const [filterPeriod, setFilterPeriod] = useState("All");
   const [filterGrade, setFilterGrade] = useState("All");
   const [filterSection, setFilterSection] = useState("All");
@@ -663,7 +663,7 @@ export default function Database({
                       : null;
                     const previousSbfp = hasPreviousYearData(
                       s,
-                      filterSy === "All" ? "2026–2027" : filterSy,
+                      filterSy === "All" ? getCurrentSchoolYear() : filterSy,
                     );
 
                     const previousSbfpValue =

@@ -5,6 +5,8 @@ import {
   getHAZStatus,
   SECTIONS,
   GRADE_LEVELS,
+  getCurrentSchoolYear,
+  getSchoolYears
 } from "../utils/bmi";
 import Badge from "./Badge";
 import Modal from "./Modal";
@@ -90,14 +92,9 @@ export default function SDOStudents({
   onViewProfile,
   readOnly,
 }) {
-  const FUTURE_SCHOOL_YEARS = [
-    "2026–2027",
-    "2027–2028",
-    "2028–2029",
-    "2029–2030",
-  ];
+  const FUTURE_SCHOOL_YEARS = getSchoolYears();
 
-  const [filterSy, setFilterSy] = useState("2026–2027");
+  const [filterSy, setFilterSy] = useState(getCurrentSchoolYear);
   const [filterSchool, setFilterSchool] = useState("ALL SCHOOLS");
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [filterGrade, setFilterGrade] = useState("All");
@@ -439,7 +436,7 @@ export default function SDOStudents({
 
                   const previousSbfp = hasPreviousYearData(
                     s,
-                    filterSy === "All" ? "2026–2027" : filterSy,
+                    filterSy === "All" ? getCurrentSchoolYear() : filterSy,
                   );
 
                   return (

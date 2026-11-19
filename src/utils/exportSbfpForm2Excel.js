@@ -103,6 +103,8 @@ export async function exportSbfpForm2Excel({
   cityBarangay,
   principalName,
   feedingFocalPerson,
+  preparedPosition,
+  approvedPosition = "School Head",
   feedingStartDate,
   lastMile,
 }) {
@@ -228,6 +230,9 @@ export async function exportSbfpForm2Excel({
         wrapText: false,
       };
     });
+    // The date is not a total: keep it regular on the bold Total rows too.
+    const date = row.getCell(21);
+    date.style = { ...date.style, font: { ...date.style.font, bold: false } };
   });
   for (let row = 43; row <= 50; row++) {
     for (let column = 1; column <= 21; column++) {
@@ -240,17 +245,21 @@ export async function exportSbfpForm2Excel({
   sheet.getCell("M44").value = "Approved by:";
   sheet.getCell("A45").value = feedingFocalPerson || "";
   sheet.getCell("M45").value = principalName || "";
-  sheet.getCell("A46").value = "SBFP DepEd Focal";
-  sheet.getCell("M46").value = "School Head";
+  // "SBFP DepEd Focal" always prints under the preparer's own position, as on screen.
+  const preparedLines = [preparedPosition, "SBFP DepEd Focal"].filter(Boolean);
+  preparedLines.forEach((line, index) => {
+    sheet.getCell(`A${46 + index}`).value = line;
+  });
+  sheet.getCell("M46").value = approvedPosition || "";
   sheet.getCell("A48").value =
     "Note: This form shall be prepared by the school before the start of feeding and after feeding, to be compiled by the SDO, and for final compilation by the RO, for submission to DepEd BLSS-SHD";
   ["A44", "M44"].forEach((cell) => {
     sheet.getCell(cell).font = { name: "Arial", size: 10 };
   });
-  ["A45", "M45", "A46", "M46", "A48"].forEach((cell) => {
+  ["A45", "M45", "A46", "A47", "M46", "A48"].forEach((cell) => {
     sheet.getCell(cell).font = { name: "Arial", size: 10, bold: true };
   });
-  ["A44", "M44", "A45", "M45", "A46", "M46", "A48"].forEach((cell) => {
+  ["A44", "M44", "A45", "M45", "A46", "A47", "M46", "A48"].forEach((cell) => {
     sheet.getCell(cell).alignment = {
       horizontal: "left",
       vertical: "middle",
@@ -258,6 +267,7 @@ export async function exportSbfpForm2Excel({
     };
   });
   sheet.pageSetup.printArea = "A1:U49";
+  sheet.pageSetup.paperSize = 14; // Folio, like every print in the app
   saveAs(
     new Blob([await workbook.xlsx.writeBuffer()]),
     `${abbreviation(schoolName)}_form2_SY${year}.xlsx`,

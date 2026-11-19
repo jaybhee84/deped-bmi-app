@@ -9,6 +9,7 @@ import {
   SESSIONS,
   normalizeHeightMeters,
   formatHeightMeters,
+  getCurrentSchoolYear
 } from "../utils/bmi";
 import Badge from "./Badge";
 import "./BatchEntry.css";
@@ -71,7 +72,7 @@ export default function BatchEntry({ students, setStudents, currentUser, onOpenA
   const [teacherMiddleName, setTeacherMiddleName] = useState("");
   const [adviserId, setAdviserId] = useState("");
   const [session, setSession] = useState("Morning");
-  const [sy, setSy] = useState("2026–2027");
+  const [sy, setSy] = useState(getCurrentSchoolYear);
 
   // Period dropdown removed; hardcoded strictly to Baseline entry point
   const quarter = "Baseline";

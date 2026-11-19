@@ -1,7 +1,7 @@
 {
   "name": "deped-bmi-app",
   "private": true,
-  "version": "4.0.7",
+  "version": "4.0.8",
   "description": "A desktop application for managing and monitoring Body Mass Index (BMI) records for DepEd personnel.",
   "author": "BuzzJay",
   "type": "module",
@@ -26,6 +26,9 @@
     "productName": "DepEd BMI App",
     "artifactName": "DepEd-BMI-App-${version}-${os}-${arch}.${ext}",
     "asar": true,
+    "asarUnpack": [
+      "node_modules/pdf-to-printer/dist/*.exe"
+    ],
     "extraResources": [
       {
         "from": "LICENSE-AGREEMENT.txt",

@@ -1,14 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styles from "./PrintPreviewModal.module.css";
+import { secureStorage } from "../../utils/secureStorage";
+
+// Printers differ in which edge of a landscape page they feed first; the
+// choice is kept for this computer.
+const FLIP_LANDSCAPE_KEY = "print-flip-landscape";
+function savedFlipLandscape() {
+  try { return secureStorage.getItem(FLIP_LANDSCAPE_KEY) === "true"; } catch { return false; }
+}
 
 const DEBOUNCE_MS = 450;
 
 // Every document in this app is laid out for Folio; other sizes need Fit to page.
-const PAPER_SIZES = [
-  { value: "match", label: "Folio (8.5 × 13 in)" },
-  { value: "A4", label: "A4" },
-  { value: "Letter", label: "Letter" },
+// Used when the printer's own list is unavailable (no driver info, non-Windows).
+const FALLBACK_PAPER_SIZES = [
+  { name: "A4", width: 8.27, height: 11.69 },
+  { name: "Letter", width: 8.5, height: 11 },
+  { name: "Legal", width: 8.5, height: 14 },
 ];
+const sameSize = (a, b) => Math.abs(a - b) < 0.03;
 
 const MARGIN_PRESETS = [
   { value: "match", label: "Document default" },
@@ -77,6 +87,8 @@ export default function PrintPreviewModal({ onClose, setup }) {
     pageRangeCustom: "",
     orientation: declared.orientation,
     paperSize: "match",
+    paperWidth: null,
+    paperHeight: null,
     margins: declared.margins,
     customMargins: declared.customMargins,
     documentPaper: declared.paper,
@@ -84,8 +96,10 @@ export default function PrintPreviewModal({ onClose, setup }) {
     scaleMode: "100",
     scalePercent: 100,
     colorMode: "color",
+    flipLandscape: savedFlipLandscape(),
   });
 
+  const [paperSizes, setPaperSizes] = useState([]);
   const [pdfDoc, setPdfDoc] = useState(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -128,6 +142,27 @@ export default function PrintPreviewModal({ onClose, setup }) {
     }).catch((error) => { if (!cancelled) setPrintersError(error.message); });
     return () => { cancelled = true; };
   }, []);
+
+  // Every paper size the selected printer supports. Folio stays first as the
+  // document's own size; a printer's identical 8.5 x 13 entry is not repeated.
+  useEffect(() => {
+    if (!settings.printerName) return;
+    let cancelled = false;
+    Promise.resolve(window.electronAPI.printGetPaperSizes?.(settings.printerName))
+      .then((result) => {
+        if (cancelled) return;
+        const reported = result?.success && result.paperSizes?.length ? result.paperSizes : FALLBACK_PAPER_SIZES;
+        const sizes = reported.filter((size) =>
+          !/user.?defined|custom/i.test(size.name) && !(sameSize(size.width, 8.5) && sameSize(size.height, 13)));
+        setPaperSizes(sizes);
+        // A size the new printer lacks falls back to Folio.
+        setSettings((prev) => (prev.paperSize === "match" || sizes.some((size) => size.name === prev.paperSize)
+          ? prev
+          : { ...prev, paperSize: "match", paperWidth: null, paperHeight: null }));
+      })
+      .catch(() => { if (!cancelled) setPaperSizes(FALLBACK_PAPER_SIZES); });
+    return () => { cancelled = true; };
+  }, [settings.printerName]);
 
   const generatePreview = useCallback(async () => {
     const requestId = ++requestIdRef.current;
@@ -173,6 +208,8 @@ export default function PrintPreviewModal({ onClose, setup }) {
     settings.orientation,
     settings.colorMode,
     settings.paperSize,
+    settings.paperWidth,
+    settings.paperHeight,
     settings.margins,
     settings.customMargins.top,
     settings.customMargins.bottom,
@@ -347,6 +384,7 @@ export default function PrintPreviewModal({ onClose, setup }) {
         <div className={styles.body}>
           <aside className={styles.settingsPanel}>
             <fieldset className={styles.settingsScroll} disabled={printing}>
+              <p className={styles.sectionTitle}>Printer</p>
               <div className={styles.field}>
                 <label htmlFor="pp-printer">Printer</label>
                 <select
@@ -365,6 +403,7 @@ export default function PrintPreviewModal({ onClose, setup }) {
                 {printersError && <p className={styles.errorText}>{printersError}</p>}
               </div>
 
+              <div className={styles.fieldRow}>
               <div className={styles.field}>
                 <label htmlFor="pp-copies">Copies</label>
                 <input
@@ -377,8 +416,35 @@ export default function PrintPreviewModal({ onClose, setup }) {
                 />
               </div>
 
+              <div className={styles.field}>
+                <label htmlFor="pp-orientation">Orientation</label>
+                <select
+                  id="pp-orientation"
+                  value={settings.orientation}
+                  onChange={(e) => updateSetting({ orientation: e.target.value })}
+                >
+                  <option value="portrait">Portrait</option>
+                  <option value="landscape">Landscape</option>
+                </select>
+              </div>
+              </div>
+              {settings.orientation === "landscape" && (
+                <label className={styles.radioRow} title="Use this if the right side of the form comes out of the printer first">
+                  <input
+                    type="checkbox"
+                    checked={settings.flipLandscape}
+                    onChange={(e) => {
+                      try { secureStorage.setItem(FLIP_LANDSCAPE_KEY, String(e.target.checked)); } catch { /* still applies to this print */ }
+                      updateSetting({ flipLandscape: e.target.checked });
+                    }}
+                  />
+                  Flip landscape pages (if the right side prints first)
+                </label>
+              )}
+
               <fieldset className={styles.field}>
-                <legend>Page range</legend>
+                <legend>Pages</legend>
+                <div className={styles.segmented}>
                 <label className={styles.radioRow}>
                   <input
                     type="radio"
@@ -395,7 +461,7 @@ export default function PrintPreviewModal({ onClose, setup }) {
                     checked={settings.pageRange === "current"}
                     onChange={() => updateSetting({ pageRange: "current" })}
                   />
-                  Current page ({currentPage})
+                  Current ({currentPage})
                 </label>
                 <label className={styles.radioRow}>
                   <input
@@ -406,6 +472,7 @@ export default function PrintPreviewModal({ onClose, setup }) {
                   />
                   Custom
                 </label>
+                </div>
                 {settings.pageRange === "custom" && (
                   <>
                     <input
@@ -420,27 +487,22 @@ export default function PrintPreviewModal({ onClose, setup }) {
                 )}
               </fieldset>
 
-              <div className={styles.field}>
-                <label htmlFor="pp-orientation">Orientation</label>
-                <select
-                  id="pp-orientation"
-                  value={settings.orientation}
-                  onChange={(e) => updateSetting({ orientation: e.target.value })}
-                >
-                  <option value="portrait">Portrait</option>
-                  <option value="landscape">Landscape</option>
-                </select>
-              </div>
-
+              <p className={styles.sectionTitle}>Layout</p>
               <div className={styles.field}>
                 <label htmlFor="pp-papersize">Paper size</label>
                 <select
                   id="pp-papersize"
                   value={settings.paperSize}
-                  onChange={(e) => updateSetting({ paperSize: e.target.value })}
+                  onChange={(e) => {
+                    const size = paperSizes.find((item) => item.name === e.target.value);
+                    updateSetting(size
+                      ? { paperSize: size.name, paperWidth: size.width, paperHeight: size.height }
+                      : { paperSize: "match", paperWidth: null, paperHeight: null });
+                  }}
                 >
-                  {PAPER_SIZES.map((size) => (
-                    <option key={size.value} value={size.value}>{size.label}</option>
+                  <option value="match">Folio (8.5 × 13 in)</option>
+                  {paperSizes.map((size) => (
+                    <option key={size.name} value={size.name}>{size.name}</option>
                   ))}
                 </select>
                 {settings.paperSize !== "match" && settings.paperSize !== declared.paper && (

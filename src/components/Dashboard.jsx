@@ -7,6 +7,7 @@ import {
   getHAZStatus,
   getSchoolYears,
   GRADE_LEVELS,
+  getCurrentSchoolYear
 } from "../utils/bmi";
 import Badge from "./Badge";
 import TrendChartSection from "./TrendChartSection";
@@ -19,7 +20,7 @@ import {
 } from "../utils/sbfpConfig";
 
 export default function Dashboard({ students: allStudents, currentUser, onOpenProfile }) {
-  const [filterSY, setFilterSY] = useState("2026–2027");
+  const [filterSY, setFilterSY] = useState(getCurrentSchoolYear);
   const [filterPeriod, setFilterPeriod] = useState("Baseline");
   const [learnerScope, setLearnerScope] = useState("all");
   const scopeConfig = useSbfpConfig();

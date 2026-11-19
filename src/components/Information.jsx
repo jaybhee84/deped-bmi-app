@@ -1,5 +1,5 @@
 import { secureStorage } from '../utils/secureStorage';
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { BMI_CLASSIFICATIONS, HAZ_CLASSIFICATIONS } from "../utils/bmi";
 import {
   fetchSchoolById,
@@ -8,6 +8,7 @@ import {
 import { RELEASE_NOTES } from "../data/releaseNotes";
 import "./Information.css";
 import { getSchoolLogoUrl } from "../utils/schoolLogoMap";
+import { getCachedLogoSrc } from "../utils/logoCache";
 import buzzjayLogo from "../images/buzzj1.png";
 import { supabase } from "../utils/supabaseClient";
 import { countPortalEnrolments, normalizeSchoolYear } from "../utils/enrolmentTotals";
@@ -49,6 +50,7 @@ export default function Information({
 
   const [schoolLoaded, setSchoolLoaded] = useState(false);
   const [schoolLogo, setSchoolLogo] = useState(null);
+  const failedLogos = useRef(new Set());
   const [appVersion, setAppVersion] = useState("");
   const [sbfpConfig, setSbfpConfig] = useState(loadCachedSbfpConfig);
 
@@ -64,7 +66,8 @@ export default function Information({
   const localEnrolment = useMemo(() => countPortalEnrolments(
     students, schoolYear, currentUser?.school_id || "",
   ), [students, currentUser?.school_id, schoolYear]);
-  const totalLearnersEnrolled = cloudEnrolment ?? localEnrolment;
+  // A cloud 0 (unsynced records, or none visible to this account) must not hide local learners.
+  const totalLearnersEnrolled = cloudEnrolment || localEnrolment;
 
   useEffect(() => {
     let cancelled = false;
@@ -73,7 +76,11 @@ export default function Information({
     if (!navigator.onLine || !currentUser?.school_id || !schoolYear) return;
     supabase.from("students").select("id", { count: "exact", head: true })
       .eq("school_id", String(currentUser.school_id))
-      .eq("school_year", normalizeSchoolYear(schoolYear))
+      // Records keep the year as typed, with either "-" or "–".
+      .in("school_year", [
+        normalizeSchoolYear(schoolYear),
+        normalizeSchoolYear(schoolYear).replace("–", "-"),
+      ])
       .then(({ count, error }) => {
         if (cancelled) return;
         if (error) {
@@ -207,6 +214,14 @@ export default function Information({
                 <img
                   src={schoolLogo}
                   alt="School Logo"
+                  // A stale cloud logo_url shows a broken image: fall back to this
+                  // computer's saved logo, then the standard logo file, then hide it.
+                  onError={() => {
+                    const failed = failedLogos.current.add(schoolLogo);
+                    const next = [getCachedLogoSrc(school.name), getSchoolLogoUrl(school.name)]
+                      .find((src) => src && !failed.has(src));
+                    setSchoolLogo(next || null);
+                  }}
                   style={{
                     width: "160px",
                     height: "160px",

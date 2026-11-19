@@ -64,7 +64,7 @@ const STYLES_XML = `<styleSheet xmlns="${NS}">
   font(7), font(11, { color: "FF374151" }), font(11, { bold: true, color: "FF111827" }),
 ].join("")}</fonts>
 <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF2EDE9"/><bgColor indexed="64"/></patternFill></fill></fills>
-<borders count="4"><border><left/><right/><top/><bottom/><diagonal/></border><border>${thin("FF000000")}<diagonal/></border><border>${thin("FF999999")}<diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FF333333"/></bottom><diagonal/></border></borders>
+<borders count="4"><border><left/><right/><top/><bottom/><diagonal/></border><border>${thin("FF000000")}<diagonal/></border><border>${thin("FF000000")}<diagonal/></border><border><left/><right/><top/><bottom style="thin"><color rgb="FF000000"/></bottom><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
 <cellXfs count="25">${[
   xf(0, { h: "general" }),

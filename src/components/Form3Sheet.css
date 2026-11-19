@@ -1,0 +1,353 @@
+/* SBFP Form 3: on-screen copy of the "SBFP FORM 3.xlsx" template. */
+.form3-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid #b7d6c4;
+  border-radius: 8px;
+  background: #f0f8f3;
+}
+.form3-toolbar .sbfp-download-button {
+  margin: 0;
+}
+/* Keep Download and Print together at the right end. */
+.form3-toolbar .sbfp-download-button:not(.sbfp-print-button) {
+  margin-left: auto;
+}
+.form3-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.form3-controls .form3-field {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  color: #0f5132;
+  font-size: 12px;
+  font-weight: 700;
+}
+.form3-field input,
+.form3-field select {
+  box-sizing: border-box;
+  width: 170px;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #86b99d;
+  border-radius: 6px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+}
+.form3-field input[type="number"] {
+  width: 110px;
+}
+.form3-field input:focus,
+.form3-field select:focus {
+  border-color: #0f5132;
+  outline: 2px solid rgba(15, 81, 50, 0.18);
+  outline-offset: 1px;
+}
+.form3-page {
+  margin-bottom: 28px;
+}
+.form3-page-tag {
+  margin: 0 0 8px;
+  color: #475569;
+  font-size: 13px;
+}
+.form3-page-tag b {
+  color: #0f5132;
+}
+.form3-paper {
+  box-sizing: border-box;
+  padding: 28px 32px 32px;
+  border: 1px solid #d5dbe1;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 6%), 0 8px 24px rgb(15 23 42 / 6%);
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.form3-paper p {
+  margin: 0;
+}
+.form3-label {
+  color: #374151;
+  font-size: 11px;
+  font-style: italic;
+}
+.form3-heading {
+  display: grid;
+  grid-template-columns: 90px 1fr 90px;
+  align-items: center;
+  gap: 16px;
+  margin: 6px 0 18px;
+  line-height: 1.35;
+  text-align: center;
+}
+.form3-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+/* The OK sa DepEd artwork has wide white margins, so it needs a larger box. */
+.form3-logo-ok {
+  width: 90px;
+  height: 90px;
+  justify-self: end;
+}
+.form3-heading h3 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+}
+.form3-heading h4 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+.form3-heading p {
+  font-size: 13px;
+  font-weight: 700;
+}
+/* Same columns as .form3-table so the lines line up with it: the left group ends at
+   the NAME OF PUPILS edge, the right group spans template column J to week 3 day 3. */
+.form3-meta {
+  display: grid;
+  grid-template-columns: 30px 28% 52px repeat(20, minmax(0, 1fr));
+  gap: 6px 0;
+  min-width: 900px;
+  margin: 0 0 14px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.form3-meta > div:nth-child(odd) {
+  grid-column: 1 / 3;
+}
+.form3-meta > div:nth-child(even) {
+  grid-column: 10 / 17;
+}
+.form3-meta div {
+  display: flex;
+  gap: 6px;
+}
+.form3-meta dt {
+  flex: none;
+  font-weight: 700;
+}
+.form3-meta dd {
+  flex: 1;
+  margin: 0;
+  border-bottom: 1px solid #9ca3af;
+}
+.form3-scroll {
+  overflow-x: auto;
+}
+.form3-table {
+  width: 100%;
+  min-width: 900px;
+  border: 2px solid #000;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.form3-col-no {
+  width: 30px;
+}
+.form3-col-name {
+  width: 28%;
+}
+.form3-col-sex {
+  width: 52px;
+}
+.form3-table th,
+.form3-table td {
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid #6b7280;
+  font-size: 10px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.form3-table thead th {
+  border-color: #000;
+  background: #f3f4f6;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.form3-table thead tr:last-child th,
+.form3-table thead th[rowspan] {
+  border-bottom: 2px solid #000;
+  font-weight: 600;
+}
+.form3-table td {
+  text-align: left;
+}
+.form3-table td.form3-no {
+  border-right-color: #d1d5db;
+  color: #374151;
+  text-align: right;
+}
+/* Sex column: 3rd cell in learner rows, 2nd in section rows (the label spans 2).
+   Its left and right lines are the same thick black. */
+.form3-table thead tr:first-child th:nth-child(2),
+.form3-table tbody tr:not(.form3-section) td:nth-child(3),
+.form3-table .form3-section td:nth-child(2) {
+  border-left: 2px solid #000;
+}
+.form3-table thead tr:first-child th:nth-child(2),
+.form3-table tbody tr:not(.form3-section) td:nth-child(3),
+.form3-table .form3-section td:nth-child(2),
+.form3-table .form3-week-end {
+  border-right: 2px solid #000;
+}
+.form3-section td {
+  background: #eef6f1;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.form3-table td.form3-sex {
+  font-weight: 700;
+  text-align: center;
+}
+.form3-table tbody tr:not(.form3-section):hover td {
+  background: #f8fafc;
+}
+.form3-footer {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr) minmax(260px, 1.6fr);
+  gap: 32px;
+  margin-top: 22px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.form3-signatures {
+  display: flex;
+  gap: 48px;
+}
+.form3-signatures > div {
+  min-width: 200px;
+}
+.form3-signer {
+  margin-top: 22px !important;
+  white-space: nowrap;
+  border-bottom: 1px solid #000;
+  font-weight: 700;
+}
+.form3-legend-title {
+  font-weight: 700;
+}
+.form3-signatories {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form3-signatories fieldset {
+  margin: 0;
+  padding: 10px 14px 4px;
+  border: 1px solid #d5dbe1;
+  border-radius: 8px;
+}
+.form3-signatories legend {
+  padding: 0 6px;
+  color: #0f5132;
+  font-weight: 700;
+}
+.sbfp-signatories-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media print {
+  .form3-page {
+    margin: 0;
+    break-after: page;
+  }
+  .form3-page:last-child {
+    break-after: auto;
+  }
+  .form3-paper {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .form3-scroll {
+    overflow: visible;
+  }
+  .form3-table,
+  .form3-meta {
+    min-width: 0;
+  }
+  /* Compact print sizes so 35 learner rows fit one landscape Folio page. */
+  .form3-table th,
+  .form3-table td {
+    height: 13px;
+    line-height: 12px;
+    padding: 0 4px;
+  }
+  .form3-heading {
+    grid-template-columns: 60px 1fr 60px;
+    margin: 2px 0 6px;
+    line-height: 1.2;
+  }
+  .form3-logo,
+  .form3-logo-ok {
+    width: 52px;
+    height: 52px;
+  }
+  .form3-heading h3 {
+    font-size: 14px;
+  }
+  .form3-heading h4,
+  .form3-heading p {
+    font-size: 12px;
+  }
+  .form3-meta {
+    gap: 2px 0;
+    margin-bottom: 6px;
+  }
+  .form3-footer {
+    margin-top: 8px;
+    line-height: 1.3;
+  }
+  .form3-signer {
+    margin-top: 12px !important;
+  }
+  .form3-table tr,
+  .form3-footer {
+    break-inside: avoid;
+  }
+  .form3-table tbody tr:not(.form3-section):hover td {
+    background: transparent;
+  }
+  /* Pure black, no tints: inkjets mix gray and pale fills from color inks,
+     which prints as green-looking lines. */
+  .form3-table th,
+  .form3-table td,
+  .form3-table td.form3-no,
+  .form3-meta dd,
+  .form3-signer {
+    border-color: #000 !important;
+  }
+  .form3-table thead th,
+  .form3-section td {
+    background: #fff !important;
+  }
+  .form3-paper,
+  .form3-label,
+  .form3-table td.form3-no {
+    color: #000;
+  }
+}

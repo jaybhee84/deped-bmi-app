@@ -37,7 +37,7 @@
 .nsr-tally-table { width: 100%; border-collapse: collapse; }
 .nsr-tally-table { font-size: min(10pt, 1.78cqi); }
 .nsr-tally-table * { font-size: inherit; }
-.nsr-tally-table th, .nsr-tally-table td { border: 1px solid #999; padding: 1pt 3pt; line-height: 1.05; text-align: center; color: #000; }
+.nsr-tally-table th, .nsr-tally-table td { border: 1px solid #000; padding: 1pt 3pt; line-height: 1.05; text-align: center; color: #000; }
 .nsr-tally-table th { background: #f2ede9; font-weight: 700; color: #3a2f2f; }
 .nsr-tally-table tr { break-inside: avoid; }
 
@@ -50,7 +50,7 @@
 .nsr-signature { max-width: 260px; margin: 12pt 0 4px auto; text-align: center; color: #111827; break-inside: avoid; }
 /* One blank line (~12pt) more between "Prepared by:" and the signature line. */
 .nsr-signature-label { display: block; text-align: left; margin-bottom: 26pt; }
-.nsr-signature-line { border-top: 1px solid #333; margin-bottom: 4px; }
+.nsr-signature-line { border-top: 1px solid #000; margin-bottom: 4px; }
 .nsr-signature-name { display: block; font-weight: 800; letter-spacing: .02em; }
 .nsr-signature-title { display: block; color: #374151; }
 .nsr-signature-name-wrap { position: relative; }
