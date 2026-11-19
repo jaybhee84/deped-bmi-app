@@ -12,10 +12,14 @@ export function countPortalEnrolments(students, schoolYear, schoolId) {
   if (!targetYear) return 0;
 
   return (students || []).filter((student) => {
-    if (schoolId != null && String(student?.schoolId || student?.school_id || "") !== String(schoolId)) return false;
+    // Same rule as belongsToSchool: a learner without a school ID belongs to the loaded school.
+    const ownSchool = student?.schoolId || student?.school_id;
+    if (schoolId && ownSchool && String(ownSchool) !== String(schoolId)) return false;
     const enrolledYear =
       student?.schoolYear || student?.school_year || student?.enrolmentSy;
-    return normalizeSchoolYear(enrolledYear) === targetYear;
+    if (normalizeSchoolYear(enrolledYear) === targetYear) return true;
+    // Most learners carry no enrolment year; count them for a year they were measured in, like the Dashboard.
+    return (student?.records || []).some((r) => normalizeSchoolYear(r?.sy) === targetYear);
   }).length;
 }
 

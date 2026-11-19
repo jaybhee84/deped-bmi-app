@@ -66,8 +66,8 @@ export default function Information({
   const localEnrolment = useMemo(() => countPortalEnrolments(
     students, schoolYear, currentUser?.school_id || "",
   ), [students, currentUser?.school_id, schoolYear]);
-  // A cloud 0 (unsynced records, or none visible to this account) must not hide local learners.
-  const totalLearnersEnrolled = cloudEnrolment || localEnrolment;
+  // The cloud only counts learners tagged with this year, so it must never hide the larger local count.
+  const totalLearnersEnrolled = Math.max(cloudEnrolment || 0, localEnrolment);
 
   useEffect(() => {
     let cancelled = false;

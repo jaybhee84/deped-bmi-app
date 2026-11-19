@@ -25,6 +25,16 @@ test('information enrolment excludes other schools, other years, and unassigned 
   assert.equal(countPortalEnrolments(rows, '2026-2027', '126002'), 1);
 });
 
+test('information enrolment counts learners measured in the year, like the Dashboard', () => {
+  const rows = [
+    { schoolId: '126001', records: [{ sy: '2026–2027', q: 'Baseline' }] },
+    { records: [{ sy: '2026-2027' }] },
+    { schoolId: '126001', records: [{ sy: '2025-2026' }] },
+    { schoolId: '126002', records: [{ sy: '2026-2027' }] },
+  ];
+  assert.equal(countPortalEnrolments(rows, '2026-2027', '126001'), 2);
+});
+
 test('exclusive mode stops the old reconciliation job before it can copy any data', async () => {
   const values = new Map([['IECES_EXCLUSIVE_DATA', 'true'], ['MIRROR_WEBHOOK_SECRET', 'secret']]);
   const handler = createSyncHandler(values, () => { throw new Error('Must not contact either database'); });
